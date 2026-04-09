@@ -1,0 +1,29 @@
+# Dependencies
+**/node_modules/
+
+# Web build output (rebuild with npm run build)
+web/dist/
+
+# Local env (secrets, machine-specific sync URL)
+.env
+.env.local
+.env.*.local
+web/.env.local
+web/.env.production.local
+
+# Sync server runtime data
+server/data/
+
+# OS / editor
+.DS_Store
+.idea
+.vscode/*
+!.vscode/extensions.json
+
+# Logs / caches
+*.log
+npm-debug.log*
+web/node_modules/.tmp/
+
+# Office temp lock files
+~$*

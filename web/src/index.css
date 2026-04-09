@@ -1,0 +1,16 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans:
+    'Source Sans 3', 'Segoe UI', ui-sans-serif, system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+  min-height: 100svh;
+  @apply bg-slate-50 font-sans text-slate-800 antialiased;
+}
+
+#root {
+  min-height: 100svh;
+}

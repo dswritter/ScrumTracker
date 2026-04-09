@@ -1,0 +1,81 @@
+export type SprintId = string
+
+export interface Sprint {
+  id: SprintId
+  name: string
+  /** YYYY-MM-DD */
+  start: string
+  /** YYYY-MM-DD */
+  end: string
+  emoji?: string
+}
+
+export type WorkStatus =
+  | 'done'
+  | 'in_progress'
+  | 'to_test'
+  | 'to_track'
+  | 'blocked'
+  | 'todo'
+
+/** Append-only thread; older entries are not edited or deleted in the UI. */
+export interface WorkComment {
+  id: string
+  authorName: string
+  body: string
+  /** ISO timestamp */
+  createdAt: string
+}
+
+export interface WorkItem {
+  id: string
+  section: string
+  component: string
+  title: string
+  eta: string
+  assignees: string[]
+  status: WorkStatus
+  sprintIds: SprintId[]
+  jiraKeys: string[]
+  comments: WorkComment[]
+  /** Legacy field; migrated into `comments` on load. */
+  notes?: string
+}
+
+export type UserRole = 'admin' | 'member'
+
+export interface TrackerTeam {
+  id: string
+  name: string
+}
+
+export interface TrackerTeamData {
+  sprints: Sprint[]
+  workItems: WorkItem[]
+  /** Roster for assignees; kept in sync when login accounts are added/removed. */
+  teamMembers: string[]
+  jiraBaseUrl: string
+}
+
+/**
+ * Client-side demo: passwords stored in plain text. Use a real backend for production.
+ * New members receive an auto-generated master password and must set their own on first login.
+ */
+export interface TrackerUserAccount {
+  id: string
+  teamId: string
+  username: string
+  displayName: string
+  role: UserRole
+  password: string
+  mustChangePassword: boolean
+}
+
+export const TRACKER_SCHEMA_VERSION = 3 as const
+
+export interface TrackerSnapshot {
+  version: typeof TRACKER_SCHEMA_VERSION
+  teams: TrackerTeam[]
+  teamsData: Record<string, TrackerTeamData>
+  users: TrackerUserAccount[]
+}
