@@ -35,6 +35,7 @@ import {
 } from '../lib/passwords'
 import { generateId } from '../lib/ids'
 import { normalizeLoginUsername } from '../lib/username'
+import { mergeBundledSlackDefaults } from '../data/defaultSlackDmUrls'
 
 /** Must match `persist.name` (localStorage key for cross-tab sync). */
 export const TRACKER_PERSIST_KEY = 'scrum-tracker-v2'
@@ -194,6 +195,26 @@ function normalizeTeamData(raw: unknown): TrackerTeamData {
       typeof o.jiraSyncJql === 'string' ? o.jiraSyncJql : undefined,
     jiraSprintFieldId:
       typeof o.jiraSprintFieldId === 'string' ? o.jiraSprintFieldId : undefined,
+    slackDmUrlByDisplayName:
+      o.slackDmUrlByDisplayName !== null &&
+      typeof o.slackDmUrlByDisplayName === 'object' &&
+      !Array.isArray(o.slackDmUrlByDisplayName)
+        ? Object.fromEntries(
+            Object.entries(o.slackDmUrlByDisplayName as Record<string, unknown>)
+              .filter(
+                ([k, v]) =>
+                  typeof k === 'string' &&
+                  k.trim() &&
+                  typeof v === 'string' &&
+                  v.trim(),
+              )
+              .map(([k, v]) => [k.trim(), (v as string).trim()]),
+          )
+        : undefined,
+    weeklyWikiPageUrl:
+      typeof o.weeklyWikiPageUrl === 'string' && o.weeklyWikiPageUrl.trim()
+        ? o.weeklyWikiPageUrl.trim()
+        : undefined,
   }
 }
 
@@ -281,6 +302,10 @@ export interface TrackerState {
   setJiraBaseUrl: (teamId: string, url: string) => void
   setJiraSyncJql: (teamId: string, jql: string) => void
   setJiraSprintFieldId: (teamId: string, fieldId: string) => void
+  setSlackDmUrl: (teamId: string, displayName: string, url: string) => void
+  removeSlackDmUrl: (teamId: string, displayName: string) => void
+  applyBundledSlackDmUrls: (teamId: string) => void
+  setWeeklyWikiPageUrl: (teamId: string, url: string) => void
   setTeamName: (teamId: string, name: string) => void
 
   addTeamMemberAccount: (
@@ -491,6 +516,60 @@ export const useTrackerStore = create<TrackerState>()(
         set((s) => ({
           teamsData: patchSlice(s, teamId, {
             jiraSprintFieldId: fieldId.trim() || undefined,
+          }),
+        })),
+
+      setSlackDmUrl: (teamId, displayName, url) =>
+        set((s) => {
+          const d = getSlice(s, teamId)
+          const key = displayName.trim()
+          const t = url.trim()
+          if (!key) return s
+          const next = { ...(d.slackDmUrlByDisplayName ?? {}) }
+          if (!t) {
+            delete next[key]
+          } else {
+            next[key] = t
+          }
+          return {
+            teamsData: patchSlice(s, teamId, {
+              slackDmUrlByDisplayName:
+                Object.keys(next).length > 0 ? next : undefined,
+            }),
+          }
+        }),
+
+      removeSlackDmUrl: (teamId, displayName) =>
+        set((s) => {
+          const d = getSlice(s, teamId)
+          const key = displayName.trim()
+          const prev = d.slackDmUrlByDisplayName ?? {}
+          if (!key || !prev[key]) return s
+          const next = { ...prev }
+          delete next[key]
+          return {
+            teamsData: patchSlice(s, teamId, {
+              slackDmUrlByDisplayName:
+                Object.keys(next).length > 0 ? next : undefined,
+            }),
+          }
+        }),
+
+      applyBundledSlackDmUrls: (teamId) =>
+        set((s) => {
+          const d = getSlice(s, teamId)
+          const merged = mergeBundledSlackDefaults(d.slackDmUrlByDisplayName)
+          return {
+            teamsData: patchSlice(s, teamId, {
+              slackDmUrlByDisplayName: merged,
+            }),
+          }
+        }),
+
+      setWeeklyWikiPageUrl: (teamId, url) =>
+        set((s) => ({
+          teamsData: patchSlice(s, teamId, {
+            weeklyWikiPageUrl: url.trim() || undefined,
           }),
         })),
 
@@ -812,12 +891,7 @@ export const useTrackerStore = create<TrackerState>()(
         set({
           teams: initialTeams,
           teamsData: {
-            [SEED_TEAM_ID]: {
-              sprints: [...SEED_SPRINTS],
-              workItems: [...SEED_ITEMS],
-              teamMembers: [...SEED_TEAM],
-              jiraBaseUrl: SEED_TEAM_PAYLOAD.jiraBaseUrl,
-            },
+            [SEED_TEAM_ID]: { ...SEED_TEAM_PAYLOAD },
           },
           users: [...SEED_USERS],
         }),

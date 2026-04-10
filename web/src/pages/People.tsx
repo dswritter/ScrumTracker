@@ -9,6 +9,7 @@ import {
   itemsForAssignee,
   personCompletionPercent,
 } from '../lib/stats'
+import { resolveSlackDmUrl } from '../lib/slackDm'
 
 export function People() {
   const ctx = useTeamContextNullable()
@@ -47,6 +48,10 @@ export function People() {
                   percent={pct}
                   itemCount={mine.length}
                   to={`/people/${encodeURIComponent(name)}`}
+                  slackUrl={resolveSlackDmUrl(
+                    name,
+                    ctx.slackDmUrlByDisplayName,
+                  )}
                 />
                 <ul className="mt-3 max-h-48 space-y-2 overflow-y-auto text-sm">
                   {mine.map((w) => (

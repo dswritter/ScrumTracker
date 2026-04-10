@@ -17,6 +17,7 @@ import {
   itemsForAssignee,
   personCompletionPercent,
 } from '../lib/stats'
+import { resolveSlackDmUrl } from '../lib/slackDm'
 
 export function PersonDetail() {
   const viewer = useCurrentUser()
@@ -68,6 +69,8 @@ export function PersonDetail() {
     return <Navigate to="/me" replace />
   }
 
+  const slackUrl = resolveSlackDmUrl(name, ctx.slackDmUrlByDisplayName)
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center gap-3">
@@ -88,9 +91,22 @@ export function PersonDetail() {
       </div>
 
       <div>
-        <h2 className="text-2xl font-bold tracking-tight text-slate-900">
-          {name}
-        </h2>
+        <div className="flex flex-wrap items-center gap-3">
+          <h2 className="text-2xl font-bold tracking-tight text-slate-900">
+            {name}
+          </h2>
+          {slackUrl ? (
+            <a
+              href={slackUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-purple-200 bg-purple-50 px-2.5 py-1 text-xs font-semibold text-[#4A154B] hover:bg-purple-100"
+            >
+              <i className="fa-brands fa-slack" aria-hidden />
+              Slack
+            </a>
+          ) : null}
+        </div>
         {!onRoster ? (
           <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
             <span className="font-semibold">Former teammate</span> — not on the

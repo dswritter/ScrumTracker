@@ -7,6 +7,10 @@ import type {
   WorkItem,
 } from '../types'
 import { DEMO_SEED_ADMIN_PASSWORD, seedPasswordFromKey } from '../lib/passwords'
+import {
+  DEFAULT_WEEKLY_WIKI_PAGE_URL,
+  mergeBundledSlackDefaults,
+} from './defaultSlackDmUrls'
 
 export const SEED_TEAM_ID = 'team-cng'
 
@@ -28,6 +32,7 @@ export const SEED_TEAM = [
   'Kuldeep Singh',
   'Milind Anand',
   'Sunil Kumar',
+  'Shubham Kumar',
 ] as const
 
 let _seedC = 0
@@ -286,6 +291,8 @@ export const SEED_TEAM_PAYLOAD: TrackerTeamData = {
   workItems: [...SEED_ITEMS],
   teamMembers: [...SEED_TEAM],
   jiraBaseUrl: 'https://jira.corp.adobe.com/browse/',
+  slackDmUrlByDisplayName: mergeBundledSlackDefaults({}),
+  weeklyWikiPageUrl: DEFAULT_WEEKLY_WIKI_PAGE_URL,
 }
 
 type SeedMember = {

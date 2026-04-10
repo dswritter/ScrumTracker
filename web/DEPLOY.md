@@ -56,6 +56,11 @@ Browsers use **hostnames**, not bare names without a port. To open the app as `h
 
 Team members open the site in **Edge/Chrome** on their own machines; they do not need Remote Desktop for daily use.
 
+## Slack DM links and weekly wiki (in-app)
+
+- **Slack:** Admins configure **Slack DM / archive URLs** per roster display name under **Settings → Slack DM links** (stored in the team snapshot). Optional env **`VITE_SLACK_ENTERPRISE_BASE`** restricts pasted URLs to your Enterprise host.
+- **Wiki:** Optional **weekly wiki page URL** per team; **Dashboard** (admins) has **Copy weekly wiki table** (Confluence wiki markup) and **Open wiki page**.
+
 ## Subpath deploy
 
 If the app will live at `https://server/scrum-tracker/`, set in `vite.config.ts`:

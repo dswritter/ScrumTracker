@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { useTeamContextNullable } from '../hooks/useTeamContext'
+import { resolveSlackDmUrl } from '../lib/slackDm'
 import { matrixCellTitles } from '../lib/stats'
 
 export function Matrix() {
@@ -50,7 +51,24 @@ export function Matrix() {
                 className="border-b border-slate-100 hover:bg-slate-50/80"
               >
                 <td className="sticky left-0 z-[1] bg-white px-3 py-2 font-semibold text-slate-800">
-                  {person}
+                  <span className="inline-flex items-center gap-2">
+                    {person}
+                    {resolveSlackDmUrl(person, ctx.slackDmUrlByDisplayName) ? (
+                      <a
+                        href={resolveSlackDmUrl(
+                          person,
+                          ctx.slackDmUrlByDisplayName,
+                        )}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex h-6 w-6 items-center justify-center rounded text-[#4A154B] hover:bg-purple-50"
+                        title="Slack"
+                        aria-label={`Slack: ${person}`}
+                      >
+                        <i className="fa-brands fa-slack text-sm" aria-hidden />
+                      </a>
+                    ) : null}
+                  </span>
                 </td>
                 {sortedSprints.map((sp) => {
                   const titles = matrixCellTitles(person, sp.id, workItems)

@@ -4,6 +4,8 @@ import { useCurrentUser } from '../hooks/useCurrentUser'
 import { useTeamContextNullable } from '../hooks/useTeamContext'
 import { getJiraTokenStatus, postJiraToken } from '../lib/jiraApi'
 import { runJiraSyncFromStore } from '../lib/runJiraSync'
+import { parseSlackDmUrlInput } from '../lib/slackDm'
+import { DEFAULT_WEEKLY_WIKI_PAGE_URL } from '../data/defaultSlackDmUrls'
 import { useTrackerStore } from '../store/useTrackerStore'
 
 export function Settings() {
@@ -24,6 +26,10 @@ export function Settings() {
   const setJiraBaseUrl = useTrackerStore((s) => s.setJiraBaseUrl)
   const setJiraSyncJql = useTrackerStore((s) => s.setJiraSyncJql)
   const setJiraSprintFieldId = useTrackerStore((s) => s.setJiraSprintFieldId)
+  const setSlackDmUrl = useTrackerStore((s) => s.setSlackDmUrl)
+  const removeSlackDmUrl = useTrackerStore((s) => s.removeSlackDmUrl)
+  const applyBundledSlackDmUrls = useTrackerStore((s) => s.applyBundledSlackDmUrls)
+  const setWeeklyWikiPageUrl = useTrackerStore((s) => s.setWeeklyWikiPageUrl)
 
   const jiraBaseUrl = ctx?.jiraBaseUrl ?? ''
   const jiraSyncJql = ctx?.jiraSyncJql ?? ''
@@ -83,12 +89,25 @@ export function Settings() {
   useEffect(() => {
     setNewTeamName(teamName)
   }, [teamName])
+
+  useEffect(() => {
+    setWikiDraftUrl(
+      ctx?.weeklyWikiPageUrl?.trim() || DEFAULT_WEEKLY_WIKI_PAGE_URL,
+    )
+  }, [ctx?.weeklyWikiPageUrl])
+
   const fileRef = useRef<HTMLInputElement>(null)
 
   const [uUsername, setUUsername] = useState('')
   const [uDisplay, setUDisplay] = useState('')
   const [uRole, setURole] = useState<TrackerUserAccount['role']>('member')
   const [userMsg, setUserMsg] = useState<string | null>(null)
+  const [integrationsMsg, setIntegrationsMsg] = useState<string | null>(null)
+  const [slackDraftName, setSlackDraftName] = useState('')
+  const [slackDraftUrl, setSlackDraftUrl] = useState('')
+  const [wikiDraftUrl, setWikiDraftUrl] = useState(
+    ctx?.weeklyWikiPageUrl ?? DEFAULT_WEEKLY_WIKI_PAGE_URL,
+  )
 
   const field =
     'w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm'
@@ -437,9 +456,167 @@ export function Settings() {
       </section>
 
       <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <h2 className="text-sm font-bold text-slate-900">Slack DM links</h2>
+        <p className="text-xs text-slate-600">
+          Map roster <strong>display names</strong> to Slack archive URLs (
+          <code className="rounded bg-slate-100 px-1">…/archives/D…</code>
+          ). Optional host override:{' '}
+          <code className="rounded bg-slate-100 px-1">VITE_SLACK_ENTERPRISE_BASE</code>
+          .
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-100"
+            onClick={() => {
+              applyBundledSlackDmUrls(teamId)
+              setIntegrationsMsg('Filled missing URLs from bundled defaults.')
+            }}
+          >
+            Apply bundled defaults (missing only)
+          </button>
+        </div>
+        <div className="overflow-x-auto rounded-lg border border-slate-200">
+          <table className="w-full min-w-[32rem] text-left text-xs">
+            <thead className="bg-slate-50 text-slate-700">
+              <tr>
+                <th className="px-3 py-2 font-bold">Display name</th>
+                <th className="px-3 py-2 font-bold">Slack URL</th>
+                <th className="px-3 py-2 font-bold"> </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {Array.from(
+                new Set([
+                  ...ctx.teamMembers,
+                  ...Object.keys(ctx.slackDmUrlByDisplayName ?? {}),
+                ]),
+              )
+                .sort((a, b) => a.localeCompare(b))
+                .map((name) => (
+                  <tr key={name}>
+                    <td className="px-3 py-2 font-medium text-slate-900">
+                      {name}
+                    </td>
+                    <td className="px-3 py-2">
+                      <input
+                        className={`${field} font-mono text-[11px]`}
+                        defaultValue={
+                          ctx.slackDmUrlByDisplayName?.[name] ?? ''
+                        }
+                        key={`${name}-${ctx.slackDmUrlByDisplayName?.[name] ?? ''}`}
+                        onBlur={(e) => {
+                          const raw = e.target.value.trim()
+                          if (!raw) {
+                            removeSlackDmUrl(teamId, name)
+                            return
+                          }
+                          const ok = parseSlackDmUrlInput(raw)
+                          if (!ok) {
+                            setIntegrationsMsg(
+                              `Invalid Slack URL for ${name} (use https://…/archives/D… on allowed host).`,
+                            )
+                            return
+                          }
+                          setSlackDmUrl(teamId, name, ok)
+                          setIntegrationsMsg(null)
+                        }}
+                      />
+                    </td>
+                    <td className="px-3 py-2">
+                      <button
+                        type="button"
+                        className="text-rose-700 hover:underline"
+                        onClick={() => removeSlackDmUrl(teamId, name)}
+                      >
+                        Clear
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="flex flex-wrap items-end gap-2 border-t border-slate-100 pt-3">
+          <div className="min-w-[10rem] flex-1">
+            <label className="text-[10px] font-semibold text-slate-600">
+              Add / other name
+            </label>
+            <input
+              className={field}
+              value={slackDraftName}
+              onChange={(e) => setSlackDraftName(e.target.value)}
+              placeholder="Display name"
+            />
+          </div>
+          <div className="min-w-[12rem] flex-[2]">
+            <label className="text-[10px] font-semibold text-slate-600">
+              URL
+            </label>
+            <input
+              className={`${field} font-mono text-[11px]`}
+              value={slackDraftUrl}
+              onChange={(e) => setSlackDraftUrl(e.target.value)}
+              placeholder="https://adobe.enterprise.slack.com/archives/D…"
+            />
+          </div>
+          <button
+            type="button"
+            className="rounded-lg bg-slate-800 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-900"
+            onClick={() => {
+              const ok = parseSlackDmUrlInput(slackDraftUrl)
+              if (!slackDraftName.trim()) {
+                setIntegrationsMsg('Enter a display name.')
+                return
+              }
+              if (!ok) {
+                setIntegrationsMsg('Invalid Slack URL.')
+                return
+              }
+              setSlackDmUrl(teamId, slackDraftName.trim(), ok)
+              setSlackDraftName('')
+              setSlackDraftUrl('')
+              setIntegrationsMsg('Saved.')
+            }}
+          >
+            Save row
+          </button>
+        </div>
+        {integrationsMsg ? (
+          <p className="text-xs font-medium text-slate-700">{integrationsMsg}</p>
+        ) : null}
+
+        <h3 className="pt-4 text-xs font-bold text-slate-900">
+          Weekly wiki page
+        </h3>
+        <p className="text-xs text-slate-600">
+          Used by the Dashboard “Copy weekly wiki” action (opens this page to
+          paste).
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <input
+            className={`max-w-xl flex-1 ${field} font-mono text-xs`}
+            value={wikiDraftUrl}
+            onChange={(e) => setWikiDraftUrl(e.target.value)}
+          />
+          <button
+            type="button"
+            className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-100"
+            onClick={() => {
+              setWeeklyWikiPageUrl(teamId, wikiDraftUrl)
+              setIntegrationsMsg('Wiki page URL saved.')
+            }}
+          >
+            Save wiki URL
+          </button>
+        </div>
+      </section>
+
+      <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <p className="text-xs text-slate-600">
           Export is a <strong>full snapshot</strong> (schema v3): every team, each
-          team&apos;s sprints, work items, roster, JIRA base URL, and all user
+          team&apos;s sprints, work items, roster, Slack DM map, wiki URL, JIRA
+          base URL, and all user
           accounts with passwords and flags. Import replaces the entire local
           database with the file contents so everything round-trips.
         </p>

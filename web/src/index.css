@@ -3,6 +3,8 @@
 @theme {
   --font-sans:
     'Source Sans 3', 'Segoe UI', ui-sans-serif, system-ui, sans-serif;
+  --color-brand-green: #00b050;
+  --color-brand-green-dark: #007a3d;
 }
 
 body {

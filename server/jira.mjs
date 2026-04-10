@@ -132,12 +132,80 @@ function mergeSprintIds(existingSprintIds, jiraSprintIds, syncSprints) {
   return merged
 }
 
+/**
+ * Jira Software "Sprint" shape differs by version: full objects, or bare numeric ids
+ * (e.g. [212006, 213503]) which our older code skipped because there is no `.id`.
+ */
+function normalizeJiraSprintRows(jiraSprintObjs) {
+  const list = Array.isArray(jiraSprintObjs) ? jiraSprintObjs : []
+  const out = []
+  for (const js of list) {
+    if (js == null) continue
+    if (typeof js === 'number' && Number.isFinite(js)) {
+      out.push({ id: js, name: `Jira sprint ${js}` })
+      continue
+    }
+    if (typeof js === 'string') {
+      const t = js.trim()
+      if (/^\d+$/.test(t)) {
+        out.push({ id: t, name: `Jira sprint ${t}` })
+        continue
+      }
+      try {
+        const parsed = JSON.parse(t)
+        const inner = Array.isArray(parsed)
+          ? parsed
+          : parsed && typeof parsed === 'object'
+            ? [parsed]
+            : []
+        for (const x of inner) {
+          if (typeof x === 'number' && Number.isFinite(x)) {
+            out.push({ id: x, name: `Jira sprint ${x}` })
+          } else if (
+            x &&
+            typeof x === 'object' &&
+            (typeof x.id === 'number' || typeof x.id === 'string')
+          ) {
+            out.push(x)
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+      continue
+    }
+    if (typeof js === 'object') {
+      if (typeof js.id === 'number' || typeof js.id === 'string') {
+        out.push(js)
+        continue
+      }
+      if (js.value != null) {
+        const v = js.value
+        if (typeof v === 'number' && Number.isFinite(v)) {
+          out.push({
+            id: v,
+            name: typeof js.name === 'string' ? js.name : `Jira sprint ${v}`,
+          })
+          continue
+        }
+        if (typeof v === 'string' && /^\d+$/.test(v.trim())) {
+          const vid = v.trim()
+          out.push({
+            id: vid,
+            name: typeof js.name === 'string' ? js.name : `Jira sprint ${vid}`,
+          })
+        }
+      }
+    }
+  }
+  return out
+}
+
 function upsertSprintsFromJiraObjects(sprints, jiraSprintObjs) {
   const sprintIds = []
   let out = Array.isArray(sprints) ? [...sprints] : []
-  const list = Array.isArray(jiraSprintObjs) ? jiraSprintObjs : []
-  for (const js of list) {
-    if (!js || (typeof js.id !== 'number' && typeof js.id !== 'string')) continue
+  const rows = normalizeJiraSprintRows(jiraSprintObjs)
+  for (const js of rows) {
     const sid = `jira-sprint-${js.id}`
     sprintIds.push(sid)
     const name =
@@ -162,9 +230,12 @@ function extractJiraSprintFieldValue(issue, sprintFieldId) {
   if (!sprintFieldId || !issue?.fields) return null
   const raw = issue.fields[sprintFieldId]
   if (raw == null) return null
+  if (typeof raw === 'number' && Number.isFinite(raw)) return [raw]
   if (Array.isArray(raw)) return raw
   if (typeof raw === 'object') return [raw]
   if (typeof raw === 'string') {
+    const t = raw.trim()
+    if (/^\d+$/.test(t)) return [t]
     try {
       const parsed = JSON.parse(raw)
       if (Array.isArray(parsed)) return parsed

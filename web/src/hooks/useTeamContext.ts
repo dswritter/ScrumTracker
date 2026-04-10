@@ -8,6 +8,8 @@ const empty: TrackerTeamData = {
   workItems: [],
   teamMembers: [],
   jiraBaseUrl: '',
+  slackDmUrlByDisplayName: undefined,
+  weeklyWikiPageUrl: undefined,
 }
 
 export type TeamContext = {
@@ -38,6 +40,8 @@ export function useTeamContextNullable(): TeamContext | null {
       jiraBaseUrl: d.jiraBaseUrl,
       jiraSyncJql: d.jiraSyncJql,
       jiraSprintFieldId: d.jiraSprintFieldId,
+      slackDmUrlByDisplayName: d.slackDmUrlByDisplayName,
+      weeklyWikiPageUrl: d.weeklyWikiPageUrl,
     }
     }, [user, teams, slice])
 }

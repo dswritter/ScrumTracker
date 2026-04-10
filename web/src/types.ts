@@ -62,6 +62,10 @@ export interface TrackerTeamData {
    * Jira sprints onto tracker sprints and work item sprint membership.
    */
   jiraSprintFieldId?: string
+  /** Display name → Slack DM/archive URL (admin-managed). */
+  slackDmUrlByDisplayName?: Record<string, string>
+  /** Confluence page to open when pasting weekly wiki snippet. */
+  weeklyWikiPageUrl?: string
 }
 
 /**

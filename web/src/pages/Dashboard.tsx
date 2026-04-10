@@ -1,5 +1,10 @@
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import {
+  MetabuildAssigneeBars,
+  MetabuildSectionBars,
+  MetabuildStatusPie,
+} from '../components/MetabuildCharts'
 import { PersonProgressBar } from '../components/PersonProgressBar'
 import { WorkItemTitleLink } from '../components/WorkItemTitleLink'
 import { StatCard } from '../components/StatCard'
@@ -23,10 +28,27 @@ import {
   itemsForAssignee,
   personCompletionPercent,
 } from '../lib/stats'
+import { DEFAULT_WEEKLY_WIKI_PAGE_URL } from '../data/defaultSlackDmUrls'
+import { resolveSlackDmUrl } from '../lib/slackDm'
 import { getCurrentSprint, sprintDayProgress } from '../lib/sdates'
+import type { WorkItem } from '../types'
+import {
+  buildWeeklyWikiTable,
+  getLocalWeekRangeContaining,
+} from '../lib/weeklyWikiExport'
+
+function latestCommentPreview(w: WorkItem): string {
+  if (!w.comments.length) return '—'
+  const sorted = [...w.comments].sort((a, b) =>
+    b.createdAt.localeCompare(a.createdAt),
+  )
+  const t = sorted[0].body.replace(/\s+/g, ' ').trim()
+  return t.length > 120 ? `${t.slice(0, 119)}…` : t
+}
 export function Dashboard() {
   const ctx = useTeamContextNullable()
   const user = ctx?.user
+  const [wikiToast, setWikiToast] = useState<string | null>(null)
 
   const sortedSprints = useMemo(() => {
     if (!ctx?.sprints?.length) return []
@@ -126,6 +148,33 @@ export function Dashboard() {
     counts.in_progress + counts.to_test + counts.to_track
   const blockedTodoCount = counts.blocked + counts.todo
 
+  const pieData = useMemo(
+    () =>
+      [
+        { name: 'Done', value: done, fill: '#00B050' },
+        { name: 'In progress', value: inProgressCount, fill: '#3DCC7A' },
+        { name: 'Todo / blocked', value: blockedTodoCount, fill: '#B8E6CC' },
+      ].filter((r) => r.value > 0),
+    [done, inProgressCount, blockedTodoCount],
+  )
+
+  const sectionBarRows = useMemo(() => {
+    const m = new Map<string, { total: number; done: number }>()
+    for (const w of filteredItems) {
+      const key = w.section.trim() || 'General'
+      const cur = m.get(key) ?? { total: 0, done: 0 }
+      cur.total++
+      if (w.status === 'done') cur.done++
+      m.set(key, cur)
+    }
+    return [...m.entries()]
+      .map(([name, { total, done: doneC }]) => ({
+        name: name.length > 16 ? `${name.slice(0, 15)}…` : name,
+        pct: total ? Math.round((doneC / total) * 1000) / 10 : 0,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }, [filteredItems])
+
   const sprintProgress = selectedSprint
     ? sprintDayProgress(selectedSprint)
     : null
@@ -138,6 +187,23 @@ export function Dashboard() {
     if (!user || isAdmin(user)) return base
     return base.filter((n) => n === user.displayName)
   }, [ctx, user])
+
+  const assigneeBarRows = useMemo(
+    () =>
+      roster.map((name) => {
+        const first = name.split(/\s+/)[0] ?? name
+        return {
+          shortName: first.length > 12 ? `${first.slice(0, 11)}…` : first,
+          pct: personCompletionPercent(name, filteredItems),
+        }
+      }),
+    [roster, filteredItems],
+  )
+
+  const tableItems = useMemo(
+    () => [...filteredItems].sort((a, b) => a.title.localeCompare(b.title)),
+    [filteredItems],
+  )
 
   const monthOpts = useMemo(
     () => monthOptionsFromSprints(sortedSprints),
@@ -159,8 +225,54 @@ export function Dashboard() {
 
   if (!user || !ctx) return null
 
+  const wikiPageUrl =
+    ctx.weeklyWikiPageUrl?.trim() || DEFAULT_WEEKLY_WIKI_PAGE_URL
+
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
+      {isAdmin(user) ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[#00B050]/30 bg-white px-3 py-2 shadow-sm">
+          <span className="text-xs font-semibold text-[#007a3d]">
+            Weekly wiki
+          </span>
+          <button
+            type="button"
+            className="rounded-lg bg-[#00B050] px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-[#009948]"
+            onClick={async () => {
+              const week = getLocalWeekRangeContaining()
+              const rosterSorted = [...ctx.teamMembers].sort((a, b) =>
+                a.localeCompare(b),
+              )
+              const text = buildWeeklyWikiTable({
+                week,
+                roster: rosterSorted,
+                workItems: ctx.workItems,
+              })
+              try {
+                await navigator.clipboard.writeText(text)
+                setWikiToast(`Copied table for ${week.label}`)
+                window.setTimeout(() => setWikiToast(null), 3500)
+              } catch {
+                setWikiToast('Could not copy to clipboard')
+              }
+            }}
+          >
+            Copy weekly wiki table
+          </button>
+          <a
+            href={wikiPageUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-100"
+          >
+            Open wiki page
+          </a>
+          {wikiToast ? (
+            <span className="text-xs font-medium text-emerald-800">{wikiToast}</span>
+          ) : null}
+        </div>
+      ) : null}
+
       {!isAdmin(user) ? (
         <p className="text-sm text-slate-600">
           Showing your assignments for the selected scope above.
@@ -169,8 +281,8 @@ export function Dashboard() {
 
       {sortedSprints.length > 0 ? (
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex flex-wrap items-center gap-2 gap-y-2 border-b border-slate-100 px-3 py-2">
-            <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+          <div className="flex flex-wrap items-center gap-2 gap-y-2 border-b border-[#00B050]/25 bg-[#00B050]/10 px-3 py-2">
+            <span className="text-[10px] font-bold uppercase tracking-wide text-[#007a3d]">
               Scope
             </span>
             <button
@@ -233,7 +345,7 @@ export function Dashboard() {
               </span>
               {selectedSprint && sprintProgress ? (
                 <span className="text-[10px] tabular-nums text-slate-500">
-                  <span className="font-bold text-teal-700">
+                  <span className="font-bold text-[#007a3d]">
                     {Math.round(frac * 100)}%
                   </span>
                   <span>
@@ -255,7 +367,7 @@ export function Dashboard() {
                 aria-label="Sprint calendar time elapsed"
               >
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-teal-500 to-teal-600 transition-[width] duration-300 ease-out"
+                  className="h-full rounded-full bg-gradient-to-r from-[#00B050] to-[#009948] transition-[width] duration-300 ease-out"
                   style={{ width: `${Math.round(frac * 100)}%` }}
                 />
               </div>
@@ -267,6 +379,27 @@ export function Dashboard() {
           Sprints will appear here once seeded or imported.
         </p>
       )}
+
+      <div className="grid gap-3 lg:grid-cols-3">
+        <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+          <h3 className="mb-1 text-center text-xs font-bold uppercase tracking-wide text-[#007a3d]">
+            Total progress
+          </h3>
+          <MetabuildStatusPie data={pieData} />
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+          <h3 className="mb-1 text-center text-xs font-bold uppercase tracking-wide text-[#007a3d]">
+            Section (done %)
+          </h3>
+          <MetabuildSectionBars rows={sectionBarRows} />
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+          <h3 className="mb-1 text-center text-xs font-bold uppercase tracking-wide text-[#007a3d]">
+            Contribution
+          </h3>
+          <MetabuildAssigneeBars rows={assigneeBarRows} />
+        </div>
+      </div>
 
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
@@ -294,6 +427,94 @@ export function Dashboard() {
         />
       </div>
 
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-[#00B050]/30 bg-[#00B050] px-3 py-2">
+          <h3 className="text-sm font-bold text-white">
+            Work items · {scopeShortLabel(scope, sortedSprints)}
+          </h3>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[56rem] border-collapse text-left text-xs">
+            <thead>
+              <tr className="border-b border-slate-200 bg-[#00B050]/12">
+                <th className="px-3 py-2 font-bold text-[#0d5c2e]">Title</th>
+                <th className="px-3 py-2 font-bold text-[#0d5c2e]">Section</th>
+                <th className="px-3 py-2 font-bold text-[#0d5c2e]">Assignees</th>
+                <th className="px-3 py-2 font-bold text-[#0d5c2e]">Status</th>
+                <th className="px-3 py-2 font-bold text-[#0d5c2e]">Jira</th>
+                <th className="min-w-[12rem] px-3 py-2 font-bold text-[#0d5c2e]">
+                  Latest comment
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {tableItems.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={6}
+                    className="px-3 py-6 text-center text-slate-500"
+                  >
+                    No items in this scope.
+                  </td>
+                </tr>
+              ) : (
+                tableItems.map((w) => {
+                  const jiraBase = ctx.jiraBaseUrl.trim().replace(/\/$/, '')
+                  return (
+                    <tr key={w.id} className="hover:bg-slate-50/80">
+                      <td className="max-w-[14rem] px-3 py-2 align-top">
+                        <WorkItemTitleLink
+                          item={w}
+                          showCommentHover={false}
+                          className="font-medium text-[#0052CC] hover:underline"
+                        />
+                      </td>
+                      <td className="px-3 py-2 align-top text-slate-700">
+                        {w.section || '—'}
+                      </td>
+                      <td className="px-3 py-2 align-top text-slate-700">
+                        {w.assignees.length ? w.assignees.join(', ') : '—'}
+                      </td>
+                      <td
+                        className={`px-3 py-2 align-top ${
+                          w.status === 'done'
+                            ? 'bg-[#00B050]/20 font-semibold text-slate-900'
+                            : 'text-slate-800'
+                        }`}
+                      >
+                        <StatusBadge status={w.status} />
+                      </td>
+                      <td className="px-3 py-2 align-top">
+                        {w.jiraKeys.length && jiraBase ? (
+                          <div className="flex flex-wrap gap-1">
+                            {w.jiraKeys.map((k) => (
+                              <a
+                                key={k}
+                                href={`${jiraBase}/${k}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="font-mono text-[11px] text-[#0052CC] hover:underline"
+                              >
+                                {k}
+                              </a>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </td>
+                      <td className="max-w-[20rem] px-3 py-2 align-top text-slate-600">
+                        {latestCommentPreview(w)}
+                      </td>
+                    </tr>
+                  )
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <div>
         <div className="grid gap-3 sm:grid-cols-2">
           {roster.map((name) => {
@@ -310,6 +531,10 @@ export function Dashboard() {
                   percent={pct}
                   itemCount={mine.length}
                   to={personHref}
+                  slackUrl={resolveSlackDmUrl(
+                    name,
+                    ctx.slackDmUrlByDisplayName,
+                  )}
                 />
                 <ul className="mt-3 max-h-48 space-y-2 overflow-y-auto text-sm">
                   {mine.map((w) => (
