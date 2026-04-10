@@ -36,8 +36,11 @@ export function MetabuildStatusPie({ data }: { data: PieDatum[] }) {
           innerRadius={48}
           outerRadius={72}
           paddingAngle={2}
-          label={({ name, percent }) =>
-            `${name} ${((percent ?? 0) * 100).toFixed(0)}%`
+          label={(props: {
+            name?: string
+            percent?: number
+          }) =>
+            `${props.name ?? ''} ${((props.percent ?? 0) * 100).toFixed(0)}%`
           }
         >
           {data.map((entry) => (

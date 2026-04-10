@@ -12,9 +12,6 @@ import type {
 } from '../types'
 import { TRACKER_SCHEMA_VERSION } from '../types'
 import {
-  SEED_ITEMS,
-  SEED_SPRINTS,
-  SEED_TEAM,
   SEED_TEAM_ID,
   SEED_TEAM_META,
   SEED_TEAM_PAYLOAD,

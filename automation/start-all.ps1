@@ -31,9 +31,18 @@ $envPath = "D:\ScrumTracker\web\.env.production"
 
 Write-Host "✅ Updated .env.production"
 
-# Step 5: Build frontend
+# Step 5: Install deps (picks up package.json changes, e.g. recharts) then build
 Set-Location "D:\ScrumTracker\web"
+npm install
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "npm install failed"
+    exit $LASTEXITCODE
+}
 npm run build
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "npm run build failed"
+    exit $LASTEXITCODE
+}
 
 # Step 6: Start frontend (hidden)
 Start-Process "cmd.exe" -ArgumentList "/c cd D:\ScrumTracker\web && npm run preview -- --host" -WindowStyle Hidden
