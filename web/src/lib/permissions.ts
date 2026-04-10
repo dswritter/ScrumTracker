@@ -36,6 +36,11 @@ export function canAddComment(
   return canEditWorkItem(user, item)
 }
 
+/** Remove a single comment (admin only). */
+export function canDeleteComment(user: TrackerUserAccount | null): boolean {
+  return isAdmin(user)
+}
+
 export function canChangeAssignees(user: TrackerUserAccount | null): boolean {
   return isAdmin(user)
 }

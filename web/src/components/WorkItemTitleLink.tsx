@@ -8,7 +8,7 @@ import type { WorkItem } from '../types'
 const HOVER_HIDE_MS = 120
 
 /**
- * Title link to the item detail page. Optional hover panel with comments (newest first),
+ * Title link to the item detail page. Optional hover panel with recent comments,
  * intended for admin views (Dashboard / People / profiles). Uses a fixed-position portal
  * so comments are not clipped by parent scroll areas.
  */
@@ -99,9 +99,6 @@ export function WorkItemTitleLink({
           <p className="text-[11px] text-slate-500">No comments yet.</p>
         ) : (
           <>
-            <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">
-              Comments (newest first)
-            </p>
             <ul className="max-h-48 space-y-2 overflow-y-auto text-[11px] text-slate-800">
               {sortedComments.map((c) => (
                 <li

@@ -13,6 +13,7 @@ import {
   canDeleteWorkItem,
   canEditWorkItem,
   canAddComment,
+  canDeleteComment,
   isAdmin,
 } from '../lib/permissions'
 import {
@@ -46,11 +47,13 @@ function Row({
   const updateWorkItem = useTrackerStore((s) => s.updateWorkItem)
   const deleteWorkItem = useTrackerStore((s) => s.deleteWorkItem)
   const addComment = useTrackerStore((s) => s.addComment)
+  const deleteComment = useTrackerStore((s) => s.deleteComment)
 
   const canEdit = canEditWorkItem(user, item)
   const canDel = canDeleteWorkItem(user)
   const assigneeAdmin = canChangeAssignees(user)
   const canComment = canAddComment(user, item)
+  const canRemoveComment = canDeleteComment(user)
 
   const former = formerAssigneesOnItem(item, teamMembers)
 
@@ -185,6 +188,8 @@ function Row({
           onAdd={(body) =>
             addComment(teamId, item.id, commentAuthorLabel(user), body)
           }
+          canDeleteComment={canRemoveComment}
+          onDeleteComment={(cid) => deleteComment(teamId, item.id, cid)}
         />
       </td>
       <td className="px-2 py-2">

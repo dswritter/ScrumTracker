@@ -19,11 +19,16 @@ export function CommentsCell({
   canAdd,
   currentName,
   onAdd,
+  canDeleteComment = false,
+  onDeleteComment,
 }: {
   item: WorkItem
   canAdd: boolean
   currentName: string
   onAdd: (body: string) => void
+  /** Admin: show hover ✕ to remove one comment */
+  canDeleteComment?: boolean
+  onDeleteComment?: (commentId: string) => void
 }) {
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState('')
@@ -92,19 +97,41 @@ export function CommentsCell({
             <div className="border-b border-slate-100 px-4 py-3">
               <h3 className="text-sm font-bold text-slate-900">Comments</h3>
               <p className="text-xs text-slate-500">
-                Older comments cannot be edited or removed. Add updates below.
+                {canDeleteComment
+                  ? 'Admins can remove individual comments. Add updates below.'
+                  : 'Add updates below.'}
               </p>
             </div>
             <ul className="max-h-64 space-y-2 overflow-y-auto px-4 py-3 text-sm">
               {comments.map((c) => (
                 <li
                   key={c.id}
-                  className="list-inside list-disc text-slate-800 marker:text-indigo-500"
+                  className="group relative list-inside list-disc pr-7 text-slate-800 marker:text-indigo-500"
                 >
                   <span className="font-medium text-slate-900">{c.body}</span>
                   <span className="mt-0.5 block text-xs text-slate-500">
                     {c.authorName} · {formatDate(c.createdAt)}
                   </span>
+                  {canDeleteComment && onDeleteComment ? (
+                    <button
+                      type="button"
+                      className="absolute right-0 top-0 flex h-6 w-6 items-center justify-center rounded text-slate-400 opacity-0 transition-opacity hover:bg-rose-50 hover:text-rose-700 group-hover:opacity-100"
+                      title="Remove comment"
+                      aria-label="Remove comment"
+                      onClick={() => {
+                        if (
+                          confirm(
+                            'Remove this comment? This cannot be undone.',
+                          )
+                        )
+                          onDeleteComment(c.id)
+                      }}
+                    >
+                      <span className="text-lg leading-none" aria-hidden>
+                        ×
+                      </span>
+                    </button>
+                  ) : null}
                 </li>
               ))}
               {comments.length === 0 ? (

@@ -10,15 +10,15 @@ Untracked, machine-specific, or private files belong in **`local/`** (see `local
 
 ## Git commit identity (this repo only)
 
-This clone uses **personal GitHub** author metadata (not your global Adobe email):
+This clone uses **personal** author metadata (not your global Adobe email):
 
 - `user.name` = `Dharmendra Singh`
-- `user.email` = `dswritter@users.noreply.github.com`
+- `user.email` = `dswritter@gmail.com`
 
-Configured under **local** git config (`.git/config`), so other repos on the machine are unchanged. For future commits here, keep that identity; to re-apply after a fresh clone:
+Configured under **local** git config (`.git/config`), so other repos on the machine are unchanged. To re-apply after a fresh clone:
 
 ```bash
 cd /Users/dharmendras/Cursor_Hackathon/ScrumTracker
 git config user.name "Dharmendra Singh"
-git config user.email "dswritter@users.noreply.github.com"
+git config user.email "dswritter@gmail.com"
 ```

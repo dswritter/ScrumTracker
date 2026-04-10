@@ -1,8 +1,9 @@
 import { useEffect } from 'react'
-import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet } from 'react-router-dom'
+import { JiraHeaderSyncButton } from './JiraHeaderSyncButton'
+import { UserMenu } from './UserMenu'
 import { useCurrentUser } from '../hooks/useCurrentUser'
 import { isAdmin } from '../lib/permissions'
-import { useAuthStore } from '../store/useAuthStore'
 import { useTeamContextNullable } from '../hooks/useTeamContext'
 import { useTrackerStore } from '../store/useTrackerStore'
 
@@ -20,7 +21,6 @@ const adminNav = [
   { to: '/items', label: 'Work items' },
   { to: '/people', label: 'People' },
   { to: '/matrix', label: 'Matrix' },
-  { to: '/settings', label: 'Settings' },
 ]
 
 const memberNav = [
@@ -32,12 +32,10 @@ const memberNav = [
 export function Layout() {
   const user = useCurrentUser()
   const teamCtx = useTeamContextNullable()
-  const setCurrentUserId = useAuthStore((s) => s.setCurrentUserId)
   const ensureAutoSprints = useTrackerStore((s) => s.ensureAutoSprints)
   const rollIncompleteWorkItems = useTrackerStore(
     (s) => s.rollIncompleteWorkItems,
   )
-  const navigate = useNavigate()
 
   useEffect(() => {
     if (!teamCtx?.teamId) return
@@ -68,31 +66,8 @@ export function Layout() {
             {user ? (
               <>
                 <span className="hidden px-2 text-slate-300 sm:inline">|</span>
-                <span className="w-full text-xs text-slate-600 sm:w-auto sm:px-1">
-                  <span className="font-medium text-slate-800">
-                    {user.displayName}
-                  </span>
-                  <span className="text-slate-400"> · </span>
-                  <span className="text-slate-500">
-                    {isAdmin(user) ? 'Administrator' : 'Member'}
-                  </span>
-                </span>
-                <Link
-                  to="/change-password"
-                  className="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
-                >
-                  Change password
-                </Link>
-                <button
-                  type="button"
-                  className="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
-                  onClick={() => {
-                    setCurrentUserId(null)
-                    navigate('/login', { replace: true })
-                  }}
-                >
-                  Log out
-                </button>
+                {isAdmin(user) ? <JiraHeaderSyncButton /> : null}
+                <UserMenu />
               </>
             ) : null}
           </nav>

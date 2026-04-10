@@ -271,6 +271,8 @@ export interface TrackerState {
     body: string,
   ) => void
 
+  deleteComment: (teamId: string, itemId: string, commentId: string) => void
+
   ensureAutoSprints: (teamId: string) => void
   rollIncompleteWorkItems: (teamId: string) => void
 
@@ -416,6 +418,23 @@ export const useTrackerStore = create<TrackerState>()(
           }
         })
       },
+
+      deleteComment: (teamId, itemId, commentId) =>
+        set((s) => {
+          const d = getSlice(s, teamId)
+          return {
+            teamsData: patchSlice(s, teamId, {
+              workItems: d.workItems.map((w) =>
+                w.id === itemId
+                  ? {
+                      ...w,
+                      comments: w.comments.filter((c) => c.id !== commentId),
+                    }
+                  : w,
+              ),
+            }),
+          }
+        }),
 
       ensureAutoSprints: (teamId) =>
         set((state) => {

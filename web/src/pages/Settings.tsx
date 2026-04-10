@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import type { TrackerUserAccount } from '../types'
 import { useCurrentUser } from '../hooks/useCurrentUser'
 import { useTeamContextNullable } from '../hooks/useTeamContext'
-import { getJiraTokenStatus, postJiraSync, postJiraToken } from '../lib/jiraApi'
+import { getJiraTokenStatus, postJiraToken } from '../lib/jiraApi'
+import { runJiraSyncFromStore } from '../lib/runJiraSync'
 import { useTrackerStore } from '../store/useTrackerStore'
 
 export function Settings() {
@@ -378,31 +379,12 @@ export function Settings() {
               setJiraMsg(null)
               setJiraSyncing(true)
               try {
-                const snap = exportSnapshotJson()
-                const res = await postJiraSync({
-                  snapshot: snap,
+                const r = await runJiraSyncFromStore(
+                  exportSnapshotJson,
+                  importSnapshotJson,
                   teamId,
-                })
-                if (!res.ok) {
-                  setJiraMsg(await res.text())
-                  return
-                }
-                const data = (await res.json()) as {
-                  snapshot?: string
-                  issueCount?: number
-                }
-                if (data.snapshot) {
-                  const r = importSnapshotJson(data.snapshot)
-                  setJiraMsg(
-                    r.ok
-                      ? `Synced ${data.issueCount ?? 0} issue(s) from Jira.`
-                      : r.error,
-                  )
-                } else {
-                  setJiraMsg('Unexpected response')
-                }
-              } catch (e) {
-                setJiraMsg(e instanceof Error ? e.message : 'Sync failed')
+                )
+                setJiraMsg(r.message)
               } finally {
                 setJiraSyncing(false)
               }

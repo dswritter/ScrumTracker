@@ -8,6 +8,7 @@ import { commentAuthorLabel } from '../lib/commentAuthor'
 import { formatIsoDateTime } from '../lib/formatIso'
 import {
   canAddComment,
+  canDeleteComment,
   canEditWorkItem,
   isAdmin,
 } from '../lib/permissions'
@@ -30,6 +31,7 @@ export function ItemDetail() {
   const user = useCurrentUser()
   const ctx = useTeamContextNullable()
   const addComment = useTrackerStore((s) => s.addComment)
+  const deleteComment = useTrackerStore((s) => s.deleteComment)
   const rawParam = useParams<{ itemId: string }>().itemId ?? ''
   const itemId = useMemo(() => {
     try {
@@ -81,6 +83,7 @@ export function ItemDetail() {
   }
 
   const canComment = canAddComment(user, item)
+  const canRemoveComment = canDeleteComment(user)
   const teamId = ctx.teamId
   const { sprints, jiraBaseUrl } = ctx
 
@@ -172,18 +175,41 @@ export function ItemDetail() {
 
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <h2 className="text-xs font-bold uppercase tracking-wide text-slate-500">
-          Comments (newest first)
+          Comments
         </h2>
         {sortedComments.length === 0 ? (
           <p className="mt-3 text-sm text-slate-600">No comments yet.</p>
         ) : (
           <ul className="mt-3 space-y-4 border-t border-slate-100 pt-4">
             {sortedComments.map((c) => (
-              <li key={c.id} className="text-sm">
+              <li
+                key={c.id}
+                className="group relative text-sm pr-8"
+              >
                 <p className="font-medium text-slate-900">{c.body}</p>
                 <p className="mt-1 text-xs text-slate-500">
                   {c.authorName} · {formatIsoDateTime(c.createdAt)}
                 </p>
+                {canRemoveComment ? (
+                  <button
+                    type="button"
+                    className="absolute right-0 top-0 flex h-7 w-7 items-center justify-center rounded text-slate-400 opacity-0 transition-opacity hover:bg-rose-50 hover:text-rose-700 group-hover:opacity-100"
+                    title="Remove comment"
+                    aria-label="Remove comment"
+                    onClick={() => {
+                      if (
+                        confirm(
+                          'Remove this comment? This cannot be undone.',
+                        )
+                      )
+                        deleteComment(teamId, item.id, c.id)
+                    }}
+                  >
+                    <span className="text-xl leading-none" aria-hidden>
+                      ×
+                    </span>
+                  </button>
+                ) : null}
               </li>
             ))}
           </ul>
