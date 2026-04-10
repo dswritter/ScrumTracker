@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { PersonProgressBar } from '../components/PersonProgressBar'
+import { WorkItemTitleLink } from '../components/WorkItemTitleLink'
 import { StatCard } from '../components/StatCard'
 import { StatusBadge } from '../components/StatusBadge'
 import { useTeamContextNullable } from '../hooks/useTeamContext'
@@ -316,12 +317,11 @@ export function Dashboard() {
                       key={w.id}
                       className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-2 first:border-t-0 first:pt-0"
                     >
-                      <Link
-                        to={buildItemsHref(scope)}
+                      <WorkItemTitleLink
+                        item={w}
+                        showCommentHover={isAdmin(user)}
                         className="min-w-0 flex-1 font-medium text-indigo-700 hover:text-indigo-900"
-                      >
-                        {w.title || '(untitled)'}
-                      </Link>
+                      />
                       <StatusBadge status={w.status} />
                     </li>
                   ))}

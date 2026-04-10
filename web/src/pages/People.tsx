@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { PersonProgressBar } from '../components/PersonProgressBar'
 import { StatusBadge } from '../components/StatusBadge'
+import { WorkItemTitleLink } from '../components/WorkItemTitleLink'
 import { useTeamContextNullable } from '../hooks/useTeamContext'
 import {
   formerTeammatesWithItems,
@@ -53,12 +54,11 @@ export function People() {
                       key={w.id}
                       className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-2 first:border-t-0 first:pt-0"
                     >
-                      <Link
-                        to="/items"
-                        className="flex-1 font-medium text-indigo-700 hover:text-indigo-900"
-                      >
-                        {w.title || '(untitled)'}
-                      </Link>
+                      <WorkItemTitleLink
+                        item={w}
+                        showCommentHover
+                        className="min-w-0 flex-1 font-medium text-indigo-700 hover:text-indigo-900"
+                      />
                       <StatusBadge status={w.status} />
                     </li>
                   ))}

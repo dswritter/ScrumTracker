@@ -5,6 +5,7 @@ import { TrackerRemoteSync } from './components/TrackerRemoteSync'
 import { RequireAuth } from './components/RequireAuth'
 import { ChangePassword } from './pages/ChangePassword'
 import { Dashboard } from './pages/Dashboard'
+import { ItemDetail } from './pages/ItemDetail'
 import { Items } from './pages/Items'
 import { Login } from './pages/Login'
 import { Matrix } from './pages/Matrix'
@@ -26,6 +27,7 @@ export default function App() {
             <Route index element={<Dashboard />} />
             <Route path="change-password" element={<ChangePassword />} />
             <Route path="me" element={<Me />} />
+            <Route path="items/:itemId" element={<ItemDetail />} />
             <Route path="items" element={<Items />} />
             <Route path="people/:personName" element={<PersonDetail />} />
             <Route element={<AdminRoute />}>

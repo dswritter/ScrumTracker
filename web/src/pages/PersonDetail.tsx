@@ -2,10 +2,12 @@ import { useMemo } from 'react'
 import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom'
 import { PersonProgressBar } from '../components/PersonProgressBar'
 import { StatusBadge } from '../components/StatusBadge'
+import { WorkItemTitleLink } from '../components/WorkItemTitleLink'
 import { useCurrentUser } from '../hooks/useCurrentUser'
 import { useTeamContextNullable } from '../hooks/useTeamContext'
 import { canViewPersonProfile, isAdmin } from '../lib/permissions'
 import {
+  buildItemsHref,
   filterWorkItemsByScope,
   parseDashboardScope,
   scopeShortLabel,
@@ -129,12 +131,14 @@ export function PersonDetail() {
               key={w.id}
               className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm"
             >
-              <span className="min-w-0 flex-1 font-medium text-slate-900">
-                {w.title || '(untitled)'}
-              </span>
+              <WorkItemTitleLink
+                item={w}
+                showCommentHover={isAdmin(viewer)}
+                className="min-w-0 flex-1 font-medium text-indigo-700 hover:text-indigo-900"
+              />
               <StatusBadge status={w.status} />
               <Link
-                to="/items"
+                to={buildItemsHref(scope)}
                 className="text-xs font-semibold text-indigo-700 hover:underline"
               >
                 Edit in table

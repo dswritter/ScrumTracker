@@ -148,3 +148,20 @@ export function sortWorkItemsByNewestSprintFirst(
       latestEnd(b).localeCompare(latestEnd(a)) || a.id.localeCompare(b.id),
   )
 }
+
+/** Other items that share at least one assignee with `item` (excludes `item`). */
+export function otherItemsSharingAssignees(
+  item: WorkItem,
+  allItems: WorkItem[],
+  sprints: Sprint[],
+): WorkItem[] {
+  const mine = new Set(
+    item.assignees.map((a) => a.trim()).filter(Boolean),
+  )
+  const others = allItems.filter(
+    (w) =>
+      w.id !== item.id &&
+      w.assignees.some((a) => mine.has(a.trim())),
+  )
+  return sortWorkItemsByNewestSprintFirst(others, sprints)
+}
