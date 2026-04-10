@@ -28,6 +28,49 @@ Optional env:
 - `PORT=3847` — API port  
 - `HOST=0.0.0.0` — bind address (default exposes LAN)
 
+### ngrok (different PCs / internet)
+
+You need **two concepts**:
+
+1. **Tunnel for the sync API only** — ngrok must forward to **`3847`** (the Node server), not to Vite’s `5173`.
+2. **`VITE_SYNC_API_URL` = that tunnel’s public URL** — must be **`https://….ngrok-free.app`** (or your ngrok domain) **with no trailing slash**.  
+   The app bakes this in at **`npm run build`** (or `npm run dev`). Every machine that opens the UI must use a build that points at **this same API URL**.
+
+**Common mistakes (sync silently fails):**
+
+| Mistake | What happens |
+|--------|----------------|
+| `VITE_SYNC_API_URL=http://localhost:3847` | Other PCs talk to **their own** localhost, not your Windows box. |
+| Only one ngrok to port **5173** (Vite) | The app still calls **3847** for `/api/tracker`; that must be reachable on the public URL you set. |
+| Forgot to **rebuild** after changing `.env` | Old bundle has no sync URL or wrong URL. |
+| ngrok returns **HTML** instead of JSON | The client sends `ngrok-skip-browser-warning` (see `web/src/lib/syncFetch.ts`); if sync still fails, open DevTools → Network → `api/tracker` and confirm **200** + JSON body. |
+
+**Example:**
+
+```bash
+# Terminal 1 — sync server (already on 3847)
+cd server && npm start
+
+# Terminal 2 — ngrok to the API port only
+ngrok http 3847
+```
+
+Copy the **https** forwarding URL (e.g. `https://abc123.ngrok-free.app`).
+
+In `web/.env.production` (or `.env.local` for dev):
+
+```env
+VITE_SYNC_API_URL=https://abc123.ngrok-free.app
+```
+
+Then:
+
+```bash
+cd web && npm run build
+```
+
+Host `web/dist` (or `npm run preview`) and open that site from **another PC**. In DevTools → Console (dev mode), look for `[sync]` warnings if something is wrong.
+
 ## 2. Point the web app at the server
 
 In `web/`, create `.env.local`:
