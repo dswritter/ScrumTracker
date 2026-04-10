@@ -57,6 +57,11 @@ export interface TrackerTeamData {
   jiraBaseUrl: string
   /** JQL used by the sync server to import issues (optional). */
   jiraSyncJql?: string
+  /**
+   * Jira custom field id for Sprint (e.g. customfield_10020). When set, sync maps
+   * Jira sprints onto tracker sprints and work item sprint membership.
+   */
+  jiraSprintFieldId?: string
 }
 
 /**

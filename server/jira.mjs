@@ -46,7 +46,143 @@ function mapJiraStatus(name) {
   return 'todo'
 }
 
-function upsertWorkItemFromIssue(workItems, issue) {
+function addDaysYmd(startYmd, days) {
+  const [y, m, d] = startYmd.split('-').map(Number)
+  const dt = new Date(y, m - 1, d)
+  dt.setDate(dt.getDate() + days)
+  const yy = dt.getFullYear()
+  const mm = String(dt.getMonth() + 1).padStart(2, '0')
+  const dd = String(dt.getDate()).padStart(2, '0')
+  return `${yy}-${mm}-${dd}`
+}
+
+function ymdFromJiraDate(d) {
+  if (!d || typeof d !== 'string') return null
+  if (/^\d{4}-\d{2}-\d{2}/.test(d)) return d.slice(0, 10)
+  const t = Date.parse(d)
+  if (Number.isNaN(t)) return null
+  return new Date(t).toISOString().slice(0, 10)
+}
+
+function bodyToPlainText(body) {
+  if (body == null) return ''
+  if (typeof body === 'string') return body
+  if (typeof body === 'object' && Array.isArray(body.content)) {
+    return walkAdfContent(body.content).trim()
+  }
+  return ''
+}
+
+function walkAdfContent(nodes) {
+  if (!Array.isArray(nodes)) return ''
+  let s = ''
+  for (const n of nodes) {
+    if (!n || typeof n !== 'object') continue
+    if (n.type === 'text' && typeof n.text === 'string') s += n.text
+    if (Array.isArray(n.content)) s += walkAdfContent(n.content)
+    if (n.type === 'hardBreak') s += '\n'
+    if (n.type === 'paragraph' || n.type === 'heading') {
+      if (Array.isArray(n.content)) s += walkAdfContent(n.content)
+      s += '\n'
+    }
+  }
+  return s
+}
+
+function mergeJiraCommentsIntoWorkItem(existingComments, jiraApiComments) {
+  const local = (existingComments || []).filter(
+    (c) => c && !String(c.id).startsWith('jira-cmt-'),
+  )
+  const jiraMapped = (jiraApiComments || []).map((jc) => ({
+    id: `jira-cmt-${jc.id}`,
+    authorName:
+      (jc.author &&
+        typeof jc.author.displayName === 'string' &&
+        jc.author.displayName) ||
+      (jc.author && typeof jc.author.name === 'string' && jc.author.name) ||
+      'Jira',
+    body: (() => {
+      const t = bodyToPlainText(jc.body).trim()
+      return t || '(empty)'
+    })(),
+    createdAt:
+      typeof jc.created === 'string' ? jc.created : new Date().toISOString(),
+  }))
+  return [...local, ...jiraMapped].sort((a, b) =>
+    a.createdAt.localeCompare(b.createdAt),
+  )
+}
+
+/** When syncSprints is true, Jira sprint ids replace previous jira-sprint-* on the item (manual sprint ids kept). */
+function mergeSprintIds(existingSprintIds, jiraSprintIds, syncSprints) {
+  if (!syncSprints) return existingSprintIds || []
+  const manual = (existingSprintIds || []).filter(
+    (id) => !String(id).startsWith('jira-sprint-'),
+  )
+  const list = jiraSprintIds || []
+  if (list.length === 0) return manual
+  const seen = new Set(manual)
+  const merged = [...manual]
+  for (const id of list) {
+    if (!seen.has(id)) {
+      seen.add(id)
+      merged.push(id)
+    }
+  }
+  return merged
+}
+
+function upsertSprintsFromJiraObjects(sprints, jiraSprintObjs) {
+  const sprintIds = []
+  let out = Array.isArray(sprints) ? [...sprints] : []
+  const list = Array.isArray(jiraSprintObjs) ? jiraSprintObjs : []
+  for (const js of list) {
+    if (!js || (typeof js.id !== 'number' && typeof js.id !== 'string')) continue
+    const sid = `jira-sprint-${js.id}`
+    sprintIds.push(sid)
+    const name =
+      typeof js.name === 'string' && js.name.trim() ? js.name.trim() : `Sprint ${js.id}`
+    let start = ymdFromJiraDate(js.startDate) || ymdFromJiraDate(js.start)
+    let end = ymdFromJiraDate(js.endDate) || ymdFromJiraDate(js.end)
+    if (!start) start = new Date().toISOString().slice(0, 10)
+    if (!end) end = addDaysYmd(start, 14)
+
+    const idx = out.findIndex((s) => s.id === sid)
+    const row = { id: sid, name, start, end }
+    if (idx >= 0) {
+      out[idx] = { ...out[idx], ...row }
+    } else {
+      out = [...out, row]
+    }
+  }
+  return { sprints: out, sprintIds }
+}
+
+function extractJiraSprintFieldValue(issue, sprintFieldId) {
+  if (!sprintFieldId || !issue?.fields) return null
+  const raw = issue.fields[sprintFieldId]
+  if (raw == null) return null
+  if (Array.isArray(raw)) return raw
+  if (typeof raw === 'object') return [raw]
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) return parsed
+      if (parsed && typeof parsed === 'object') return [parsed]
+    } catch {
+      return null
+    }
+  }
+  return null
+}
+
+function upsertWorkItemFromIssue(
+  workItems,
+  issue,
+  jiraComments,
+  jiraSprintIds,
+  syncSprintsFromJira,
+) {
   const key = issue.key
   const fields = issue.fields || {}
   const summary = typeof fields.summary === 'string' ? fields.summary : ''
@@ -65,11 +201,15 @@ function upsertWorkItemFromIssue(workItems, issue) {
 
   if (idx >= 0) {
     const w = workItems[idx]
+    const comments = mergeJiraCommentsIntoWorkItem(w.comments, jiraComments)
+    const sprintIds = mergeSprintIds(w.sprintIds, jiraSprintIds, syncSprintsFromJira)
     const next = {
       ...w,
       title: summary || w.title,
       status,
       assignees: assignees.length > 0 ? assignees : w.assignees,
+      comments,
+      sprintIds,
     }
     return workItems.map((x, i) => (i === idx ? next : x))
   }
@@ -83,24 +223,25 @@ function upsertWorkItemFromIssue(workItems, issue) {
     eta: '',
     assignees,
     status,
-    sprintIds: [],
+    sprintIds: syncSprintsFromJira ? [...jiraSprintIds] : [],
     jiraKeys: [key],
-    comments: [],
+    comments: mergeJiraCommentsIntoWorkItem([], jiraComments),
   }
   return [created, ...workItems]
 }
 
-async function fetchAllIssues(jiraBase, pat, jql) {
+async function fetchAllIssues(jiraBase, pat, jql, fieldList) {
   const base = jiraBase.replace(/\/$/, '')
   const out = []
   let startAt = 0
   const maxResults = 50
+  const fields = fieldList.join(',')
   for (;;) {
     const url = `${base}/rest/api/2/search?${new URLSearchParams({
       jql,
       startAt: String(startAt),
       maxResults: String(maxResults),
-      fields: 'key,summary,assignee,status',
+      fields,
     })}`
     const res = await fetch(url, {
       headers: {
@@ -121,6 +262,57 @@ async function fetchAllIssues(jiraBase, pat, jql) {
     if (startAt >= total || issues.length === 0) break
   }
   return out
+}
+
+async function fetchIssueComments(jiraBase, pat, issueKey) {
+  const base = jiraBase.replace(/\/$/, '')
+  const all = []
+  let startAt = 0
+  const maxResults = 100
+  for (;;) {
+    const url = `${base}/rest/api/2/issue/${encodeURIComponent(issueKey)}/comment?${new URLSearchParams({
+      startAt: String(startAt),
+      maxResults: String(maxResults),
+      orderBy: 'created',
+    })}`
+    const res = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${pat}`,
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+    })
+    if (!res.ok) {
+      const t = await res.text()
+      throw new Error(`Jira comments ${res.status} for ${issueKey}: ${t.slice(0, 300)}`)
+    }
+    const data = await res.json()
+    const list = Array.isArray(data.comments) ? data.comments : []
+    all.push(...list)
+    const total = typeof data.total === 'number' ? data.total : list.length
+    startAt += list.length
+    if (startAt >= total || list.length === 0) break
+  }
+  return all
+}
+
+async function fetchCommentsForIssues(jiraBase, pat, issueKeys, concurrency = 8) {
+  const map = new Map()
+  for (let i = 0; i < issueKeys.length; i += concurrency) {
+    const batch = issueKeys.slice(i, i + concurrency)
+    const results = await Promise.all(
+      batch.map(async (key) => {
+        try {
+          const comments = await fetchIssueComments(jiraBase, pat, key)
+          return [key, comments]
+        } catch {
+          return [key, []]
+        }
+      }),
+    )
+    for (const [k, v] of results) map.set(k, v)
+  }
+  return map
 }
 
 /**
@@ -280,18 +472,51 @@ export function registerJiraRoutes(app, opts) {
       return
     }
 
+    const sprintFieldRaw =
+      (typeof teamData.jiraSprintFieldId === 'string' &&
+        teamData.jiraSprintFieldId.trim()) ||
+      process.env.JIRA_SPRINT_FIELD?.trim() ||
+      ''
+
     const jiraBase =
       typeof teamData.jiraBaseUrl === 'string' && teamData.jiraBaseUrl.includes('browse')
         ? teamData.jiraBaseUrl.split('/browse')[0].replace(/\/$/, '') || defaultJiraBase
         : defaultJiraBase
 
     try {
-      const issues = await fetchAllIssues(jiraBase, tok.token, jql)
+      const searchFields = ['key', 'summary', 'assignee', 'status']
+      if (sprintFieldRaw) searchFields.push(sprintFieldRaw)
+
+      const issues = await fetchAllIssues(jiraBase, tok.token, jql, searchFields)
+      const keys = issues.map((i) => i.key).filter(Boolean)
+      const commentMap = await fetchCommentsForIssues(jiraBase, tok.token, keys)
+
       let workItems = Array.isArray(teamData.workItems) ? [...teamData.workItems] : []
+      let sprints = Array.isArray(teamData.sprints) ? [...teamData.sprints] : []
+
       for (const issue of issues) {
-        workItems = upsertWorkItemFromIssue(workItems, issue)
+        const jiraComments = commentMap.get(issue.key) || []
+        let jiraSprintIds = []
+        const syncSprintsFromJira = Boolean(sprintFieldRaw)
+        if (syncSprintsFromJira) {
+          const rawSprints = extractJiraSprintFieldValue(issue, sprintFieldRaw)
+          const { sprints: nextSprints, sprintIds } = upsertSprintsFromJiraObjects(
+            sprints,
+            rawSprints,
+          )
+          sprints = nextSprints
+          jiraSprintIds = sprintIds
+        }
+        workItems = upsertWorkItemFromIssue(
+          workItems,
+          issue,
+          jiraComments,
+          jiraSprintIds,
+          syncSprintsFromJira,
+        )
       }
-      snap.teamsData[tid] = { ...teamData, workItems }
+
+      snap.teamsData[tid] = { ...teamData, workItems, sprints }
       const out = JSON.stringify(snap)
       res.json({ ok: true, snapshot: out, issueCount: issues.length })
     } catch (e) {

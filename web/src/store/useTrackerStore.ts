@@ -192,6 +192,8 @@ function normalizeTeamData(raw: unknown): TrackerTeamData {
         : 'https://jira.corp.adobe.com/browse/',
     jiraSyncJql:
       typeof o.jiraSyncJql === 'string' ? o.jiraSyncJql : undefined,
+    jiraSprintFieldId:
+      typeof o.jiraSprintFieldId === 'string' ? o.jiraSprintFieldId : undefined,
   }
 }
 
@@ -278,6 +280,7 @@ export interface TrackerState {
 
   setJiraBaseUrl: (teamId: string, url: string) => void
   setJiraSyncJql: (teamId: string, jql: string) => void
+  setJiraSprintFieldId: (teamId: string, fieldId: string) => void
   setTeamName: (teamId: string, name: string) => void
 
   addTeamMemberAccount: (
@@ -482,6 +485,13 @@ export const useTrackerStore = create<TrackerState>()(
       setJiraSyncJql: (teamId, jql) =>
         set((s) => ({
           teamsData: patchSlice(s, teamId, { jiraSyncJql: jql.trim() }),
+        })),
+
+      setJiraSprintFieldId: (teamId, fieldId) =>
+        set((s) => ({
+          teamsData: patchSlice(s, teamId, {
+            jiraSprintFieldId: fieldId.trim() || undefined,
+          }),
         })),
 
       setTeamName: (teamId, name) =>

@@ -37,6 +37,7 @@ export function useTeamContextNullable(): TeamContext | null {
       teamMembers: d.teamMembers,
       jiraBaseUrl: d.jiraBaseUrl,
       jiraSyncJql: d.jiraSyncJql,
+      jiraSprintFieldId: d.jiraSprintFieldId,
     }
     }, [user, teams, slice])
 }

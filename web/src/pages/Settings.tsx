@@ -23,15 +23,18 @@ export function Settings() {
   const setTeamName = useTrackerStore((s) => s.setTeamName)
   const setJiraBaseUrl = useTrackerStore((s) => s.setJiraBaseUrl)
   const setJiraSyncJql = useTrackerStore((s) => s.setJiraSyncJql)
+  const setJiraSprintFieldId = useTrackerStore((s) => s.setJiraSprintFieldId)
 
   const jiraBaseUrl = ctx?.jiraBaseUrl ?? ''
   const jiraSyncJql = ctx?.jiraSyncJql ?? ''
+  const jiraSprintFieldId = ctx?.jiraSprintFieldId ?? ''
 
   const [newTeamName, setNewTeamName] = useState(teamName)
   const [importMsg, setImportMsg] = useState<string | null>(null)
   const [jiraPat, setJiraPat] = useState('')
   const [jiraPatExpires, setJiraPatExpires] = useState('')
   const [jiraDraftJql, setJiraDraftJql] = useState(jiraSyncJql)
+  const [jiraDraftSprintField, setJiraDraftSprintField] = useState(jiraSprintFieldId)
   const [jiraMsg, setJiraMsg] = useState<string | null>(null)
   const [jiraTokenStatus, setJiraTokenStatus] = useState<string | null>(null)
   const [jiraSyncing, setJiraSyncing] = useState(false)
@@ -41,6 +44,10 @@ export function Settings() {
   useEffect(() => {
     setJiraDraftJql(jiraSyncJql)
   }, [jiraSyncJql])
+
+  useEffect(() => {
+    setJiraDraftSprintField(jiraSprintFieldId)
+  }, [jiraSprintFieldId])
 
   useEffect(() => {
     if (!hasSyncServer || !teamId) return
@@ -323,6 +330,32 @@ export function Settings() {
         >
           Save JQL
         </button>
+        <label className="mt-2 block text-xs font-semibold text-slate-700">
+          Jira Sprint field id (optional)
+        </label>
+        <p className="text-xs text-slate-600">
+          Custom field id for the Sprint field (e.g.{' '}
+          <code className="rounded bg-slate-100 px-1">customfield_10020</code>). Leave
+          empty to skip sprint mapping. Find it in Jira issue JSON or Fields admin.
+        </p>
+        <div className="flex flex-wrap items-end gap-2">
+          <input
+            className={`${field} max-w-md font-mono text-xs`}
+            placeholder="customfield_10020"
+            value={jiraDraftSprintField}
+            onChange={(e) => setJiraDraftSprintField(e.target.value)}
+          />
+          <button
+            type="button"
+            className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-100"
+            onClick={() => {
+              setJiraSprintFieldId(teamId, jiraDraftSprintField)
+              setJiraMsg('Sprint field id saved. Re-run Jira sync to apply.')
+            }}
+          >
+            Save sprint field
+          </button>
+        </div>
         <div className="grid gap-2 sm:grid-cols-2">
           <input
             type="password"

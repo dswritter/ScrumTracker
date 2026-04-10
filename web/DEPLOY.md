@@ -13,7 +13,7 @@ Phase 1 is a **static single-page app**. All teams, sprints, work items, and use
 
 ## Export / import (schema v3)
 
-**Export JSON** includes the full database: `teams`, `teamsData` (per team: `sprints`, `workItems`, `teamMembers`, `jiraBaseUrl`, optional `jiraSyncJql`), and `users` (with `teamId`, `password`, `mustChangePassword`). **Import** replaces the entire local store with the file so data round-trips. Legacy **v2** (flat) and **v1** imports are wrapped into a single imported team.
+**Export JSON** includes the full database: `teams`, `teamsData` (per team: `sprints`, `workItems`, `teamMembers`, `jiraBaseUrl`, optional `jiraSyncJql`, optional `jiraSprintFieldId`), and `users` (with `teamId`, `password`, `mustChangePassword`). **Import** replaces the entire local store with the file so data round-trips. Legacy **v2** (flat) and **v1** imports are wrapped into a single imported team.
 
 ## Build
 
@@ -30,6 +30,19 @@ Output: `dist/` (HTML, JS, CSS assets).
 ```bash
 npm run preview
 ```
+
+### Friendly hostname (e.g. `http://scrum-tracker:4173`)
+
+Browsers use **hostnames**, not bare names without a port. To open the app as `http://scrum-tracker:4173` instead of an IP:
+
+1. Pick a hostname (e.g. `scrum-tracker`).
+2. On each PC that should use it, edit the **hosts** file (Windows: `C:\Windows\System32\drivers\etc\hosts`) and add a line:
+   `10.41.38.49 scrum-tracker`
+   (use your real LAN IP of the machine running `npm run preview -- --host`).
+3. Start preview bound to all interfaces: `npm run preview -- --host 0.0.0.0`.
+4. Visit **`http://scrum-tracker:4173`** (port **4173** is Vite’s default preview port unless you change it).
+
+`http://scrum-tracker` alone (port 80) only works if something listens on 80 (e.g. IIS/nginx) with a reverse proxy to port 4173.
 
 ## Hosting on an internal Windows PC (IIS) — outline
 

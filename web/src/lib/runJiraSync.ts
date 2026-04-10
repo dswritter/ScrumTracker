@@ -24,7 +24,7 @@ export async function runJiraSyncFromStore(
     }
     return {
       ok: true,
-      message: `Synced ${data.issueCount ?? 0} issue(s) from Jira.`,
+      message: `Synced ${data.issueCount ?? 0} Jira issue(s); comments refreshed and sprints updated if Sprint field is configured.`,
     }
   } catch (e) {
     return {

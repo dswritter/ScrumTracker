@@ -103,6 +103,9 @@ When `VITE_SYNC_API_URL` points at this Node server, the app can **save a Jira P
 - `JIRA_API_SECRET` — if set, clients must send `Authorization: Bearer <same>` on the three Jira routes (set `VITE_JIRA_API_SECRET` in `web/.env.local` to match).
 - `JIRA_BASE_URL` — default `https://jira.corp.adobe.com` if team JIRA base URL cannot be derived.
 - `JIRA_JQL` — fallback JQL if the team has no `jiraSyncJql` in the snapshot.
+- `JIRA_SPRINT_FIELD` — optional default Sprint **custom field id** (e.g. `customfield_10020`) if the team snapshot has no `jiraSprintFieldId`. When set (per team in **Settings** or via this env), each sync pulls Jira comments into work items and maps Jira sprints onto the tracker.
+
+Per-team **Settings** can store `jiraSprintFieldId` in the snapshot (exported with the rest of `teamsData`).
 
 ## 3. “Windows app” for teammates
 
