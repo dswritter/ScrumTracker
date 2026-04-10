@@ -88,6 +88,22 @@ Behavior:
 - **Polling** every ~2.5s pulls newer revisions so other browsers update without refresh.
 - **Conflict model:** last successful push wins (good enough for a small team demo).
 
+### Jira (PAT on server, admin UI in Settings)
+
+When `VITE_SYNC_API_URL` points at this Node server, the app can **save a Jira Personal Access Token** and run **Sync from Jira** (see `docs/JIRA Integration Architecture.md`).
+
+- **Token file:** `server/data/jira-tokens.json` (created automatically; same folder as `tracker-state.json`, not committed).
+- **Endpoints:**
+  - `POST /api/jira/token` — body `{ "token": "<PAT>", "expiresAt": "<optional ISO>" }`
+  - `GET /api/jira/token-status` — `{ status, daysRemaining, message }` (no token in response)
+  - `POST /api/jira/sync` — body `{ "snapshot": "<full export JSON string>", "teamId": "<id>" }` optional `"jql": "..."` overrides team JQL
+
+**Optional server env:**
+
+- `JIRA_API_SECRET` — if set, clients must send `Authorization: Bearer <same>` on the three Jira routes (set `VITE_JIRA_API_SECRET` in `web/.env.local` to match).
+- `JIRA_BASE_URL` — default `https://jira.corp.adobe.com` if team JIRA base URL cannot be derived.
+- `JIRA_JQL` — fallback JQL if the team has no `jiraSyncJql` in the snapshot.
+
 ## 3. “Windows app” for teammates
 
 This repo ships a **browser app** (`web/`). A **Windows desktop app** is usually one of:

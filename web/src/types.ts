@@ -55,6 +55,8 @@ export interface TrackerTeamData {
   /** Roster for assignees; kept in sync when login accounts are added/removed. */
   teamMembers: string[]
   jiraBaseUrl: string
+  /** JQL used by the sync server to import issues (optional). */
+  jiraSyncJql?: string
 }
 
 /**

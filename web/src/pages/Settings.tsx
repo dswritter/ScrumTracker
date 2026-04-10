@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { TrackerUserAccount } from '../types'
 import { useCurrentUser } from '../hooks/useCurrentUser'
 import { useTeamContextNullable } from '../hooks/useTeamContext'
+import { getJiraTokenStatus, postJiraSync, postJiraToken } from '../lib/jiraApi'
 import { useTrackerStore } from '../store/useTrackerStore'
 
 export function Settings() {
@@ -20,11 +21,56 @@ export function Settings() {
   const adminSetUserPassword = useTrackerStore((s) => s.adminSetUserPassword)
   const setTeamName = useTrackerStore((s) => s.setTeamName)
   const setJiraBaseUrl = useTrackerStore((s) => s.setJiraBaseUrl)
+  const setJiraSyncJql = useTrackerStore((s) => s.setJiraSyncJql)
 
   const jiraBaseUrl = ctx?.jiraBaseUrl ?? ''
+  const jiraSyncJql = ctx?.jiraSyncJql ?? ''
 
   const [newTeamName, setNewTeamName] = useState(teamName)
   const [importMsg, setImportMsg] = useState<string | null>(null)
+  const [jiraPat, setJiraPat] = useState('')
+  const [jiraPatExpires, setJiraPatExpires] = useState('')
+  const [jiraDraftJql, setJiraDraftJql] = useState(jiraSyncJql)
+  const [jiraMsg, setJiraMsg] = useState<string | null>(null)
+  const [jiraTokenStatus, setJiraTokenStatus] = useState<string | null>(null)
+  const [jiraSyncing, setJiraSyncing] = useState(false)
+
+  const hasSyncServer = Boolean(import.meta.env.VITE_SYNC_API_URL?.trim())
+
+  useEffect(() => {
+    setJiraDraftJql(jiraSyncJql)
+  }, [jiraSyncJql])
+
+  useEffect(() => {
+    if (!hasSyncServer || !teamId) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await getJiraTokenStatus()
+        if (!res.ok || cancelled) {
+          setJiraTokenStatus(
+            res.ok ? null : `Status HTTP ${res.status}`,
+          )
+          return
+        }
+        const j = (await res.json()) as {
+          status?: string
+          message?: string
+          daysRemaining?: number | null
+        }
+        setJiraTokenStatus(
+          `${j.status ?? '?'}${j.message ? ` — ${j.message}` : ''}${
+            j.daysRemaining != null ? ` (${j.daysRemaining}d)` : ''
+          }`,
+        )
+      } catch {
+        if (!cancelled) setJiraTokenStatus('Could not reach sync server')
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [hasSyncServer, teamId])
 
   useEffect(() => {
     setNewTeamName(teamName)
@@ -240,6 +286,139 @@ export function Settings() {
           value={jiraBaseUrl}
           onChange={(e) => setJiraBaseUrl(teamId, e.target.value)}
         />
+      </section>
+
+      <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <h2 className="text-sm font-bold text-slate-900">Jira integration</h2>
+        <p className="text-xs text-slate-600">
+          PAT and sync run on the <strong>sync server</strong> only (
+          <code className="rounded bg-slate-100 px-1">VITE_SYNC_API_URL</code>
+          ). Tokens are never stored in the browser. See{' '}
+          <code className="rounded bg-slate-100 px-1">docs/JIRA Integration Architecture.md</code>
+          .
+        </p>
+        {!hasSyncServer ? (
+          <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+            Set <code className="font-mono">VITE_SYNC_API_URL</code> to your Node
+            sync server (port 3847) to enable Jira sync.
+          </p>
+        ) : null}
+        <label className="block text-xs font-semibold text-slate-700">
+          JQL (issues to import)
+        </label>
+        <textarea
+          className={`${field} min-h-[72px] font-mono text-xs`}
+          placeholder='e.g. project = CTCACE AND sprint in openSprints()'
+          value={jiraDraftJql}
+          onChange={(e) => setJiraDraftJql(e.target.value)}
+        />
+        <button
+          type="button"
+          className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-100"
+          onClick={() => {
+            setJiraSyncJql(teamId, jiraDraftJql)
+            setJiraMsg('JQL saved for this team.')
+          }}
+        >
+          Save JQL
+        </button>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <input
+            type="password"
+            className={field}
+            placeholder="New Personal Access Token (PAT)"
+            autoComplete="off"
+            value={jiraPat}
+            onChange={(e) => setJiraPat(e.target.value)}
+          />
+          <input
+            className={field}
+            placeholder="Expiry (optional)"
+            type="date"
+            value={jiraPatExpires}
+            onChange={(e) => setJiraPatExpires(e.target.value)}
+          />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={!hasSyncServer || !jiraPat.trim()}
+            className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+            onClick={async () => {
+              setJiraMsg(null)
+              try {
+                const exp = jiraPatExpires.trim()
+                const res = await postJiraToken(
+                  jiraPat.trim(),
+                  exp ? `${exp}T12:00:00.000Z` : undefined,
+                )
+                if (!res.ok) {
+                  setJiraMsg(await res.text())
+                  return
+                }
+                setJiraPat('')
+                setJiraMsg('Token saved on server.')
+                const st = await getJiraTokenStatus()
+                if (st.ok) {
+                  const j = (await st.json()) as { status?: string; message?: string }
+                  setJiraTokenStatus(`${j.status ?? ''} — ${j.message ?? ''}`)
+                }
+              } catch (e) {
+                setJiraMsg(e instanceof Error ? e.message : 'Request failed')
+              }
+            }}
+          >
+            Save PAT on server
+          </button>
+          <button
+            type="button"
+            disabled={!hasSyncServer || jiraSyncing}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+            onClick={async () => {
+              setJiraMsg(null)
+              setJiraSyncing(true)
+              try {
+                const snap = exportSnapshotJson()
+                const res = await postJiraSync({
+                  snapshot: snap,
+                  teamId,
+                })
+                if (!res.ok) {
+                  setJiraMsg(await res.text())
+                  return
+                }
+                const data = (await res.json()) as {
+                  snapshot?: string
+                  issueCount?: number
+                }
+                if (data.snapshot) {
+                  const r = importSnapshotJson(data.snapshot)
+                  setJiraMsg(
+                    r.ok
+                      ? `Synced ${data.issueCount ?? 0} issue(s) from Jira.`
+                      : r.error,
+                  )
+                } else {
+                  setJiraMsg('Unexpected response')
+                }
+              } catch (e) {
+                setJiraMsg(e instanceof Error ? e.message : 'Sync failed')
+              } finally {
+                setJiraSyncing(false)
+              }
+            }}
+          >
+            {jiraSyncing ? 'Syncing…' : 'Sync from Jira now'}
+          </button>
+        </div>
+        {jiraTokenStatus ? (
+          <p className="text-xs text-slate-600">
+            <span className="font-semibold">Token status:</span> {jiraTokenStatus}
+          </p>
+        ) : null}
+        {jiraMsg ? (
+          <p className="text-xs font-medium text-slate-700">{jiraMsg}</p>
+        ) : null}
       </section>
 
       <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">

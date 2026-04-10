@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useCurrentUser } from '../hooks/useCurrentUser'
 import { isAdmin } from '../lib/permissions'
 import { useAuthStore } from '../store/useAuthStore'
@@ -77,6 +77,12 @@ export function Layout() {
                     {isAdmin(user) ? 'Administrator' : 'Member'}
                   </span>
                 </span>
+                <Link
+                  to="/change-password"
+                  className="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+                >
+                  Change password
+                </Link>
                 <button
                   type="button"
                   className="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"

@@ -190,6 +190,8 @@ function normalizeTeamData(raw: unknown): TrackerTeamData {
       typeof o.jiraBaseUrl === 'string'
         ? o.jiraBaseUrl
         : 'https://jira.corp.adobe.com/browse/',
+    jiraSyncJql:
+      typeof o.jiraSyncJql === 'string' ? o.jiraSyncJql : undefined,
   }
 }
 
@@ -273,6 +275,7 @@ export interface TrackerState {
   rollIncompleteWorkItems: (teamId: string) => void
 
   setJiraBaseUrl: (teamId: string, url: string) => void
+  setJiraSyncJql: (teamId: string, jql: string) => void
   setTeamName: (teamId: string, name: string) => void
 
   addTeamMemberAccount: (
@@ -299,6 +302,22 @@ export interface TrackerState {
   ) => { ok: true } | { ok: false; error: string }
 
   completeFirstLoginPasswordChange: (
+    userId: string,
+    masterPassword: string,
+    newPassword: string,
+    confirmPassword: string,
+  ) => { ok: true } | { ok: false; error: string }
+
+  /** Voluntary change: must match current login password. */
+  changeOwnPassword: (
+    userId: string,
+    currentPassword: string,
+    newPassword: string,
+    confirmPassword: string,
+  ) => { ok: true } | { ok: false; error: string }
+
+  /** Forgot password / admin reset: verify stored password (master) then set new. */
+  resetPasswordWithMaster: (
     userId: string,
     masterPassword: string,
     newPassword: string,
@@ -441,6 +460,11 @@ export const useTrackerStore = create<TrackerState>()(
           teamsData: patchSlice(s, teamId, { jiraBaseUrl: url }),
         })),
 
+      setJiraSyncJql: (teamId, jql) =>
+        set((s) => ({
+          teamsData: patchSlice(s, teamId, { jiraSyncJql: jql.trim() }),
+        })),
+
       setTeamName: (teamId, name) =>
         set((s) => ({
           teams: s.teams.map((t) =>
@@ -554,6 +578,68 @@ export const useTrackerStore = create<TrackerState>()(
         if (!u || !u.mustChangePassword) {
           return { ok: false, error: 'Password change not required.' }
         }
+        if (u.password !== masterPassword) {
+          return { ok: false, error: 'Master password is incorrect.' }
+        }
+        set({
+          users: s.users.map((x) =>
+            x.id === userId
+              ? { ...x, password: newPassword, mustChangePassword: false }
+              : x,
+          ),
+        })
+        return { ok: true }
+      },
+
+      changeOwnPassword: (
+        userId,
+        currentPassword,
+        newPassword,
+        confirmPassword,
+      ) => {
+        if (newPassword !== confirmPassword) {
+          return { ok: false, error: 'New password and confirmation do not match.' }
+        }
+        if (!isStrongEnoughPassword(newPassword)) {
+          return {
+            ok: false,
+            error: 'New password must be at least 8 characters.',
+          }
+        }
+        const s = get()
+        const u = s.users.find((x) => x.id === userId)
+        if (!u) return { ok: false, error: 'User not found.' }
+        if (u.password !== currentPassword) {
+          return { ok: false, error: 'Current password is incorrect.' }
+        }
+        set({
+          users: s.users.map((x) =>
+            x.id === userId
+              ? { ...x, password: newPassword, mustChangePassword: false }
+              : x,
+          ),
+        })
+        return { ok: true }
+      },
+
+      resetPasswordWithMaster: (
+        userId,
+        masterPassword,
+        newPassword,
+        confirmPassword,
+      ) => {
+        if (newPassword !== confirmPassword) {
+          return { ok: false, error: 'New password and confirmation do not match.' }
+        }
+        if (!isStrongEnoughPassword(newPassword)) {
+          return {
+            ok: false,
+            error: 'New password must be at least 8 characters.',
+          }
+        }
+        const s = get()
+        const u = s.users.find((x) => x.id === userId)
+        if (!u) return { ok: false, error: 'User not found.' }
         if (u.password !== masterPassword) {
           return { ok: false, error: 'Master password is incorrect.' }
         }

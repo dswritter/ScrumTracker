@@ -3,6 +3,7 @@ import express from 'express'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { registerJiraRoutes } from './jira.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const DATA_DIR = path.join(__dirname, 'data')
@@ -56,10 +57,13 @@ app.get('/api/health', (_req, res) => {
   res.json({ ok: true })
 })
 
+registerJiraRoutes(app, { dataDir: DATA_DIR })
+
 app.listen(PORT, HOST, () => {
   console.log(
     `Scrum tracker sync listening on http://${HOST === '0.0.0.0' ? '<this-pc-ip>' : HOST}:${PORT}`,
   )
   console.log(`  GET  /api/tracker  — fetch shared snapshot + revision`)
   console.log(`  PUT  /api/tracker  — push full snapshot (JSON string body.snapshot)`)
+  console.log(`  JIRA: POST /api/jira/token, GET /api/jira/token-status, POST /api/jira/sync`)
 })
