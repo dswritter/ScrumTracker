@@ -33,13 +33,14 @@ import {
   isStrongEnoughPassword,
   seedPasswordFromKey,
 } from '../lib/passwords'
+import { generateId } from '../lib/ids'
 import { normalizeLoginUsername } from '../lib/username'
 
 /** Must match `persist.name` (localStorage key for cross-tab sync). */
 export const TRACKER_PERSIST_KEY = 'scrum-tracker-v2'
 
 function newId(prefix: string): string {
-  return `${prefix}-${crypto.randomUUID().slice(0, 8)}`
+  return `${prefix}-${generateId().slice(0, 8)}`
 }
 
 function normalizeWorkItem(raw: unknown): WorkItem {
