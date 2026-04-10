@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import {
   MetabuildAssigneeBars,
   MetabuildSectionBars,
@@ -23,7 +23,9 @@ import {
   scopeToParams,
   yearOptionsFromSprints,
 } from '../lib/dashboardScope'
+import { copyTextToClipboard } from '../lib/clipboard'
 import {
+  assigneeChartAxisLabel,
   countByStatus,
   itemsForAssignee,
   personCompletionPercent,
@@ -36,6 +38,15 @@ import {
   buildWeeklyWikiTable,
   getLocalWeekRangeContaining,
 } from '../lib/weeklyWikiExport'
+
+function displayInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return '?'
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  const a = parts[0][0] ?? ''
+  const b = parts[parts.length - 1][0] ?? ''
+  return `${a}${b}`.toUpperCase()
+}
 
 function latestCommentPreview(w: WorkItem): string {
   if (!w.comments.length) return '—'
@@ -188,16 +199,25 @@ export function Dashboard() {
     return base.filter((n) => n === user.displayName)
   }, [ctx, user])
 
+  const rosterForAssigneeChart = useMemo(() => {
+    return [...(ctx?.teamMembers ?? [])].sort((a, b) => a.localeCompare(b))
+  }, [ctx])
+
+  const teammateNames = useMemo(() => {
+    if (!user || isAdmin(user)) return []
+    return [...(ctx?.teamMembers ?? [])]
+      .filter((n) => n.trim() && n.trim() !== user.displayName.trim())
+      .sort((a, b) => a.localeCompare(b))
+  }, [ctx, user])
+
   const assigneeBarRows = useMemo(
     () =>
-      roster.map((name) => {
-        const first = name.split(/\s+/)[0] ?? name
-        return {
-          shortName: first.length > 12 ? `${first.slice(0, 11)}…` : first,
-          pct: personCompletionPercent(name, filteredItems),
-        }
-      }),
-    [roster, filteredItems],
+      rosterForAssigneeChart.map((name) => ({
+        label: assigneeChartAxisLabel(name),
+        fullName: name,
+        pct: personCompletionPercent(name, filteredItems),
+      })),
+    [rosterForAssigneeChart, filteredItems],
   )
 
   const tableItems = useMemo(
@@ -248,12 +268,14 @@ export function Dashboard() {
                 roster: rosterSorted,
                 workItems: ctx.workItems,
               })
-              try {
-                await navigator.clipboard.writeText(text)
+              const ok = await copyTextToClipboard(text)
+              if (ok) {
                 setWikiToast(`Copied table for ${week.label}`)
                 window.setTimeout(() => setWikiToast(null), 3500)
-              } catch {
-                setWikiToast('Could not copy to clipboard')
+              } else {
+                setWikiToast(
+                  'Could not copy (clipboard blocked — use HTTPS or select text manually).',
+                )
               }
             }}
           >
@@ -380,7 +402,9 @@ export function Dashboard() {
         </p>
       )}
 
-      <div className="grid gap-3 lg:grid-cols-3">
+      <div
+        className={`grid gap-3 ${isAdmin(user) ? 'lg:grid-cols-3' : 'lg:grid-cols-2'}`}
+      >
         <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
           <h3 className="mb-1 text-center text-xs font-bold uppercase tracking-wide text-[#007a3d]">
             Total progress
@@ -393,13 +417,65 @@ export function Dashboard() {
           </h3>
           <MetabuildSectionBars rows={sectionBarRows} />
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-          <h3 className="mb-1 text-center text-xs font-bold uppercase tracking-wide text-[#007a3d]">
-            Contribution
-          </h3>
-          <MetabuildAssigneeBars rows={assigneeBarRows} />
-        </div>
+        {isAdmin(user) ? (
+          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+            <h3 className="mb-1 text-center text-xs font-bold uppercase tracking-wide text-[#007a3d]">
+              Done % by person
+            </h3>
+            <MetabuildAssigneeBars rows={assigneeBarRows} />
+          </div>
+        ) : null}
       </div>
+
+      {!isAdmin(user) && teammateNames.length > 0 ? (
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-[#007a3d]">
+            Teammates
+          </h3>
+          <ul className="flex flex-wrap gap-4">
+            {teammateNames.map((name) => {
+              const href = personDetailHref(name, scope)
+              const slackUrl = resolveSlackDmUrl(
+                name,
+                ctx.slackDmUrlByDisplayName,
+                ctx.teamUsers,
+              )
+              return (
+                <li key={name} className="flex flex-col items-center gap-1.5">
+                  <Link
+                    to={href}
+                    className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[#00B050] to-emerald-700 text-sm font-bold text-white shadow-md ring-2 ring-white hover:ring-[#00B050]/40"
+                    title={name}
+                  >
+                    {displayInitials(name)}
+                  </Link>
+                  <div className="flex max-w-[5.5rem] items-center justify-center gap-1">
+                    <Link
+                      to={href}
+                      className="truncate text-center text-[11px] font-medium text-slate-800 hover:text-[#007a3d] hover:underline"
+                    >
+                      {name.split(/\s+/)[0]}
+                    </Link>
+                    {slackUrl ? (
+                      <a
+                        href={slackUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-[#4A154B] hover:bg-purple-50"
+                        title={`Slack: ${name}`}
+                        aria-label={`Open Slack for ${name}`}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <i className="fa-brands fa-slack text-sm" aria-hidden />
+                      </a>
+                    ) : null}
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      ) : null}
 
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
@@ -439,7 +515,11 @@ export function Dashboard() {
               <tr className="border-b border-slate-200 bg-[#00B050]/12">
                 <th className="px-3 py-2 font-bold text-[#0d5c2e]">Title</th>
                 <th className="px-3 py-2 font-bold text-[#0d5c2e]">Section</th>
-                <th className="px-3 py-2 font-bold text-[#0d5c2e]">Assignees</th>
+                {isAdmin(user) ? (
+                  <th className="px-3 py-2 font-bold text-[#0d5c2e]">
+                    Assignees
+                  </th>
+                ) : null}
                 <th className="px-3 py-2 font-bold text-[#0d5c2e]">Status</th>
                 <th className="px-3 py-2 font-bold text-[#0d5c2e]">Jira</th>
                 <th className="min-w-[12rem] px-3 py-2 font-bold text-[#0d5c2e]">
@@ -451,7 +531,7 @@ export function Dashboard() {
               {tableItems.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={isAdmin(user) ? 6 : 5}
                     className="px-3 py-6 text-center text-slate-500"
                   >
                     No items in this scope.
@@ -472,9 +552,11 @@ export function Dashboard() {
                       <td className="px-3 py-2 align-top text-slate-700">
                         {w.section || '—'}
                       </td>
-                      <td className="px-3 py-2 align-top text-slate-700">
-                        {w.assignees.length ? w.assignees.join(', ') : '—'}
-                      </td>
+                      {isAdmin(user) ? (
+                        <td className="px-3 py-2 align-top text-slate-700">
+                          {w.assignees.length ? w.assignees.join(', ') : '—'}
+                        </td>
+                      ) : null}
                       <td
                         className={`px-3 py-2 align-top ${
                           w.status === 'done'
@@ -534,6 +616,7 @@ export function Dashboard() {
                   slackUrl={resolveSlackDmUrl(
                     name,
                     ctx.slackDmUrlByDisplayName,
+                    ctx.teamUsers,
                   )}
                 />
                 <ul className="mt-3 max-h-48 space-y-2 overflow-y-auto text-sm">

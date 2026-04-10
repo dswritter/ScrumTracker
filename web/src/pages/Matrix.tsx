@@ -45,55 +45,62 @@ export function Matrix() {
             </tr>
           </thead>
           <tbody>
-            {people.map((person) => (
-              <tr
-                key={person}
-                className="border-b border-slate-100 hover:bg-slate-50/80"
-              >
-                <td className="sticky left-0 z-[1] bg-white px-3 py-2 font-semibold text-slate-800">
-                  <span className="inline-flex items-center gap-2">
-                    {person}
-                    {resolveSlackDmUrl(person, ctx.slackDmUrlByDisplayName) ? (
-                      <a
-                        href={resolveSlackDmUrl(
-                          person,
-                          ctx.slackDmUrlByDisplayName,
-                        )}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex h-6 w-6 items-center justify-center rounded text-[#4A154B] hover:bg-purple-50"
-                        title="Slack"
-                        aria-label={`Slack: ${person}`}
+            {people.map((person) => {
+              const slackUrl = resolveSlackDmUrl(
+                person,
+                ctx.slackDmUrlByDisplayName,
+                ctx.teamUsers,
+              )
+              return (
+                <tr
+                  key={person}
+                  className="border-b border-slate-100 hover:bg-slate-50/80"
+                >
+                  <td className="sticky left-0 z-[1] bg-white px-3 py-2 font-semibold text-slate-800">
+                    <span className="inline-flex items-center gap-2">
+                      {person}
+                      {slackUrl ? (
+                        <a
+                          href={slackUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex h-6 w-6 items-center justify-center rounded text-[#4A154B] hover:bg-purple-50"
+                          title="Slack"
+                          aria-label={`Slack: ${person}`}
+                        >
+                          <i className="fa-brands fa-slack text-sm" aria-hidden />
+                        </a>
+                      ) : null}
+                    </span>
+                  </td>
+                  {sortedSprints.map((sp) => {
+                    const titles = matrixCellTitles(person, sp.id, workItems)
+                    return (
+                      <td
+                        key={sp.id}
+                        className="align-top px-2 py-2 text-slate-600"
                       >
-                        <i className="fa-brands fa-slack text-sm" aria-hidden />
-                      </a>
-                    ) : null}
-                  </span>
-                </td>
-                {sortedSprints.map((sp) => {
-                  const titles = matrixCellTitles(person, sp.id, workItems)
-                  return (
-                    <td key={sp.id} className="align-top px-2 py-2 text-slate-600">
-                      {titles.length === 0 ? (
-                        <span className="text-slate-400">—</span>
-                      ) : (
-                        <ul className="list-inside list-disc space-y-1">
-                          {titles.map((t, i) => (
-                            <li
-                              key={i}
-                              className="max-w-[200px] truncate"
-                              title={t}
-                            >
-                              {t}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </td>
-                  )
-                })}
-              </tr>
-            ))}
+                        {titles.length === 0 ? (
+                          <span className="text-slate-400">—</span>
+                        ) : (
+                          <ul className="list-inside list-disc space-y-1">
+                            {titles.map((t, i) => (
+                              <li
+                                key={i}
+                                className="max-w-[200px] truncate"
+                                title={t}
+                              >
+                                {t}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </td>
+                    )
+                  })}
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>

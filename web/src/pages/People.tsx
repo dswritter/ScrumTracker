@@ -51,6 +51,7 @@ export function People() {
                   slackUrl={resolveSlackDmUrl(
                     name,
                     ctx.slackDmUrlByDisplayName,
+                    ctx.teamUsers,
                   )}
                 />
                 <ul className="mt-3 max-h-48 space-y-2 overflow-y-auto text-sm">

@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useCurrentUser } from './useCurrentUser'
 import { useTrackerStore } from '../store/useTrackerStore'
-import type { TrackerTeamData } from '../types'
+import type { TrackerTeamData, TrackerUserAccount } from '../types'
 
 const empty: TrackerTeamData = {
   sprints: [],
@@ -16,12 +16,15 @@ export type TeamContext = {
   user: NonNullable<ReturnType<typeof useCurrentUser>>
   teamId: string
   teamName: string
+  /** Login accounts for this team (Slack URLs, roles, etc.). */
+  teamUsers: TrackerUserAccount[]
 } & TrackerTeamData
 
 /** Current user's team slice; null if not signed in or missing team. */
 export function useTeamContextNullable(): TeamContext | null {
   const user = useCurrentUser()
   const teams = useTrackerStore((s) => s.teams)
+  const allUsers = useTrackerStore((s) => s.users)
   const slice = useTrackerStore((s) =>
     user?.teamId ? s.teamsData[user.teamId] : undefined,
   )
@@ -30,10 +33,12 @@ export function useTeamContextNullable(): TeamContext | null {
     if (!user?.teamId) return null
     const meta = teams.find((t) => t.id === user.teamId)
     const d = slice ?? empty
+    const teamUsers = allUsers.filter((u) => u.teamId === user.teamId)
     return {
       user,
       teamId: user.teamId,
       teamName: meta?.name ?? 'Team',
+      teamUsers,
       sprints: d.sprints,
       workItems: d.workItems,
       teamMembers: d.teamMembers,
@@ -43,5 +48,5 @@ export function useTeamContextNullable(): TeamContext | null {
       slackDmUrlByDisplayName: d.slackDmUrlByDisplayName,
       weeklyWikiPageUrl: d.weeklyWikiPageUrl,
     }
-    }, [user, teams, slice])
+    }, [user, teams, slice, allUsers])
 }

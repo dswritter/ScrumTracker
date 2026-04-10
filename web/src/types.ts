@@ -80,6 +80,8 @@ export interface TrackerUserAccount {
   role: UserRole
   password: string
   mustChangePassword: boolean
+  /** Optional Slack DM / archive URL (admin-editable; same rules as team map). */
+  slackChatUrl?: string
 }
 
 export const TRACKER_SCHEMA_VERSION = 3 as const

@@ -33,6 +33,7 @@ import {
 import { generateId } from '../lib/ids'
 import { normalizeLoginUsername } from '../lib/username'
 import { mergeBundledSlackDefaults } from '../data/defaultSlackDmUrls'
+import { parseSlackDmUrlInput } from '../lib/slackDm'
 
 /** Must match `persist.name` (localStorage key for cross-tab sync). */
 export const TRACKER_PERSIST_KEY = 'scrum-tracker-v2'
@@ -111,6 +112,8 @@ function normalizeUser(
     String(o.displayName ?? username).trim() || username || 'User'
   const teamId = String(o.teamId ?? defaultTeamId)
   const hasPwd = typeof o.password === 'string' && o.password.length > 0
+  const slackRaw =
+    typeof o.slackChatUrl === 'string' ? o.slackChatUrl.trim() : ''
   const base: TrackerUserAccount = {
     id: String(o.id ?? newId('user')),
     teamId,
@@ -123,6 +126,7 @@ function normalizeUser(
         ? DEMO_SEED_ADMIN_PASSWORD
         : seedPasswordFromKey(`${username}:member`),
     mustChangePassword: Boolean(o.mustChangePassword),
+    ...(slackRaw ? { slackChatUrl: slackRaw } : {}),
   }
   return finalizePasswordPolicy(base)
 }
@@ -302,6 +306,11 @@ export interface TrackerState {
   setSlackDmUrl: (teamId: string, displayName: string, url: string) => void
   removeSlackDmUrl: (teamId: string, displayName: string) => void
   applyBundledSlackDmUrls: (teamId: string) => void
+  setUserSlackChatUrl: (
+    teamId: string,
+    userId: string,
+    url: string,
+  ) => { ok: true } | { ok: false; error: string }
   setWeeklyWikiPageUrl: (teamId: string, url: string) => void
   setTeamName: (teamId: string, name: string) => void
 
@@ -311,6 +320,7 @@ export interface TrackerState {
       username: string
       displayName: string
       role: TrackerUserAccount['role']
+      slackChatUrl?: string
     },
   ) => { ok: true; generatedPassword: string } | { ok: false; error: string }
 
@@ -556,12 +566,49 @@ export const useTrackerStore = create<TrackerState>()(
         set((s) => {
           const d = getSlice(s, teamId)
           const merged = mergeBundledSlackDefaults(d.slackDmUrlByDisplayName)
+          const users = s.users.map((u) => {
+            if (u.teamId !== teamId) return u
+            if (u.slackChatUrl?.trim()) return u
+            const url = merged[u.displayName.trim()]
+            if (!url?.trim()) return u
+            return { ...u, slackChatUrl: url.trim() }
+          })
           return {
+            users,
             teamsData: patchSlice(s, teamId, {
               slackDmUrlByDisplayName: merged,
             }),
           }
         }),
+
+      setUserSlackChatUrl: (teamId, userId, url) => {
+        const t = url.trim()
+        if (!t) {
+          set((s) => ({
+            users: s.users.map((u) =>
+              u.id === userId && u.teamId === teamId
+                ? { ...u, slackChatUrl: undefined }
+                : u,
+            ),
+          }))
+          return { ok: true }
+        }
+        const okUrl = parseSlackDmUrlInput(t)
+        if (!okUrl) {
+          return {
+            ok: false,
+            error: 'Invalid Slack URL (https://…/archives/D… on allowed host).',
+          }
+        }
+        set((s) => ({
+          users: s.users.map((u) =>
+            u.id === userId && u.teamId === teamId
+              ? { ...u, slackChatUrl: okUrl }
+              : u,
+          ),
+        }))
+        return { ok: true }
+      },
 
       setWeeklyWikiPageUrl: (teamId, url) =>
         set((s) => ({
@@ -583,6 +630,14 @@ export const useTrackerStore = create<TrackerState>()(
         if (!username || !displayName) {
           return { ok: false, error: 'Username and display name are required.' }
         }
+        let slackChatUrl: string | undefined
+        if (input.slackChatUrl?.trim()) {
+          const p = parseSlackDmUrlInput(input.slackChatUrl)
+          if (!p) {
+            return { ok: false, error: 'Invalid Slack URL.' }
+          }
+          slackChatUrl = p
+        }
         const s = get()
         if (s.users.some((x) => x.username === username)) {
           return { ok: false, error: 'Username already exists.' }
@@ -596,6 +651,7 @@ export const useTrackerStore = create<TrackerState>()(
           role: input.role,
           password: generatedPassword,
           mustChangePassword: true,
+          ...(slackChatUrl ? { slackChatUrl } : {}),
         }
         const d = getSlice(s, teamId)
         const teamMembers = d.teamMembers.includes(displayName)

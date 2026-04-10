@@ -69,7 +69,11 @@ export function PersonDetail() {
     return <Navigate to="/me" replace />
   }
 
-  const slackUrl = resolveSlackDmUrl(name, ctx.slackDmUrlByDisplayName)
+  const slackUrl = resolveSlackDmUrl(
+    name,
+    ctx.slackDmUrlByDisplayName,
+    ctx.teamUsers,
+  )
 
   return (
     <div className="space-y-6">

@@ -301,6 +301,25 @@ function upsertWorkItemFromIssue(
   return [created, ...workItems]
 }
 
+async function fetchIssueFields(jiraBase, pat, issueKey, fieldsCsv) {
+  const base = jiraBase.replace(/\/$/, '')
+  const url = `${base}/rest/api/2/issue/${encodeURIComponent(issueKey)}?${new URLSearchParams({
+    fields: fieldsCsv,
+  })}`
+  const res = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${pat}`,
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+  })
+  if (!res.ok) {
+    const t = await res.text()
+    throw new Error(`Jira issue ${issueKey} ${res.status}: ${t.slice(0, 300)}`)
+  }
+  return res.json()
+}
+
 async function fetchAllIssues(jiraBase, pat, jql, fieldList) {
   const base = jiraBase.replace(/\/$/, '')
   const out = []
@@ -569,8 +588,34 @@ export function registerJiraRoutes(app, opts) {
         const jiraComments = commentMap.get(issue.key) || []
         let jiraSprintIds = []
         const syncSprintsFromJira = Boolean(sprintFieldRaw)
-        if (syncSprintsFromJira) {
-          const rawSprints = extractJiraSprintFieldValue(issue, sprintFieldRaw)
+        let issueForSync = issue
+        if (syncSprintsFromJira && sprintFieldRaw) {
+          let rawSprints = extractJiraSprintFieldValue(issue, sprintFieldRaw)
+          const missing =
+            rawSprints == null ||
+            (Array.isArray(rawSprints) && rawSprints.length === 0)
+          if (missing) {
+            try {
+              const one = await fetchIssueFields(
+                jiraBase,
+                tok.token,
+                issue.key,
+                sprintFieldRaw,
+              )
+              if (one?.fields && one.fields[sprintFieldRaw] != null) {
+                issueForSync = {
+                  ...issue,
+                  fields: { ...issue.fields, ...one.fields },
+                }
+                rawSprints = extractJiraSprintFieldValue(
+                  issueForSync,
+                  sprintFieldRaw,
+                )
+              }
+            } catch {
+              /* keep search payload */
+            }
+          }
           const { sprints: nextSprints, sprintIds } = upsertSprintsFromJiraObjects(
             sprints,
             rawSprints,
@@ -580,7 +625,7 @@ export function registerJiraRoutes(app, opts) {
         }
         workItems = upsertWorkItemFromIssue(
           workItems,
-          issue,
+          issueForSync,
           jiraComments,
           jiraSprintIds,
           syncSprintsFromJira,

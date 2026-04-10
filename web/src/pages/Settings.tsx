@@ -4,7 +4,6 @@ import { useCurrentUser } from '../hooks/useCurrentUser'
 import { useTeamContextNullable } from '../hooks/useTeamContext'
 import { getJiraTokenStatus, postJiraToken } from '../lib/jiraApi'
 import { runJiraSyncFromStore } from '../lib/runJiraSync'
-import { parseSlackDmUrlInput } from '../lib/slackDm'
 import { DEFAULT_WEEKLY_WIKI_PAGE_URL } from '../data/defaultSlackDmUrls'
 import { useTrackerStore } from '../store/useTrackerStore'
 
@@ -26,9 +25,8 @@ export function Settings() {
   const setJiraBaseUrl = useTrackerStore((s) => s.setJiraBaseUrl)
   const setJiraSyncJql = useTrackerStore((s) => s.setJiraSyncJql)
   const setJiraSprintFieldId = useTrackerStore((s) => s.setJiraSprintFieldId)
-  const setSlackDmUrl = useTrackerStore((s) => s.setSlackDmUrl)
-  const removeSlackDmUrl = useTrackerStore((s) => s.removeSlackDmUrl)
   const applyBundledSlackDmUrls = useTrackerStore((s) => s.applyBundledSlackDmUrls)
+  const setUserSlackChatUrl = useTrackerStore((s) => s.setUserSlackChatUrl)
   const setWeeklyWikiPageUrl = useTrackerStore((s) => s.setWeeklyWikiPageUrl)
 
   const jiraBaseUrl = ctx?.jiraBaseUrl ?? ''
@@ -100,11 +98,10 @@ export function Settings() {
 
   const [uUsername, setUUsername] = useState('')
   const [uDisplay, setUDisplay] = useState('')
+  const [uSlack, setUSlack] = useState('')
   const [uRole, setURole] = useState<TrackerUserAccount['role']>('member')
   const [userMsg, setUserMsg] = useState<string | null>(null)
   const [integrationsMsg, setIntegrationsMsg] = useState<string | null>(null)
-  const [slackDraftName, setSlackDraftName] = useState('')
-  const [slackDraftUrl, setSlackDraftUrl] = useState('')
   const [wikiDraftUrl, setWikiDraftUrl] = useState(
     ctx?.weeklyWikiPageUrl ?? DEFAULT_WEEKLY_WIKI_PAGE_URL,
   )
@@ -120,6 +117,7 @@ export function Settings() {
       username: uUsername,
       displayName: uDisplay,
       role: uRole,
+      slackChatUrl: uSlack.trim() || undefined,
     })
     if (!r.ok) {
       setUserMsg(r.error)
@@ -127,6 +125,7 @@ export function Settings() {
     }
     setUUsername('')
     setUDisplay('')
+    setUSlack('')
     setURole('member')
     setUserMsg(
       `Account created. Give this one-time master password to the teammate: ${r.generatedPassword}`,
@@ -177,7 +176,7 @@ export function Settings() {
       </section>
 
       <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="grid gap-2 sm:grid-cols-2">
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           <input
             className={field}
             placeholder="Username"
@@ -190,6 +189,12 @@ export function Settings() {
             value={uDisplay}
             onChange={(e) => setUDisplay(e.target.value)}
           />
+          <input
+            className={`${field} font-mono text-xs`}
+            placeholder="Slack URL (optional)"
+            value={uSlack}
+            onChange={(e) => setUSlack(e.target.value)}
+          />
           <select
             className={field}
             value={uRole}
@@ -200,6 +205,20 @@ export function Settings() {
             <option value="member">Member</option>
             <option value="admin">Admin</option>
           </select>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-100"
+            onClick={() => {
+              applyBundledSlackDmUrls(teamId)
+              setUserMsg(
+                'Applied bundled Slack URLs where missing (accounts + legacy map).',
+              )
+            }}
+          >
+            Apply bundled Slack defaults (missing only)
+          </button>
         </div>
         <button
           type="button"
@@ -243,6 +262,21 @@ export function Settings() {
                 <div className="font-mono text-xs text-slate-700">
                   <span className="text-slate-500">Password: </span>
                   {u.password}
+                </div>
+                <div className="min-w-0 flex-[1_1_100%] sm:flex-[2]">
+                  <label className="text-[10px] font-semibold text-slate-600">
+                    Slack URL (optional)
+                  </label>
+                  <input
+                    className={`${field} mt-0.5 font-mono text-[11px]`}
+                    defaultValue={u.slackChatUrl ?? ''}
+                    key={`${u.id}-slack-${u.slackChatUrl ?? ''}`}
+                    placeholder="https://…/archives/D…"
+                    onBlur={(e) => {
+                      const r = setUserSlackChatUrl(teamId, u.id, e.target.value)
+                      if (!r.ok) setUserMsg(r.error)
+                    }}
+                  />
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <button
@@ -456,139 +490,7 @@ export function Settings() {
       </section>
 
       <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <h2 className="text-sm font-bold text-slate-900">Slack DM links</h2>
-        <p className="text-xs text-slate-600">
-          Map roster <strong>display names</strong> to Slack archive URLs (
-          <code className="rounded bg-slate-100 px-1">…/archives/D…</code>
-          ). Optional host override:{' '}
-          <code className="rounded bg-slate-100 px-1">VITE_SLACK_ENTERPRISE_BASE</code>
-          .
-        </p>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-100"
-            onClick={() => {
-              applyBundledSlackDmUrls(teamId)
-              setIntegrationsMsg('Filled missing URLs from bundled defaults.')
-            }}
-          >
-            Apply bundled defaults (missing only)
-          </button>
-        </div>
-        <div className="overflow-x-auto rounded-lg border border-slate-200">
-          <table className="w-full min-w-[32rem] text-left text-xs">
-            <thead className="bg-slate-50 text-slate-700">
-              <tr>
-                <th className="px-3 py-2 font-bold">Display name</th>
-                <th className="px-3 py-2 font-bold">Slack URL</th>
-                <th className="px-3 py-2 font-bold"> </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {Array.from(
-                new Set([
-                  ...ctx.teamMembers,
-                  ...Object.keys(ctx.slackDmUrlByDisplayName ?? {}),
-                ]),
-              )
-                .sort((a, b) => a.localeCompare(b))
-                .map((name) => (
-                  <tr key={name}>
-                    <td className="px-3 py-2 font-medium text-slate-900">
-                      {name}
-                    </td>
-                    <td className="px-3 py-2">
-                      <input
-                        className={`${field} font-mono text-[11px]`}
-                        defaultValue={
-                          ctx.slackDmUrlByDisplayName?.[name] ?? ''
-                        }
-                        key={`${name}-${ctx.slackDmUrlByDisplayName?.[name] ?? ''}`}
-                        onBlur={(e) => {
-                          const raw = e.target.value.trim()
-                          if (!raw) {
-                            removeSlackDmUrl(teamId, name)
-                            return
-                          }
-                          const ok = parseSlackDmUrlInput(raw)
-                          if (!ok) {
-                            setIntegrationsMsg(
-                              `Invalid Slack URL for ${name} (use https://…/archives/D… on allowed host).`,
-                            )
-                            return
-                          }
-                          setSlackDmUrl(teamId, name, ok)
-                          setIntegrationsMsg(null)
-                        }}
-                      />
-                    </td>
-                    <td className="px-3 py-2">
-                      <button
-                        type="button"
-                        className="text-rose-700 hover:underline"
-                        onClick={() => removeSlackDmUrl(teamId, name)}
-                      >
-                        Clear
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
-        </div>
-        <div className="flex flex-wrap items-end gap-2 border-t border-slate-100 pt-3">
-          <div className="min-w-[10rem] flex-1">
-            <label className="text-[10px] font-semibold text-slate-600">
-              Add / other name
-            </label>
-            <input
-              className={field}
-              value={slackDraftName}
-              onChange={(e) => setSlackDraftName(e.target.value)}
-              placeholder="Display name"
-            />
-          </div>
-          <div className="min-w-[12rem] flex-[2]">
-            <label className="text-[10px] font-semibold text-slate-600">
-              URL
-            </label>
-            <input
-              className={`${field} font-mono text-[11px]`}
-              value={slackDraftUrl}
-              onChange={(e) => setSlackDraftUrl(e.target.value)}
-              placeholder="https://adobe.enterprise.slack.com/archives/D…"
-            />
-          </div>
-          <button
-            type="button"
-            className="rounded-lg bg-slate-800 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-900"
-            onClick={() => {
-              const ok = parseSlackDmUrlInput(slackDraftUrl)
-              if (!slackDraftName.trim()) {
-                setIntegrationsMsg('Enter a display name.')
-                return
-              }
-              if (!ok) {
-                setIntegrationsMsg('Invalid Slack URL.')
-                return
-              }
-              setSlackDmUrl(teamId, slackDraftName.trim(), ok)
-              setSlackDraftName('')
-              setSlackDraftUrl('')
-              setIntegrationsMsg('Saved.')
-            }}
-          >
-            Save row
-          </button>
-        </div>
-        {integrationsMsg ? (
-          <p className="text-xs font-medium text-slate-700">{integrationsMsg}</p>
-        ) : null}
-
-        <h3 className="pt-4 text-xs font-bold text-slate-900">
-          Weekly wiki page
-        </h3>
+        <h2 className="text-sm font-bold text-slate-900">Weekly wiki page</h2>
         <p className="text-xs text-slate-600">
           Used by the Dashboard “Copy weekly wiki” action (opens this page to
           paste).
@@ -610,6 +512,9 @@ export function Settings() {
             Save wiki URL
           </button>
         </div>
+        {integrationsMsg ? (
+          <p className="text-xs font-medium text-slate-700">{integrationsMsg}</p>
+        ) : null}
       </section>
 
       <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">

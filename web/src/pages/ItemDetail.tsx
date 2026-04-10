@@ -122,17 +122,21 @@ export function ItemDetail() {
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <h2 className="text-xs font-bold uppercase tracking-wide text-slate-500">
-            Assignees
-          </h2>
-          <p className="mt-2 text-sm text-slate-900">
-            {item.assignees.length
-              ? item.assignees.join(', ')
-              : '—'}
-          </p>
-        </div>
+      <div
+        className={`grid gap-4 ${isAdmin(user) ? 'sm:grid-cols-2' : 'sm:grid-cols-1'}`}
+      >
+        {isAdmin(user) ? (
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <h2 className="text-xs font-bold uppercase tracking-wide text-slate-500">
+              Assignees
+            </h2>
+            <p className="mt-2 text-sm text-slate-900">
+              {item.assignees.length
+                ? item.assignees.join(', ')
+                : '—'}
+            </p>
+          </div>
+        ) : null}
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <h2 className="text-xs font-bold uppercase tracking-wide text-slate-500">
             Sprints

@@ -36,6 +36,7 @@ function Row({
   sprints,
   teamMembers,
   jiraBaseUrl,
+  showAssigneesColumn,
 }: {
   item: WorkItem
   user: TrackerUserAccount
@@ -43,6 +44,7 @@ function Row({
   sprints: Sprint[]
   teamMembers: string[]
   jiraBaseUrl: string
+  showAssigneesColumn: boolean
 }) {
   const updateWorkItem = useTrackerStore((s) => s.updateWorkItem)
   const deleteWorkItem = useTrackerStore((s) => s.deleteWorkItem)
@@ -92,46 +94,48 @@ function Row({
           }
         />
       </td>
-      <td className="px-2 py-2">
-        <div className="flex max-w-[220px] flex-col gap-1">
-          {assigneeAdmin ? (
-            <div className="flex flex-wrap gap-1">
-              {teamMembers.map((m) => (
-                <label
-                  key={m}
-                  className="flex cursor-pointer items-center gap-1 rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] text-slate-700"
-                >
-                  <input
-                    type="checkbox"
-                    checked={item.assignees.includes(m)}
-                    onChange={() => {
-                      const has = item.assignees.includes(m)
-                      updateWorkItem(teamId, item.id, {
-                        assignees: has
-                          ? item.assignees.filter((a) => a !== m)
-                          : [...item.assignees, m],
-                      })
-                    }}
-                  />
-                  {m}
-                </label>
-              ))}
-            </div>
-          ) : (
-            <p className="text-[10px] text-slate-700">
-              {item.assignees.length
-                ? item.assignees.join(', ')
-                : '—'}
-            </p>
-          )}
-          {former.length > 0 ? (
-            <p className="text-[10px] leading-snug text-slate-500">
-              <span className="font-medium text-slate-600">Former:</span>{' '}
-              {former.join(', ')}
-            </p>
-          ) : null}
-        </div>
-      </td>
+      {showAssigneesColumn ? (
+        <td className="px-2 py-2">
+          <div className="flex max-w-[220px] flex-col gap-1">
+            {assigneeAdmin ? (
+              <div className="flex flex-wrap gap-1">
+                {teamMembers.map((m) => (
+                  <label
+                    key={m}
+                    className="flex cursor-pointer items-center gap-1 rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] text-slate-700"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={item.assignees.includes(m)}
+                      onChange={() => {
+                        const has = item.assignees.includes(m)
+                        updateWorkItem(teamId, item.id, {
+                          assignees: has
+                            ? item.assignees.filter((a) => a !== m)
+                            : [...item.assignees, m],
+                        })
+                      }}
+                    />
+                    {m}
+                  </label>
+                ))}
+              </div>
+            ) : (
+              <p className="text-[10px] text-slate-700">
+                {item.assignees.length
+                  ? item.assignees.join(', ')
+                  : '—'}
+              </p>
+            )}
+            {former.length > 0 ? (
+              <p className="text-[10px] leading-snug text-slate-500">
+                <span className="font-medium text-slate-600">Former:</span>{' '}
+                {former.join(', ')}
+              </p>
+            ) : null}
+          </div>
+        </td>
+      ) : null}
       <td className="px-2 py-2">
         <select
           className={`${inputCls} pr-6`}
@@ -228,6 +232,9 @@ export function Items() {
   const [searchParams] = useSearchParams()
   const [addOpen, setAddOpen] = useState(false)
   const [addModalKey, setAddModalKey] = useState(0)
+  const [tableFilterSection, setTableFilterSection] = useState('')
+  const [tableFilterComponent, setTableFilterComponent] = useState('')
+  const [tableFilterStatus, setTableFilterStatus] = useState('')
 
   const statusParam = searchParams.get('status')
   const groupParam = searchParams.get('group')
@@ -248,7 +255,7 @@ export function Items() {
     [searchParams, ctx],
   )
 
-  const visible = useMemo(() => {
+  const scopedList = useMemo(() => {
     const sprints = ctx?.sprints ?? []
     const workItems = ctx?.workItems ?? []
     let list = filterWorkItemsByScope(workItems, sprints, scope)
@@ -265,12 +272,58 @@ export function Items() {
     return sortWorkItemsByNewestSprintFirst(list, sprints)
   }, [ctx, scope, statusFilter, groupFilter, user])
 
+  const sectionOptions = useMemo(() => {
+    const set = new Set<string>()
+    for (const w of scopedList) {
+      const s = w.section.trim() || '(empty)'
+      set.add(s)
+    }
+    return [...set].sort((a, b) => a.localeCompare(b))
+  }, [scopedList])
+
+  const componentOptions = useMemo(() => {
+    const set = new Set<string>()
+    for (const w of scopedList) {
+      const c = w.component.trim() || '(empty)'
+      set.add(c)
+    }
+    return [...set].sort((a, b) => a.localeCompare(b))
+  }, [scopedList])
+
+  const visible = useMemo(() => {
+    let list = scopedList
+    if (tableFilterSection) {
+      if (tableFilterSection === '(empty)') {
+        list = list.filter((w) => !w.section.trim())
+      } else {
+        list = list.filter((w) => w.section.trim() === tableFilterSection)
+      }
+    }
+    if (tableFilterComponent) {
+      if (tableFilterComponent === '(empty)') {
+        list = list.filter((w) => !w.component.trim())
+      } else {
+        list = list.filter(
+          (w) => w.component.trim() === tableFilterComponent,
+        )
+      }
+    }
+    if (tableFilterStatus && STATUS_VALUES.has(tableFilterStatus)) {
+      list = list.filter((w) => w.status === tableFilterStatus)
+    }
+    return list
+  }, [scopedList, tableFilterSection, tableFilterComponent, tableFilterStatus])
+
   const hasScopeParams = Boolean(searchParams.get('scope'))
+  const hasColumnFilters = Boolean(
+    tableFilterSection || tableFilterComponent || tableFilterStatus,
+  )
   const hasQuery =
     hasScopeParams ||
     Boolean(searchParams.get('sprint')) ||
     Boolean(statusFilter) ||
-    Boolean(groupFilter)
+    Boolean(groupFilter) ||
+    hasColumnFilters
 
   if (!user || !ctx) return null
 
@@ -283,6 +336,16 @@ export function Items() {
     filterSummary += ' · In progress (incl. to test / to track)'
   if (groupFilter === 'blockedTodo') filterSummary += ' · Blocked & todo'
   if (user && !isAdmin(user)) filterSummary += ' · Your assignments only'
+  if (tableFilterSection)
+    filterSummary += ` · Section: ${tableFilterSection}`
+  if (tableFilterComponent)
+    filterSummary += ` · Component: ${tableFilterComponent}`
+  if (tableFilterStatus)
+    filterSummary += ` · Table status: ${tableFilterStatus.replace('_', ' ')}`
+
+  const showAssigneesColumn = isAdmin(user)
+  const filterSelectCls =
+    'mt-0.5 w-full min-w-0 rounded border border-slate-200 bg-white px-1 py-1 text-[10px] font-normal text-slate-800 shadow-sm'
 
   return (
     <div className="space-y-4">
@@ -319,12 +382,25 @@ export function Items() {
           <span>
             <span className="font-semibold">Filtered:</span> {filterSummary}
           </span>
-          <Link
-            to="/items"
-            className="font-medium text-indigo-800 underline hover:text-indigo-950"
-          >
-            Clear filters
-          </Link>
+          <span className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              className="font-medium text-indigo-800 underline hover:text-indigo-950"
+              onClick={() => {
+                setTableFilterSection('')
+                setTableFilterComponent('')
+                setTableFilterStatus('')
+              }}
+            >
+              Clear column filters
+            </button>
+            <Link
+              to="/items"
+              className="font-medium text-indigo-800 underline hover:text-indigo-950"
+            >
+              Clear all
+            </Link>
+          </span>
         </div>
       ) : null}
 
@@ -335,13 +411,73 @@ export function Items() {
               <th className="px-2 py-2">Section</th>
               <th className="px-2 py-2">Component</th>
               <th className="px-2 py-2">Title</th>
-              <th className="px-2 py-2">Assignees</th>
+              {showAssigneesColumn ? (
+                <th className="px-2 py-2">Assignees</th>
+              ) : null}
               <th className="px-2 py-2">Status</th>
               <th className="px-2 py-2">Sprints</th>
               <th className="px-2 py-2">ETA</th>
               <th className="px-2 py-2">JIRA</th>
               <th className="px-2 py-2">Comments</th>
               <th className="px-2 py-2" />
+            </tr>
+            <tr className="border-b border-slate-200 bg-slate-50/90 text-[10px] font-semibold normal-case text-slate-600">
+              <th className="px-2 pb-2 pt-0 align-top">
+                <label className="block font-semibold text-slate-500">
+                  Filter
+                  <select
+                    className={filterSelectCls}
+                    value={tableFilterSection}
+                    onChange={(e) => setTableFilterSection(e.target.value)}
+                  >
+                    <option value="">All sections</option>
+                    {sectionOptions.map((s) => (
+                      <option key={s} value={s === '(empty)' ? '(empty)' : s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </th>
+              <th className="px-2 pb-2 pt-0 align-top">
+                <label className="block font-semibold text-slate-500">
+                  Filter
+                  <select
+                    className={filterSelectCls}
+                    value={tableFilterComponent}
+                    onChange={(e) => setTableFilterComponent(e.target.value)}
+                  >
+                    <option value="">All components</option>
+                    {componentOptions.map((c) => (
+                      <option key={c} value={c === '(empty)' ? '(empty)' : c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </th>
+              <th className="px-2 pb-2 pt-0" aria-hidden />
+              {showAssigneesColumn ? (
+                <th className="px-2 pb-2 pt-0" aria-hidden />
+              ) : null}
+              <th className="px-2 pb-2 pt-0 align-top">
+                <label className="block font-semibold text-slate-500">
+                  Filter
+                  <select
+                    className={filterSelectCls}
+                    value={tableFilterStatus}
+                    onChange={(e) => setTableFilterStatus(e.target.value)}
+                  >
+                    <option value="">All statuses</option>
+                    {STATUS_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </th>
+              <th className="px-2 pb-2 pt-0" colSpan={5} aria-hidden />
             </tr>
           </thead>
           <tbody>
@@ -354,13 +490,16 @@ export function Items() {
                 sprints={sprints}
                 teamMembers={teamMembers}
                 jiraBaseUrl={jiraBaseUrl}
+                showAssigneesColumn={showAssigneesColumn}
               />
             ))}
           </tbody>
         </table>
         {visible.length === 0 ? (
           <p className="p-6 text-center text-sm text-slate-600">
-            {!hasQuery && workItems.length === 0 ? (
+            {!hasQuery &&
+            !hasColumnFilters &&
+            workItems.length === 0 ? (
               <>No items yet. Click &quot;Add work item&quot;.</>
             ) : (
               <>

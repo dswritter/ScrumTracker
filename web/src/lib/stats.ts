@@ -43,14 +43,30 @@ export function itemsForAssignee(name: string, items: WorkItem[]): WorkItem[] {
   return items.filter((w) => w.assignees.some((a) => a.trim() === name))
 }
 
+/** Share of assigned items marked done (0–100). Matches dashboard pie “done” semantics. */
 export function personCompletionPercent(
   name: string,
   items: WorkItem[],
 ): number {
   const mine = itemsForAssignee(name, items)
   if (mine.length === 0) return 0
-  const sum = mine.reduce((acc, w) => acc + statusWeight(w.status), 0)
-  return Math.round(sum / mine.length)
+  const done = mine.filter((w) => w.status === 'done').length
+  return Math.round((done / mine.length) * 100)
+}
+
+/** Short Y-axis label for charts; avoids duplicate first names (e.g. two “Shubham”). */
+export function assigneeChartAxisLabel(displayName: string): string {
+  const parts = displayName.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return displayName.trim() || '—'
+  if (parts.length === 1) {
+    const p = parts[0]
+    return p.length > 14 ? `${p.slice(0, 13)}…` : p
+  }
+  const first = parts[0]
+  const last = parts[parts.length - 1]
+  const initial = last[0] ?? ''
+  const s = `${first} ${initial}.`
+  return s.length > 16 ? `${first} ${initial}` : s
 }
 
 export function itemsInSprint(sprint: Sprint, items: WorkItem[]): WorkItem[] {

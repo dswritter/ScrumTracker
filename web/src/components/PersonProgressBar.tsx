@@ -61,7 +61,7 @@ export function PersonProgressBar({
           ) : null}
         </div>
         <span className="shrink-0 text-xs tabular-nums text-slate-500">
-          {itemCount} item{itemCount === 1 ? '' : 's'} · {p}%
+          {itemCount} item{itemCount === 1 ? '' : 's'} · {p}% done
         </span>
       </div>
       {to ? (

@@ -1,3 +1,5 @@
+import type { TrackerUserAccount } from '../types'
+
 const DEFAULT_ALLOWED_HOST = 'adobe.enterprise.slack.com'
 
 function allowedSlackHost(): string {
@@ -32,7 +34,14 @@ export function parseSlackDmUrlInput(raw: string): string | null {
 export function resolveSlackDmUrl(
   displayName: string,
   map: Record<string, string> | undefined,
+  teamUsers?: TrackerUserAccount[],
 ): string | undefined {
+  const dn = displayName.trim()
+  if (teamUsers?.length && dn) {
+    const acc = teamUsers.find((x) => x.displayName.trim() === dn)
+    const fromUser = acc?.slackChatUrl?.trim()
+    if (fromUser) return fromUser
+  }
   if (!map) return undefined
   const u = map[displayName]?.trim()
   return u || undefined
