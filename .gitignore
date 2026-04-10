@@ -27,3 +27,7 @@ web/node_modules/.tmp/
 
 # Office temp lock files
 ~$*
+
+# Machine-local files (not committed except local/README.md)
+local/*
+!local/README.md
