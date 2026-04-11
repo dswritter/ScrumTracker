@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import type {
   Sprint,
+  TeamChatMessage,
   TrackerSnapshot,
   TrackerTeam,
   TrackerTeamData,
@@ -216,7 +217,44 @@ function normalizeTeamData(raw: unknown): TrackerTeamData {
       typeof o.weeklyWikiPageUrl === 'string' && o.weeklyWikiPageUrl.trim()
         ? o.weeklyWikiPageUrl.trim()
         : undefined,
+    teamChatThreads:
+      o.teamChatThreads !== null &&
+      typeof o.teamChatThreads === 'object' &&
+      !Array.isArray(o.teamChatThreads)
+        ? normalizeTeamChatThreads(o.teamChatThreads as Record<string, unknown>)
+        : undefined,
   }
+}
+
+function normalizeTeamChatThreads(
+  raw: Record<string, unknown>,
+): Record<string, TeamChatMessage[]> {
+  const out: Record<string, TeamChatMessage[]> = {}
+  for (const [key, val] of Object.entries(raw)) {
+    if (typeof key !== 'string' || !key.includes('|||')) continue
+    if (!Array.isArray(val)) continue
+    const list: TeamChatMessage[] = []
+    for (const item of val) {
+      if (!item || typeof item !== 'object') continue
+      const m = item as Record<string, unknown>
+      const body = typeof m.body === 'string' ? m.body : ''
+      if (!body.trim()) continue
+      list.push({
+        id: typeof m.id === 'string' ? m.id : newId('chat'),
+        authorName:
+          typeof m.authorName === 'string' && m.authorName.trim()
+            ? m.authorName.trim()
+            : 'Unknown',
+        body,
+        createdAt:
+          typeof m.createdAt === 'string' && m.createdAt
+            ? m.createdAt
+            : new Date().toISOString(),
+      })
+    }
+    if (list.length) out[key] = list
+  }
+  return out
 }
 
 function isSnapshotV3(x: unknown): x is TrackerSnapshot {
@@ -371,6 +409,13 @@ export interface TrackerState {
   importSnapshotJson: (json: string) => { ok: true } | { ok: false; error: string }
   exportSnapshotJson: () => string
   resetToSeed: () => void
+
+  appendTeamChatMessage: (
+    teamId: string,
+    authorDisplayName: string,
+    peerDisplayName: string,
+    body: string,
+  ) => void
 }
 
 const defaultWorkItem = (): WorkItem => ({
@@ -450,6 +495,31 @@ export const useTrackerStore = create<TrackerState>()(
                   : w,
               ),
             }),
+          }
+        })
+      },
+
+      appendTeamChatMessage: (teamId, authorDisplayName, peerDisplayName, body) => {
+        const t = body.trim()
+        if (!t) return
+        const a = authorDisplayName.trim()
+        const p = peerDisplayName.trim()
+        if (!p || a === p) return
+        const [x, y] = [a, p].sort((m, n) => m.localeCompare(n))
+        const key = `${x}|||${y}`
+        const msg: TeamChatMessage = {
+          id: newId('chat'),
+          authorName: a,
+          body: t,
+          createdAt: new Date().toISOString(),
+        }
+        set((s) => {
+          const d = getSlice(s, teamId)
+          const threads = { ...(d.teamChatThreads ?? {}) }
+          const prev = threads[key] ?? []
+          threads[key] = [...prev, msg]
+          return {
+            teamsData: patchSlice(s, teamId, { teamChatThreads: threads }),
           }
         })
       },
@@ -997,6 +1067,7 @@ export const useTrackerStore = create<TrackerState>()(
               typeof p.jiraBaseUrl === 'string'
                 ? p.jiraBaseUrl
                 : 'https://jira.corp.adobe.com/browse/',
+            teamChatThreads: {},
           },
         }
         let users: TrackerUserAccount[] = SEED_USERS

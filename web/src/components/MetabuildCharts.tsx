@@ -85,11 +85,11 @@ export function MetabuildStatusPie({
       </div>
     )
   }
-  const innerR = compact ? 40 : 48
-  const outerR = compact ? 58 : 72
+  const innerR = compact ? 36 : 48
+  const outerR = compact ? 52 : 68
   return (
     <ResponsiveContainer width="100%" height={h}>
-      <PieChart>
+      <PieChart margin={{ top: 8, right: 6, bottom: 8, left: 6 }}>
         <Pie
           data={data}
           dataKey="value"
@@ -100,12 +100,32 @@ export function MetabuildStatusPie({
           outerRadius={outerR}
           paddingAngle={2}
           activeShape={pieActiveShape}
-          label={(props: {
-            name?: string
-            percent?: number
-          }) =>
-            `${props.name ?? ''} ${((props.percent ?? 0) * 100).toFixed(0)}%`
-          }
+          labelLine={{ stroke: '#0d5c2e', strokeWidth: 1 }}
+          label={(props: Record<string, unknown>) => {
+            const cx = Number(props.cx ?? 0)
+            const cy = Number(props.cy ?? 0)
+            const midAngle = Number(props.midAngle ?? 0)
+            const or = Number(props.outerRadius ?? outerR)
+            const name = String(props.name ?? '')
+            const pct = Number(props.percent ?? 0)
+            const RADIAN = Math.PI / 180
+            const r = or + (compact ? 14 : 16)
+            const x = cx + r * Math.cos(-midAngle * RADIAN)
+            const y = cy + r * Math.sin(-midAngle * RADIAN)
+            return (
+              <text
+                x={x}
+                y={y}
+                fill="#0d5c2e"
+                textAnchor={x > cx ? 'start' : 'end'}
+                dominantBaseline="central"
+                fontSize={compact ? 9 : 10}
+                fontWeight={600}
+              >
+                {`${name} ${(pct * 100).toFixed(0)}%`}
+              </text>
+            )
+          }}
         >
           {data.map((entry) => (
             <Cell key={entry.name} fill={entry.fill} stroke="#fff" strokeWidth={1} />
@@ -177,7 +197,9 @@ export function MetabuildAssigneeBars({
   rows: { label: string; fullName: string; pct: number }[]
   compact?: boolean
 }) {
-  const h = compact ? 260 : 220
+  const h = compact
+    ? Math.min(480, Math.max(200, rows.length * 22 + 48))
+    : Math.max(220, rows.length * 24 + 40)
   if (!rows.length) {
     return (
       <div
@@ -194,14 +216,15 @@ export function MetabuildAssigneeBars({
       <BarChart
         data={rows}
         layout="vertical"
-        margin={{ left: 8, right: 28, top: 8, bottom: 8 }}
+        margin={{ left: 12, right: 28, top: 8, bottom: 8 }}
       >
         <XAxis type="number" domain={[0, 100]} tick={{ fill: GREEN_AXIS, fontSize: 10 }} />
         <YAxis
           type="category"
           dataKey="label"
-          width={compact ? 88 : 80}
-          tick={{ fill: GREEN_AXIS, fontSize: 10 }}
+          width={compact ? 112 : 100}
+          interval={0}
+          tick={{ fill: GREEN_AXIS, fontSize: 9 }}
         />
         <Tooltip
           {...tooltipProps}

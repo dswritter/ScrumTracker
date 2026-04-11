@@ -71,11 +71,15 @@ export function PersonDetail() {
 
   const viewingSelf = viewer.displayName.trim() === name.trim()
 
-  const slackUrl = resolveSlackDmUrl(
-    name,
-    ctx.slackDmUrlByDisplayName,
-    ctx.teamUsers,
-  )
+  const slackUrl =
+    resolveSlackDmUrl(
+      name,
+      ctx.slackDmUrlByDisplayName,
+      ctx.teamUsers,
+    ) ??
+    (viewingSelf
+      ? ctx.teamUsers?.find((u) => u.id === viewer.id)?.slackChatUrl?.trim()
+      : undefined)
 
   return (
     <div className="space-y-6">

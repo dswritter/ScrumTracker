@@ -4,6 +4,7 @@ import { Layout } from './components/Layout'
 import { TrackerRemoteSync } from './components/TrackerRemoteSync'
 import { RequireAuth } from './components/RequireAuth'
 import { ChangePassword } from './pages/ChangePassword'
+import { Chat } from './pages/Chat'
 import { Dashboard } from './pages/Dashboard'
 import { ItemDetail } from './pages/ItemDetail'
 import { Items } from './pages/Items'
@@ -27,6 +28,8 @@ export default function App() {
             <Route index element={<Dashboard />} />
             <Route path="change-password" element={<ChangePassword />} />
             <Route path="me" element={<Me />} />
+            <Route path="chat/:peerName" element={<Chat />} />
+            <Route path="chat" element={<Chat />} />
             <Route path="items/:itemId" element={<ItemDetail />} />
             <Route path="items" element={<Items />} />
             <Route path="people/:personName" element={<PersonDetail />} />

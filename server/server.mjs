@@ -1,8 +1,10 @@
 import cors from 'cors'
 import express from 'express'
 import fs from 'fs'
+import http from 'http'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { WebSocketServer, WebSocket as WsWebSocket } from 'ws'
 import { registerJiraRoutes } from './jira.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -33,12 +35,30 @@ function writeStore(rev, snapshot) {
   )
 }
 
+/** @type {import('ws').WebSocketServer | null} */
+let trackerWss = null
+
+function broadcastTrackerRev(rev) {
+  if (!trackerWss) return
+  const msg = JSON.stringify({ type: 'tracker_rev', rev })
+  for (const client of trackerWss.clients) {
+    if (client.readyState === WsWebSocket.OPEN) client.send(msg)
+  }
+}
+
 const app = express()
 app.use(cors({ origin: true, credentials: true }))
 app.use(express.json({ limit: '25mb' }))
 
-app.get('/api/tracker', (_req, res) => {
+app.get('/api/tracker', (req, res) => {
   const { rev, snapshot } = readStore()
+  const etag = `"${rev}"`
+  if (req.headers['if-none-match'] === etag) {
+    res.status(304).end()
+    return
+  }
+  res.setHeader('ETag', etag)
+  res.setHeader('Cache-Control', 'private, no-cache')
   res.json({ rev, snapshot })
 })
 
@@ -50,6 +70,7 @@ app.put('/api/tracker', (req, res) => {
   }
   const rev = Date.now()
   writeStore(rev, snapshot)
+  broadcastTrackerRev(rev)
   res.json({ ok: true, rev })
 })
 
@@ -59,11 +80,15 @@ app.get('/api/health', (_req, res) => {
 
 registerJiraRoutes(app, { dataDir: DATA_DIR })
 
-app.listen(PORT, HOST, () => {
+const server = http.createServer(app)
+trackerWss = new WebSocketServer({ server, path: '/ws/tracker' })
+
+server.listen(PORT, HOST, () => {
   console.log(
     `Scrum tracker sync listening on http://${HOST === '0.0.0.0' ? '<this-pc-ip>' : HOST}:${PORT}`,
   )
-  console.log(`  GET  /api/tracker  — fetch shared snapshot + revision`)
+  console.log(`  GET  /api/tracker  — fetch shared snapshot + revision (ETag / If-None-Match)`)
   console.log(`  PUT  /api/tracker  — push full snapshot (JSON string body.snapshot)`)
+  console.log(`  WS   /ws/tracker — push { type: 'tracker_rev', rev } when snapshot changes`)
   console.log(`  JIRA: POST /api/jira/token, GET /api/jira/token-status, POST /api/jira/sync`)
 })

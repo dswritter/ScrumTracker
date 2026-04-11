@@ -23,6 +23,92 @@ export function getLocalWeekRangeContaining(date = new Date()): WeekRange {
   }
 }
 
+/** Confluence-style "06 Apr 2026" (day + short month + year). */
+export function formatWikiDay(d: Date): string {
+  const day = String(d.getDate()).padStart(2, '0')
+  const mon = d.toLocaleDateString('en-GB', { month: 'short' })
+  const y = d.getFullYear()
+  return `${day} ${mon} ${y}`
+}
+
+export function formatWikiWeekRangeLine(week: WeekRange): string {
+  return `${formatWikiDay(week.start)} to ${formatWikiDay(week.end)}`
+}
+
+/**
+ * Parse first row "Week" cell like "06 Apr 2026 to 10 Apr 2026".
+ * Returns null if the pattern does not match.
+ */
+export function parseWikiWeekRangeCell(cellText: string): {
+  start: Date
+  end: Date
+} | null {
+  const t = cellText.replace(/\s+/g, ' ').trim()
+  const m = t.match(
+    /^(\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4})\s+to\s+(\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4})/i,
+  )
+  if (!m) return null
+  const start = Date.parse(m[1])
+  const end = Date.parse(m[2])
+  if (Number.isNaN(start) || Number.isNaN(end)) return null
+  return { start: new Date(start), end: new Date(end) }
+}
+
+export type MyWikiColumnUpdate = {
+  mode: 'new_row' | 'append_to_top_row'
+  weekRangeLabel: string
+  cellContent: string
+  instructions: string
+}
+
+/**
+ * Builds Confluence wiki-style checklist lines for the signed-in user's **done** items,
+ * plus paste instructions for Weekly Tasks (append vs new top row).
+ */
+export function buildMyWeeklyWikiColumnUpdate(params: {
+  displayName: string
+  workItems: WorkItem[]
+  /** Exact text from the top data row "Week" column on the wiki page (optional). */
+  wikiTopWeekCell?: string | null
+  now?: Date
+}): MyWikiColumnUpdate {
+  const { displayName, workItems, wikiTopWeekCell, now = new Date() } = params
+  const week = getLocalWeekRangeContaining(now)
+  const weekRangeLabel = formatWikiWeekRangeLine(week)
+
+  const mineDone = workItems.filter(
+    (w) =>
+      w.status === 'done' &&
+      w.assignees.some((a) => a.trim() === displayName.trim()),
+  )
+  const lines = mineDone.map((w) => {
+    const t = (w.title || '(untitled)').replace(/\s+/g, ' ').trim()
+    return `* ${t}`
+  })
+  const cellContent = lines.length
+    ? lines.join('\n')
+    : '* (no done items for this update)'
+
+  let mode: MyWikiColumnUpdate['mode'] = 'new_row'
+  const trimmedTop = wikiTopWeekCell?.trim()
+  if (trimmedTop) {
+    const parsed = parseWikiWeekRangeCell(trimmedTop)
+    if (parsed) {
+      const nowT = now.getTime()
+      const endT = parsed.end.getTime()
+      if (nowT <= endT) mode = 'append_to_top_row'
+      else mode = 'new_row'
+    }
+  }
+
+  const instructions =
+    mode === 'append_to_top_row'
+      ? `Append under YOUR column on the existing top Weekly Tasks row (Week: "${trimmedTop}"). Paste the checklist block below into that cell.`
+      : `Insert a NEW row at the TOP of the Weekly Tasks table. Set Week to "${weekRangeLabel}" and paste the block below into YOUR column (@${displayName.replace(/\|/g, '')}).`
+
+  return { mode, weekRangeLabel, cellContent, instructions }
+}
+
 function inRange(iso: string, start: Date, end: Date): boolean {
   const t = Date.parse(iso)
   if (Number.isNaN(t)) return false

@@ -293,6 +293,7 @@ export const SEED_TEAM_PAYLOAD: TrackerTeamData = {
   jiraBaseUrl: 'https://jira.corp.adobe.com/browse/',
   slackDmUrlByDisplayName: mergeBundledSlackDefaults({}),
   weeklyWikiPageUrl: DEFAULT_WEEKLY_WIKI_PAGE_URL,
+  teamChatThreads: {},
 }
 
 type SeedMember = {

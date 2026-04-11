@@ -85,7 +85,9 @@ Behavior:
 
 - On load, the app pulls `/api/tracker` if the server already has data; otherwise it **uploads** the current local snapshot.
 - Changes are **debounced** and pushed with `PUT /api/tracker`.
-- **Polling** every ~2.5s pulls newer revisions so other browsers update without refresh.
+- **WebSocket** `WS /ws/tracker` pushes `{ type: 'tracker_rev', rev }` whenever the snapshot changes so other browsers pull **immediately** (no fixed 2.5s polling). If the socket is down, the client falls back to **slow polling** (~15s).
+- **GET** `/api/tracker` supports **`ETag` / `If-None-Match`** so a client that already has the latest `rev` can receive **304** and skip re-downloading the full snapshot JSON.
+- **Browser:** the app still **persists** the workspace in `localStorage` (Zustand persist) as the primary offline cache; HTTP revalidation complements that when online.
 - **Conflict model:** last successful push wins (good enough for a small team demo).
 
 ### Jira (PAT on server, admin UI in Settings)
@@ -121,4 +123,4 @@ The **sync server** does not need to change for either option; only the **shell*
 - TLS (reverse proxy: Caddy, nginx, IIS ARR).
 - Authentication (API keys, session cookies, or VPN-only network).
 - Real database instead of one JSON file if many teams or large payloads.
-- WebSockets for instant updates instead of polling.
+- ~~WebSockets for instant updates instead of polling.~~ (basic `WS /ws/tracker` + ETag is implemented; scale-out would need shared pub/sub.)

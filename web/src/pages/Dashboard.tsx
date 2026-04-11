@@ -36,6 +36,7 @@ import { resolveSlackDmUrl } from '../lib/slackDm'
 import { getCurrentSprint, sprintDayProgress } from '../lib/sdates'
 import type { WorkItem } from '../types'
 import {
+  buildMyWeeklyWikiColumnUpdate,
   buildWeeklyWikiTable,
   getLocalWeekRangeContaining,
 } from '../lib/weeklyWikiExport'
@@ -61,6 +62,7 @@ export function Dashboard() {
   const ctx = useTeamContextNullable()
   const user = ctx?.user
   const [wikiToast, setWikiToast] = useState<string | null>(null)
+  const [wikiTopWeekCell, setWikiTopWeekCell] = useState('')
 
   const sortedSprints = useMemo(() => {
     if (!ctx?.sprints?.length) return []
@@ -262,10 +264,10 @@ export function Dashboard() {
     'font-medium text-indigo-700 hover:text-indigo-900 hover:underline'
 
   const chartAside = (
-    <aside className="order-2 w-full max-w-full space-y-3 xl:sticky xl:top-4 xl:order-1 xl:max-w-[20rem] xl:justify-self-start">
+    <aside className="order-2 w-full max-w-full space-y-3 xl:sticky xl:top-4 xl:order-1 xl:max-h-[min(calc(100vh-5rem),56rem)] xl:max-w-[20rem] xl:justify-self-start xl:overflow-y-auto xl:overscroll-contain xl:pr-1">
       <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm">
         <h3 className="mb-0.5 text-center text-[10px] font-bold uppercase tracking-wide text-[#007a3d]">
-          Total progress
+          Team progress
         </h3>
         <MetabuildStatusPie data={pieData} compact />
       </div>
@@ -337,51 +339,6 @@ export function Dashboard() {
 
   return (
     <div className="space-y-6">
-      {isAdmin(user) ? (
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[#00B050]/30 bg-white px-3 py-2 shadow-sm">
-          <span className="text-xs font-semibold text-[#007a3d]">
-            Weekly wiki
-          </span>
-          <button
-            type="button"
-            className="rounded-lg bg-[#00B050] px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-[#009948]"
-            onClick={async () => {
-              const week = getLocalWeekRangeContaining()
-              const rosterSorted = [...ctx.teamMembers].sort((a, b) =>
-                a.localeCompare(b),
-              )
-              const text = buildWeeklyWikiTable({
-                week,
-                roster: rosterSorted,
-                workItems: ctx.workItems,
-              })
-              const ok = await copyTextToClipboard(text)
-              if (ok) {
-                setWikiToast(`Copied table for ${week.label}`)
-                window.setTimeout(() => setWikiToast(null), 3500)
-              } else {
-                setWikiToast(
-                  'Could not copy (clipboard blocked — use HTTPS or select text manually).',
-                )
-              }
-            }}
-          >
-            Copy weekly wiki table
-          </button>
-          <a
-            href={wikiPageUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-100"
-          >
-            Open wiki page
-          </a>
-          {wikiToast ? (
-            <span className="text-xs font-medium text-emerald-800">{wikiToast}</span>
-          ) : null}
-        </div>
-      ) : null}
-
       {!isAdmin(user) ? (
         <p className="text-sm text-slate-600">
           Showing your assignments for the selected scope above.
@@ -390,6 +347,107 @@ export function Dashboard() {
 
       <div className="flex flex-col gap-5 xl:grid xl:grid-cols-[minmax(16.5rem,20rem)_minmax(0,1fr)] xl:items-start xl:gap-5">
         <div className="order-1 min-w-0 space-y-6 xl:order-2">
+          <div className="rounded-xl border border-[#00B050]/30 bg-white px-3 py-2.5 shadow-sm">
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+              <span className="text-xs font-semibold text-[#007a3d] shrink-0">
+                Weekly wiki
+              </span>
+              <label className="flex min-w-0 flex-1 flex-col gap-0.5 sm:max-w-md">
+                <span className="text-[10px] font-medium text-slate-500">
+                  Top row &quot;Week&quot; cell (optional — paste from wiki for append vs new row)
+                </span>
+                <input
+                  type="text"
+                  value={wikiTopWeekCell}
+                  onChange={(e) => setWikiTopWeekCell(e.target.value)}
+                  placeholder='e.g. 06 Apr 2026 to 10 Apr 2026'
+                  className="w-full rounded border border-slate-200 px-2 py-1 text-xs text-slate-800 placeholder:text-slate-400"
+                />
+              </label>
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                className="rounded-lg bg-[#00B050] px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-[#009948]"
+                onClick={async () => {
+                  const update = buildMyWeeklyWikiColumnUpdate({
+                    displayName: user.displayName,
+                    workItems: ctx.workItems,
+                    wikiTopWeekCell: wikiTopWeekCell.trim() || undefined,
+                  })
+                  const text = `${update.instructions}\n\n---\n\n${update.cellContent}`
+                  const ok = await copyTextToClipboard(text)
+                  if (ok) {
+                    setWikiToast(
+                      update.mode === 'append_to_top_row'
+                        ? 'Copied your column update (append to current week row).'
+                        : `Copied your column update (new week row: ${update.weekRangeLabel}).`,
+                    )
+                    window.setTimeout(() => setWikiToast(null), 4000)
+                  } else {
+                    setWikiToast(
+                      'Could not copy (clipboard blocked — use HTTPS or select text manually).',
+                    )
+                  }
+                }}
+              >
+                Copy my wiki column
+              </button>
+              {isAdmin(user) ? (
+                <>
+                  <button
+                    type="button"
+                    className="rounded-lg border border-[#00B050]/40 bg-[#00B050]/10 px-3 py-1.5 text-xs font-semibold text-[#0d5c2e] hover:bg-[#00B050]/15"
+                    onClick={async () => {
+                      const week = getLocalWeekRangeContaining()
+                      const rosterSorted = [...ctx.teamMembers].sort((a, b) =>
+                        a.localeCompare(b),
+                      )
+                      const text = buildWeeklyWikiTable({
+                        week,
+                        roster: rosterSorted,
+                        workItems: ctx.workItems,
+                      })
+                      const ok = await copyTextToClipboard(text)
+                      if (ok) {
+                        setWikiToast(`Copied full table for ${week.label}`)
+                        window.setTimeout(() => setWikiToast(null), 3500)
+                      } else {
+                        setWikiToast(
+                          'Could not copy (clipboard blocked — use HTTPS or select text manually).',
+                        )
+                      }
+                    }}
+                  >
+                    Copy full wiki table
+                  </button>
+                  <a
+                    href={wikiPageUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-100"
+                  >
+                    Open wiki page
+                  </a>
+                </>
+              ) : (
+                <a
+                  href={wikiPageUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-100"
+                >
+                  Open wiki page
+                </a>
+              )}
+              {wikiToast ? (
+                <span className="text-xs font-medium text-emerald-800">
+                  {wikiToast}
+                </span>
+              ) : null}
+            </div>
+          </div>
+
           {sortedSprints.length > 0 ? (
             <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
               <div className="flex flex-wrap items-center gap-2 gap-y-2 border-b border-[#00B050]/25 bg-[#00B050]/10 px-3 py-2">
@@ -571,13 +629,7 @@ export function Dashboard() {
                           {w.assignees.length ? w.assignees.join(', ') : '—'}
                         </td>
                       ) : null}
-                      <td
-                        className={`px-3 py-2 align-top ${
-                          w.status === 'done'
-                            ? 'bg-[#00B050]/20 font-semibold text-slate-900'
-                            : 'text-slate-800'
-                        }`}
-                      >
+                      <td className="px-3 py-2 align-top text-slate-800">
                         <StatusBadge status={w.status} />
                       </td>
                       <td className="px-3 py-2 align-top">

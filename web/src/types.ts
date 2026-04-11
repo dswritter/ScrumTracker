@@ -27,6 +27,15 @@ export interface WorkComment {
   createdAt: string
 }
 
+/** Team DM message; stored in shared snapshot (syncs like work items). */
+export interface TeamChatMessage {
+  id: string
+  authorName: string
+  body: string
+  /** ISO timestamp */
+  createdAt: string
+}
+
 export interface WorkItem {
   id: string
   section: string
@@ -66,6 +75,11 @@ export interface TrackerTeamData {
   slackDmUrlByDisplayName?: Record<string, string>
   /** Confluence page to open when pasting weekly wiki snippet. */
   weeklyWikiPageUrl?: string
+  /**
+   * Direct-message threads keyed by canonical pair `"{nameA}|||{nameB}"` (sorted by localeCompare).
+   * Same thread is shared for both participants.
+   */
+  teamChatThreads?: Record<string, TeamChatMessage[]>
 }
 
 /**

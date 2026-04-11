@@ -152,6 +152,19 @@ function normalizeJiraSprintRows(jiraSprintObjs) {
         out.push({ id: t, name: `Jira sprint ${t}` })
         continue
       }
+      // GreenHopper toString: com.atlassian.greenhopper... name=Foo,id=123,...
+      if (
+        t.includes('com.atlassian.greenhopper') ||
+        (t.includes('id=') && t.includes('name='))
+      ) {
+        const idM = t.match(/\bid=(\d+)/)
+        const nameM = t.match(/\bname=([^,[\]]+)/)
+        if (idM) {
+          const nm = nameM ? nameM[1].trim() : `Sprint ${idM[1]}`
+          out.push({ id: idM[1], name: nm })
+          continue
+        }
+      }
       try {
         const parsed = JSON.parse(t)
         const inner = Array.isArray(parsed)
@@ -228,8 +241,26 @@ function upsertSprintsFromJiraObjects(sprints, jiraSprintObjs) {
 }
 
 function extractJiraSprintFieldValue(issue, sprintFieldId) {
-  if (!sprintFieldId || !issue?.fields) return null
-  const raw = issue.fields[sprintFieldId]
+  if (!issue?.fields) return null
+  let raw = sprintFieldId ? issue.fields[sprintFieldId] : null
+  if (raw == null && sprintFieldId) {
+    const agile = issue.fields
+    raw = agile.sprint ?? agile.Sprint ?? null
+  }
+  if (raw == null && sprintFieldId) {
+    for (const v of Object.values(issue.fields)) {
+      if (!Array.isArray(v) || v.length === 0) continue
+      const first = v[0]
+      if (
+        typeof first === 'string' &&
+        (first.includes('com.atlassian.greenhopper') ||
+          (first.includes('id=') && first.includes('name=')))
+      ) {
+        raw = v
+        break
+      }
+    }
+  }
   if (raw == null) return null
   if (typeof raw === 'number' && Number.isFinite(raw)) return [raw]
   if (Array.isArray(raw)) return raw
@@ -609,57 +640,104 @@ export function registerJiraRoutes(app, opts) {
       for (const issue of issues) {
         const jiraComments = commentMap.get(issue.key) || []
         let jiraSprintIds = []
-        const syncSprintsFromJira = Boolean(sprintFieldRaw)
         let issueForSync = issue
-        if (syncSprintsFromJira && sprintFieldRaw) {
-          let rawSprints = extractJiraSprintFieldValue(issue, sprintFieldRaw)
-          const missing =
-            rawSprints == null ||
-            (Array.isArray(rawSprints) && rawSprints.length === 0)
-          if (missing) {
-            try {
-              const one = await fetchIssueFields(
-                jiraBase,
-                tok.token,
-                issue.key,
-                sprintFieldRaw,
-              )
-              if (one?.fields && one.fields[sprintFieldRaw] != null) {
-                issueForSync = {
-                  ...issue,
-                  fields: { ...issue.fields, ...one.fields },
-                }
-                rawSprints = extractJiraSprintFieldValue(
-                  issueForSync,
-                  sprintFieldRaw,
-                )
-              }
-            } catch {
-              /* keep search payload */
-            }
-          }
-          if (
-            (rawSprints == null ||
-              (Array.isArray(rawSprints) && rawSprints.length === 0)) &&
-            sprintFieldRaw
-          ) {
-            const agile = await fetchAgileIssueFields(
+        let rawSprints = extractJiraSprintFieldValue(issueForSync, sprintFieldRaw)
+
+        let missing =
+          rawSprints == null ||
+          (Array.isArray(rawSprints) && rawSprints.length === 0)
+
+        if (missing && sprintFieldRaw) {
+          try {
+            const one = await fetchIssueFields(
               jiraBase,
               tok.token,
               issue.key,
               sprintFieldRaw,
             )
-            if (agile?.fields && agile.fields[sprintFieldRaw] != null) {
+            if (one?.fields && one.fields[sprintFieldRaw] != null) {
               issueForSync = {
-                ...issueForSync,
-                fields: { ...issueForSync.fields, ...agile.fields },
+                ...issue,
+                fields: { ...issue.fields, ...one.fields },
               }
               rawSprints = extractJiraSprintFieldValue(
                 issueForSync,
                 sprintFieldRaw,
               )
             }
+          } catch {
+            /* keep search payload */
           }
+        }
+
+        missing =
+          rawSprints == null ||
+          (Array.isArray(rawSprints) && rawSprints.length === 0)
+        if (missing && sprintFieldRaw) {
+          const agile = await fetchAgileIssueFields(
+            jiraBase,
+            tok.token,
+            issue.key,
+            sprintFieldRaw,
+          )
+          if (agile?.fields && agile.fields[sprintFieldRaw] != null) {
+            issueForSync = {
+              ...issueForSync,
+              fields: { ...issueForSync.fields, ...agile.fields },
+            }
+            rawSprints = extractJiraSprintFieldValue(
+              issueForSync,
+              sprintFieldRaw,
+            )
+          }
+        }
+
+        missing =
+          rawSprints == null ||
+          (Array.isArray(rawSprints) && rawSprints.length === 0)
+        if (missing && sprintFieldRaw) {
+          try {
+            const wide = await fetchIssueFields(
+              jiraBase,
+              tok.token,
+              issue.key,
+              '*navigable*',
+            )
+            if (wide?.fields) {
+              issueForSync = {
+                ...issueForSync,
+                fields: { ...issueForSync.fields, ...wide.fields },
+              }
+              let rs = extractJiraSprintFieldValue(issueForSync, sprintFieldRaw)
+              if (
+                rs == null ||
+                (Array.isArray(rs) && rs.length === 0)
+              ) {
+                rs = extractJiraSprintFieldValue(issueForSync, null)
+              }
+              rawSprints = rs
+            }
+          } catch {
+            /* ignore */
+          }
+        }
+
+        missing =
+          rawSprints == null ||
+          (Array.isArray(rawSprints) && rawSprints.length === 0)
+        if (missing) {
+          rawSprints = extractJiraSprintFieldValue(issueForSync, null)
+        }
+
+        const syncSprintsFromJira =
+          Boolean(sprintFieldRaw) ||
+          Boolean(rawSprints && rawSprints.length > 0)
+
+        if (
+          syncSprintsFromJira &&
+          rawSprints != null &&
+          !(Array.isArray(rawSprints) && rawSprints.length === 0)
+        ) {
           const { sprints: nextSprints, sprintIds } = upsertSprintsFromJiraObjects(
             sprints,
             rawSprints,
@@ -667,6 +745,7 @@ export function registerJiraRoutes(app, opts) {
           sprints = nextSprints
           jiraSprintIds = sprintIds
         }
+
         workItems = upsertWorkItemFromIssue(
           workItems,
           issueForSync,

@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { JiraHeaderSyncButton } from './JiraHeaderSyncButton'
 import { UserMenu } from './UserMenu'
+import { useChatUnreadTotal } from '../hooks/useChatUnreadTotal'
 import { useCurrentUser } from '../hooks/useCurrentUser'
 import { isAdmin } from '../lib/permissions'
 import { useTeamContextNullable } from '../hooks/useTeamContext'
@@ -19,6 +20,7 @@ const adminNav = [
   { to: '/', label: 'Dashboard', end: true },
   { to: '/me', label: 'My page' },
   { to: '/items', label: 'Work items' },
+  { to: '/chat', label: 'Chat' },
   { to: '/people', label: 'People' },
   { to: '/matrix', label: 'Matrix' },
 ]
@@ -27,11 +29,13 @@ const memberNav = [
   { to: '/', label: 'Dashboard', end: true },
   { to: '/me', label: 'My page' },
   { to: '/items', label: 'Work items' },
+  { to: '/chat', label: 'Chat' },
 ]
 
 export function Layout() {
   const user = useCurrentUser()
   const teamCtx = useTeamContextNullable()
+  const chatUnread = useChatUnreadTotal()
   const ensureAutoSprints = useTrackerStore((s) => s.ensureAutoSprints)
   const rollIncompleteWorkItems = useTrackerStore(
     (s) => s.rollIncompleteWorkItems,
@@ -60,7 +64,14 @@ export function Layout() {
           <nav className="flex flex-wrap items-center gap-1">
             {nav.map(({ to, label, end }) => (
               <NavLink key={to} to={to} end={Boolean(end)} className={linkClass}>
-                {label}
+                <span className="inline-flex items-center gap-1.5">
+                  {label}
+                  {to === '/chat' && chatUnread > 0 ? (
+                    <span className="min-w-[1.125rem] rounded-full bg-rose-600 px-1 text-center text-[10px] font-bold leading-5 text-white tabular-nums">
+                      {chatUnread > 99 ? '99+' : chatUnread}
+                    </span>
+                  ) : null}
+                </span>
               </NavLink>
             ))}
             {user ? (
