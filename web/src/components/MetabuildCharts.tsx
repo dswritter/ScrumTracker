@@ -1,3 +1,4 @@
+import type { PieSectorDataItem } from 'recharts/types/polar/Pie'
 import {
   Bar,
   BarChart,
@@ -5,6 +6,7 @@ import {
   Pie,
   PieChart,
   ResponsiveContainer,
+  Sector,
   Tooltip,
   XAxis,
   YAxis,
@@ -32,18 +34,61 @@ const activeBarGlow = {
   filter: 'drop-shadow(0 0 8px rgba(0, 176, 80, 0.65))',
 }
 
+function pieActiveShape(props: PieSectorDataItem) {
+  const {
+    cx = 0,
+    cy = 0,
+    innerRadius = 0,
+    outerRadius = 0,
+    startAngle = 0,
+    endAngle = 0,
+    fill,
+  } = props
+  return (
+    <g>
+      <Sector
+        cx={cx}
+        cy={cy}
+        innerRadius={innerRadius}
+        outerRadius={Number(outerRadius) + 4}
+        startAngle={startAngle}
+        endAngle={endAngle}
+        fill={fill}
+        stroke="#00B050"
+        strokeWidth={2}
+        style={{
+          filter: 'drop-shadow(0 0 10px rgba(0, 176, 80, 0.55))',
+        }}
+      />
+    </g>
+  )
+}
+
 type PieDatum = { name: string; value: number; fill: string }
 
-export function MetabuildStatusPie({ data }: { data: PieDatum[] }) {
+export function MetabuildStatusPie({
+  data,
+  compact = false,
+}: {
+  data: PieDatum[]
+  compact?: boolean
+}) {
+  const h = compact ? 168 : 220
   if (!data.length || data.every((d) => d.value === 0)) {
     return (
-      <div className="flex h-[200px] items-center justify-center text-xs text-slate-500">
+      <div
+        className={`flex items-center justify-center text-xs text-slate-500 ${
+          compact ? 'h-[140px]' : 'h-[200px]'
+        }`}
+      >
         No scoped items
       </div>
     )
   }
+  const innerR = compact ? 40 : 48
+  const outerR = compact ? 58 : 72
   return (
-    <ResponsiveContainer width="100%" height={220}>
+    <ResponsiveContainer width="100%" height={h}>
       <PieChart>
         <Pie
           data={data}
@@ -51,9 +96,10 @@ export function MetabuildStatusPie({ data }: { data: PieDatum[] }) {
           nameKey="name"
           cx="50%"
           cy="50%"
-          innerRadius={48}
-          outerRadius={72}
+          innerRadius={innerR}
+          outerRadius={outerR}
           paddingAngle={2}
+          activeShape={pieActiveShape}
           label={(props: {
             name?: string
             percent?: number
@@ -73,18 +119,25 @@ export function MetabuildStatusPie({ data }: { data: PieDatum[] }) {
 
 export function MetabuildSectionBars({
   rows,
+  compact = false,
 }: {
   rows: { name: string; pct: number }[]
+  compact?: boolean
 }) {
+  const h = compact ? 200 : 240
   if (!rows.length) {
     return (
-      <div className="flex h-[200px] items-center justify-center text-xs text-slate-500">
+      <div
+        className={`flex items-center justify-center text-xs text-slate-500 ${
+          compact ? 'h-[160px]' : 'h-[200px]'
+        }`}
+      >
         No sections
       </div>
     )
   }
   return (
-    <ResponsiveContainer width="100%" height={240}>
+    <ResponsiveContainer width="100%" height={h}>
       <BarChart
         data={rows}
         layout="vertical"
@@ -94,7 +147,7 @@ export function MetabuildSectionBars({
         <YAxis
           type="category"
           dataKey="name"
-          width={88}
+          width={compact ? 76 : 88}
           tick={{ fill: GREEN_AXIS, fontSize: 10 }}
         />
         <Tooltip
@@ -106,6 +159,7 @@ export function MetabuildSectionBars({
           radius={[0, 4, 4, 0]}
           name="% done"
           activeBar={activeBarGlow}
+          minPointSize={compact ? 4 : 6}
         >
           {rows.map((_, i) => (
             <Cell key={i} fill={GREEN} />
@@ -118,18 +172,25 @@ export function MetabuildSectionBars({
 
 export function MetabuildAssigneeBars({
   rows,
+  compact = false,
 }: {
   rows: { label: string; fullName: string; pct: number }[]
+  compact?: boolean
 }) {
+  const h = compact ? 260 : 220
   if (!rows.length) {
     return (
-      <div className="flex h-[180px] items-center justify-center text-xs text-slate-500">
+      <div
+        className={`flex items-center justify-center text-xs text-slate-500 ${
+          compact ? 'h-[120px]' : 'h-[180px]'
+        }`}
+      >
         No people
       </div>
     )
   }
   return (
-    <ResponsiveContainer width="100%" height={220}>
+    <ResponsiveContainer width="100%" height={h}>
       <BarChart
         data={rows}
         layout="vertical"
@@ -139,7 +200,7 @@ export function MetabuildAssigneeBars({
         <YAxis
           type="category"
           dataKey="label"
-          width={80}
+          width={compact ? 88 : 80}
           tick={{ fill: GREEN_AXIS, fontSize: 10 }}
         />
         <Tooltip
@@ -154,6 +215,7 @@ export function MetabuildAssigneeBars({
           dataKey="pct"
           radius={[0, 4, 4, 0]}
           activeBar={activeBarGlow}
+          minPointSize={compact ? 4 : 6}
         >
           {rows.map((_, i) => (
             <Cell key={i} fill={GREEN_MID} />

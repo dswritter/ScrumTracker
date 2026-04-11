@@ -16,10 +16,13 @@ export function WorkItemTitleLink({
   item,
   className = '',
   showCommentHover = false,
+  disableLink = false,
 }: {
   item: WorkItem
   className?: string
   showCommentHover?: boolean
+  /** When true, title is plain text (e.g. read-only teammate profile). */
+  disableLink?: boolean
 }) {
   const title = item.title || '(untitled)'
   const anchorRef = useRef<HTMLSpanElement>(null)
@@ -124,9 +127,13 @@ export function WorkItemTitleLink({
       onMouseEnter={onEnterAnchor}
       onMouseLeave={scheduleHide}
     >
-      <Link to={itemDetailPath(item.id)} className={className}>
-        {title}
-      </Link>
+      {disableLink ? (
+        <span className={className}>{title}</span>
+      ) : (
+        <Link to={itemDetailPath(item.id)} className={className}>
+          {title}
+        </Link>
+      )}
       {panel ? createPortal(panel, document.body) : null}
     </span>
   )

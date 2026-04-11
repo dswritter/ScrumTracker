@@ -69,6 +69,31 @@ export function assigneeChartAxisLabel(displayName: string): string {
   return s.length > 16 ? `${first} ${initial}` : s
 }
 
+/** Unique short labels per roster (e.g. two “S. K.” → “Shivendra Kum.” vs “Sunil Kum.”). */
+export function assigneeChartUniqueLabels(names: string[]): Map<string, string> {
+  const sorted = [...names].sort((a, b) => a.localeCompare(b))
+  const base = sorted.map((n) => ({ n, b: assigneeChartAxisLabel(n) }))
+  const counts = new Map<string, number>()
+  for (const x of base) counts.set(x.b, (counts.get(x.b) ?? 0) + 1)
+  const out = new Map<string, string>()
+  for (const { n, b } of base) {
+    if ((counts.get(b) ?? 0) <= 1) {
+      out.set(n, b)
+      continue
+    }
+    const parts = n.trim().split(/\s+/).filter(Boolean)
+    if (parts.length >= 2) {
+      const first = parts[0]
+      const last = parts[parts.length - 1]
+      const label = `${first} ${last.length > 3 ? `${last.slice(0, 3)}.` : `${last}.`}`
+      out.set(n, label.length > 20 ? `${first} ${last.slice(0, 2)}.` : label)
+    } else {
+      out.set(n, b)
+    }
+  }
+  return out
+}
+
 export function itemsInSprint(sprint: Sprint, items: WorkItem[]): WorkItem[] {
   return items.filter((w) => w.sprintIds.includes(sprint.id))
 }

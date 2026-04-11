@@ -69,6 +69,8 @@ export function PersonDetail() {
     return <Navigate to="/me" replace />
   }
 
+  const viewingSelf = viewer.displayName.trim() === name.trim()
+
   const slackUrl = resolveSlackDmUrl(
     name,
     ctx.slackDmUrlByDisplayName,
@@ -79,10 +81,20 @@ export function PersonDetail() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center gap-3">
         <Link
-          to={isAdmin(viewer) ? '/people' : '/me'}
+          to={
+            isAdmin(viewer)
+              ? '/people'
+              : viewingSelf
+                ? '/me'
+                : '/'
+          }
           className="text-sm font-semibold text-indigo-700 hover:text-indigo-900"
         >
-          {isAdmin(viewer) ? '← People' : '← My page'}
+          {isAdmin(viewer)
+            ? '← People'
+            : viewingSelf
+              ? '← My page'
+              : '← Dashboard'}
         </Link>
         {dashboardQs ? (
           <Link
@@ -153,16 +165,18 @@ export function PersonDetail() {
             >
               <WorkItemTitleLink
                 item={w}
-                showCommentHover={isAdmin(viewer)}
+                showCommentHover={viewingSelf && isAdmin(viewer)}
                 className="min-w-0 flex-1 font-medium text-indigo-700 hover:text-indigo-900"
               />
               <StatusBadge status={w.status} />
-              <Link
-                to={buildItemsHref(scope)}
-                className="text-xs font-semibold text-indigo-700 hover:underline"
-              >
-                Edit in table
-              </Link>
+              {viewingSelf ? (
+                <Link
+                  to={buildItemsHref(scope)}
+                  className="text-xs font-semibold text-indigo-700 hover:underline"
+                >
+                  Edit in table
+                </Link>
+              ) : null}
             </li>
           ))}
         </ul>

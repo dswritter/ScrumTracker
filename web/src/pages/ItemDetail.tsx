@@ -10,6 +10,7 @@ import {
   canAddComment,
   canDeleteComment,
   canEditWorkItem,
+  canViewWorkItemDetail,
   isAdmin,
 } from '../lib/permissions'
 import { otherItemsSharingAssignees } from '../lib/stats'
@@ -78,12 +79,13 @@ export function ItemDetail() {
     )
   }
 
-  if (!canEditWorkItem(user, item)) {
+  if (!canViewWorkItemDetail(user, item, ctx.workItems)) {
     return <Navigate to="/me" replace />
   }
 
-  const canComment = canAddComment(user, item)
-  const canRemoveComment = canDeleteComment(user)
+  const readOnly = !canEditWorkItem(user, item)
+  const canComment = !readOnly && canAddComment(user, item)
+  const canRemoveComment = !readOnly && canDeleteComment(user)
   const teamId = ctx.teamId
   const { sprints, jiraBaseUrl } = ctx
 
@@ -97,6 +99,13 @@ export function ItemDetail() {
           ← Work items
         </Link>
       </div>
+
+      {readOnly ? (
+        <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+          <span className="font-semibold">View only</span> — you can read this
+          item but not edit it or add comments.
+        </p>
+      ) : null}
 
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-slate-900">
@@ -248,7 +257,7 @@ export function ItemDetail() {
         ) : null}
       </div>
 
-      {otherItems.length > 0 ? (
+      {!readOnly && otherItems.length > 0 ? (
         <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4 shadow-sm">
           <h2 className="text-sm font-bold text-slate-900">
             Other items (shared assignees)

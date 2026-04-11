@@ -52,10 +52,23 @@ export function canViewPersonProfile(
   workItems: WorkItem[],
 ): boolean {
   if (!viewer) return false
-  if (viewer.displayName.trim() === personName.trim()) return true
+  const pn = personName.trim()
+  if (viewer.displayName.trim() === pn) return true
+  if (teamMembers.some((m) => m.trim() === pn)) return true
   if (!isAdmin(viewer)) return false
-  if (teamMembers.includes(personName)) return true
   return workItems.some((w) =>
-    w.assignees.some((a) => a.trim() === personName.trim()),
+    w.assignees.some((a) => a.trim() === pn),
   )
+}
+
+/** Read-only item page: teammates may open any team work item; editing uses canEditWorkItem. */
+export function canViewWorkItemDetail(
+  user: TrackerUserAccount | null,
+  item: WorkItem,
+  teamWorkItems: WorkItem[],
+): boolean {
+  if (!user) return false
+  if (canEditWorkItem(user, item)) return true
+  if (isAdmin(user)) return true
+  return teamWorkItems.some((w) => w.id === item.id)
 }

@@ -120,7 +120,8 @@ function mergeSprintIds(existingSprintIds, jiraSprintIds, syncSprints) {
     (id) => !String(id).startsWith('jira-sprint-'),
   )
   const list = jiraSprintIds || []
-  if (list.length === 0) return manual
+  // Keep existing sprint ids when Jira returns no sprint payload (avoid wiping jira-sprint-*).
+  if (list.length === 0) return existingSprintIds || []
   const seen = new Set(manual)
   const merged = [...manual]
   for (const id of list) {
@@ -318,6 +319,27 @@ async function fetchIssueFields(jiraBase, pat, issueKey, fieldsCsv) {
     throw new Error(`Jira issue ${issueKey} ${res.status}: ${t.slice(0, 300)}`)
   }
   return res.json()
+}
+
+/** Jira Software agile endpoint; some instances expose Sprint here when /issue search omits it. */
+async function fetchAgileIssueFields(jiraBase, pat, issueKey, sprintFieldId) {
+  const base = jiraBase.replace(/\/$/, '')
+  const q = sprintFieldId
+    ? `?fields=${encodeURIComponent(sprintFieldId)}`
+    : ''
+  const url = `${base}/rest/agile/1.0/issue/${encodeURIComponent(issueKey)}${q}`
+  const res = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${pat}`,
+      Accept: 'application/json',
+    },
+  })
+  if (!res.ok) return null
+  try {
+    return await res.json()
+  } catch {
+    return null
+  }
 }
 
 async function fetchAllIssues(jiraBase, pat, jql, fieldList) {
@@ -614,6 +636,28 @@ export function registerJiraRoutes(app, opts) {
               }
             } catch {
               /* keep search payload */
+            }
+          }
+          if (
+            (rawSprints == null ||
+              (Array.isArray(rawSprints) && rawSprints.length === 0)) &&
+            sprintFieldRaw
+          ) {
+            const agile = await fetchAgileIssueFields(
+              jiraBase,
+              tok.token,
+              issue.key,
+              sprintFieldRaw,
+            )
+            if (agile?.fields && agile.fields[sprintFieldRaw] != null) {
+              issueForSync = {
+                ...issueForSync,
+                fields: { ...issueForSync.fields, ...agile.fields },
+              }
+              rawSprints = extractJiraSprintFieldValue(
+                issueForSync,
+                sprintFieldRaw,
+              )
             }
           }
           const { sprints: nextSprints, sprintIds } = upsertSprintsFromJiraObjects(

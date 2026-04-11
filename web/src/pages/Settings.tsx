@@ -25,7 +25,6 @@ export function Settings() {
   const setJiraBaseUrl = useTrackerStore((s) => s.setJiraBaseUrl)
   const setJiraSyncJql = useTrackerStore((s) => s.setJiraSyncJql)
   const setJiraSprintFieldId = useTrackerStore((s) => s.setJiraSprintFieldId)
-  const applyBundledSlackDmUrls = useTrackerStore((s) => s.applyBundledSlackDmUrls)
   const setUserSlackChatUrl = useTrackerStore((s) => s.setUserSlackChatUrl)
   const setWeeklyWikiPageUrl = useTrackerStore((s) => s.setWeeklyWikiPageUrl)
 
@@ -179,19 +178,19 @@ export function Settings() {
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           <input
             className={field}
-            placeholder="Username"
+            placeholder="LDAP"
             value={uUsername}
             onChange={(e) => setUUsername(e.target.value)}
           />
           <input
             className={field}
-            placeholder="Display name (must match assignee name on items)"
+            placeholder="Full name (must match assignee name on items)"
             value={uDisplay}
             onChange={(e) => setUDisplay(e.target.value)}
           />
           <input
             className={`${field} font-mono text-xs`}
-            placeholder="Slack URL (optional)"
+            placeholder="Slack Chat URL (optional) Example: https://adobe.enterprise.slack.com/archives/D03LAMQPDEW"
             value={uSlack}
             onChange={(e) => setUSlack(e.target.value)}
           />
@@ -205,20 +204,6 @@ export function Settings() {
             <option value="member">Member</option>
             <option value="admin">Admin</option>
           </select>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-100"
-            onClick={() => {
-              applyBundledSlackDmUrls(teamId)
-              setUserMsg(
-                'Applied bundled Slack URLs where missing (accounts + legacy map).',
-              )
-            }}
-          >
-            Apply bundled Slack defaults (missing only)
-          </button>
         </div>
         <button
           type="button"
@@ -263,15 +248,15 @@ export function Settings() {
                   <span className="text-slate-500">Password: </span>
                   {u.password}
                 </div>
-                <div className="min-w-0 flex-[1_1_100%] sm:flex-[2]">
+                <div className="w-full max-w-sm flex-[1_1_100%]">
                   <label className="text-[10px] font-semibold text-slate-600">
-                    Slack URL (optional)
+                    Slack Chat URL (optional)
                   </label>
                   <input
-                    className={`${field} mt-0.5 font-mono text-[11px]`}
+                    className={`${field} mt-0.5 max-w-full font-mono text-[11px]`}
                     defaultValue={u.slackChatUrl ?? ''}
                     key={`${u.id}-slack-${u.slackChatUrl ?? ''}`}
-                    placeholder="https://…/archives/D…"
+                    placeholder="Example: https://adobe.enterprise.slack.com/archives/D03LAMQPDEW"
                     onBlur={(e) => {
                       const r = setUserSlackChatUrl(teamId, u.id, e.target.value)
                       if (!r.ok) setUserMsg(r.error)
