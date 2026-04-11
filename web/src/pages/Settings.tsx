@@ -4,7 +4,6 @@ import { useCurrentUser } from '../hooks/useCurrentUser'
 import { useTeamContextNullable } from '../hooks/useTeamContext'
 import { getJiraTokenStatus, postJiraToken } from '../lib/jiraApi'
 import { runJiraSyncFromStore } from '../lib/runJiraSync'
-import { DEFAULT_WEEKLY_WIKI_PAGE_URL } from '../data/defaultSlackDmUrls'
 import { useTrackerStore } from '../store/useTrackerStore'
 
 export function Settings() {
@@ -26,7 +25,6 @@ export function Settings() {
   const setJiraSyncJql = useTrackerStore((s) => s.setJiraSyncJql)
   const setJiraSprintFieldId = useTrackerStore((s) => s.setJiraSprintFieldId)
   const setUserSlackChatUrl = useTrackerStore((s) => s.setUserSlackChatUrl)
-  const setWeeklyWikiPageUrl = useTrackerStore((s) => s.setWeeklyWikiPageUrl)
 
   const jiraBaseUrl = ctx?.jiraBaseUrl ?? ''
   const jiraSyncJql = ctx?.jiraSyncJql ?? ''
@@ -87,12 +85,6 @@ export function Settings() {
     setNewTeamName(teamName)
   }, [teamName])
 
-  useEffect(() => {
-    setWikiDraftUrl(
-      ctx?.weeklyWikiPageUrl?.trim() || DEFAULT_WEEKLY_WIKI_PAGE_URL,
-    )
-  }, [ctx?.weeklyWikiPageUrl])
-
   const fileRef = useRef<HTMLInputElement>(null)
 
   const [uUsername, setUUsername] = useState('')
@@ -100,10 +92,6 @@ export function Settings() {
   const [uSlack, setUSlack] = useState('')
   const [uRole, setURole] = useState<TrackerUserAccount['role']>('member')
   const [userMsg, setUserMsg] = useState<string | null>(null)
-  const [integrationsMsg, setIntegrationsMsg] = useState<string | null>(null)
-  const [wikiDraftUrl, setWikiDraftUrl] = useState(
-    ctx?.weeklyWikiPageUrl ?? DEFAULT_WEEKLY_WIKI_PAGE_URL,
-  )
 
   const field =
     'w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm'
@@ -475,37 +463,9 @@ export function Settings() {
       </section>
 
       <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <h2 className="text-sm font-bold text-slate-900">Weekly wiki page</h2>
-        <p className="text-xs text-slate-600">
-          Used by the Dashboard “Copy weekly wiki” action (opens this page to
-          paste).
-        </p>
-        <div className="flex flex-wrap gap-2">
-          <input
-            className={`max-w-xl flex-1 ${field} font-mono text-xs`}
-            value={wikiDraftUrl}
-            onChange={(e) => setWikiDraftUrl(e.target.value)}
-          />
-          <button
-            type="button"
-            className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-100"
-            onClick={() => {
-              setWeeklyWikiPageUrl(teamId, wikiDraftUrl)
-              setIntegrationsMsg('Wiki page URL saved.')
-            }}
-          >
-            Save wiki URL
-          </button>
-        </div>
-        {integrationsMsg ? (
-          <p className="text-xs font-medium text-slate-700">{integrationsMsg}</p>
-        ) : null}
-      </section>
-
-      <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <p className="text-xs text-slate-600">
           Export is a <strong>full snapshot</strong> (schema v3): every team, each
-          team&apos;s sprints, work items, roster, Slack DM map, wiki URL, JIRA
+          team&apos;s sprints, work items, roster, Slack DM map, JIRA
           base URL, and all user
           accounts with passwords and flags. Import replaces the entire local
           database with the file contents so everything round-trips.

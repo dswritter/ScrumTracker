@@ -47,7 +47,23 @@ function broadcastTrackerRev(rev) {
 }
 
 const app = express()
-app.use(cors({ origin: true, credentials: true }))
+// Explicit headers so preflight succeeds when the client sends custom headers
+// (e.g. ngrok-skip-browser-warning from syncFetch) and for If-None-Match on GET.
+app.use(
+  cors({
+    origin: true,
+    credentials: true,
+    methods: ['GET', 'HEAD', 'PUT', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'If-None-Match',
+      'ngrok-skip-browser-warning',
+    ],
+    exposedHeaders: ['ETag'],
+    maxAge: 86400,
+  }),
+)
 app.use(express.json({ limit: '25mb' }))
 
 app.get('/api/tracker', (req, res) => {
