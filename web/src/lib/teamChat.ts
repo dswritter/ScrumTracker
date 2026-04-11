@@ -1,3 +1,8 @@
+import type { TeamChatMessage } from '../types'
+
+/** Stable fallback for Zustand selectors and useMemo (never use inline `{}`). */
+export const EMPTY_TEAM_CHAT_THREADS: Record<string, TeamChatMessage[]> = {}
+
 export function formatChatListTime(iso: string): string {
   const t = Date.parse(iso)
   if (Number.isNaN(t)) return ''

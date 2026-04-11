@@ -17,13 +17,12 @@ import {
 } from '../lib/chatSound'
 import {
   dmThreadKey,
+  EMPTY_TEAM_CHAT_THREADS,
   formatChatListTime,
   peerFromThreadKey,
 } from '../lib/teamChat'
 import { useTrackerStore } from '../store/useTrackerStore'
 import type { TeamChatMessage } from '../types'
-
-const EMPTY_TEAM_CHAT_THREADS: Record<string, TeamChatMessage[]> = {}
 
 export function Chat() {
   const ctx = useTeamContextNullable()

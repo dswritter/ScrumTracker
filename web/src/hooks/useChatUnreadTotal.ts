@@ -5,6 +5,7 @@ import {
   subscribeChatReadUpdated,
   totalChatUnreadForUser,
 } from '../lib/chatReadState'
+import { EMPTY_TEAM_CHAT_THREADS } from '../lib/teamChat'
 import { useTrackerStore } from '../store/useTrackerStore'
 
 /** Sum of unread DMs (messages from others since last open thread) for the nav badge. */
@@ -13,9 +14,11 @@ export function useChatUnreadTotal(): number {
   const ctx = useTeamContextNullable()
   const [readTick, setReadTick] = useState(0)
 
-  const threads = useTrackerStore((s) =>
-    user?.teamId ? s.teamsData[user.teamId]?.teamChatThreads ?? {} : {},
-  )
+  const threads = useTrackerStore((s) => {
+    const tid = user?.teamId
+    if (!tid) return EMPTY_TEAM_CHAT_THREADS
+    return s.teamsData[tid]?.teamChatThreads ?? EMPTY_TEAM_CHAT_THREADS
+  })
 
   useEffect(() => {
     const unsub = subscribeChatReadUpdated(() => setReadTick((t) => t + 1))
