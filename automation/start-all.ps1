@@ -1,7 +1,9 @@
 #requires -Version 5.1
 [CmdletBinding()]
 param(
-    [string] $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+    [string] $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path,
+    # Single port for UI (static), /api/*, and /ws/tracker — match Windows Firewall + ngrok to this.
+    [int] $Port = 3847
 )
 
 $ErrorActionPreference = 'Stop'
@@ -11,13 +13,13 @@ $EnvFile = Join-Path $WebDir '.env.production'
 $NgrokExe = Join-Path $RepoRoot 'ngrok.exe'
 
 if (-not (Test-Path -LiteralPath $NgrokExe)) {
-    Write-Error "ngrok.exe not found at $NgrokExe — public tunnel is required."
+    Write-Error "ngrok.exe not found at $NgrokExe - public tunnel is required."
     exit 1
 }
 
 Write-Host "ScrumTracker: repo=$RepoRoot"
 
-# One public URL: SPA + /api + /ws are all served from :3847 (see server/server.mjs).
+# One process, one port: Node serves web/dist + API + WebSocket (server/server.mjs).
 Set-Content -Path $EnvFile -Value 'VITE_SYNC_SAME_ORIGIN=true' -Encoding ascii
 
 Push-Location $WebDir
@@ -31,10 +33,12 @@ finally {
     Pop-Location
 }
 
-Start-Process cmd.exe -ArgumentList '/c', "cd /d `"$ServerDir`" && npm start" -WindowStyle Hidden
+# cmd: set PORT for this session, then npm start (PS 5.1-safe; no "&&").
+$startCmd = "/c set PORT=$Port& npm start"
+Start-Process -FilePath 'cmd.exe' -ArgumentList $startCmd -WorkingDirectory $ServerDir -WindowStyle Hidden
 Start-Sleep -Seconds 4
 
-Start-Process -FilePath $NgrokExe -ArgumentList 'http', '3847' -WindowStyle Hidden
+Start-Process -FilePath $NgrokExe -ArgumentList 'http', ([string]$Port) -WindowStyle Hidden
 Start-Sleep -Seconds 5
 
 try {
@@ -54,4 +58,23 @@ catch {
     Write-Warning "Could not read ngrok API (is ngrok running?): $_"
 }
 
-Write-Host "Backend: port3847 (stop with Task Manager if needed)."
+try {
+    $lanIp = (
+        Get-NetIPAddress -AddressFamily IPv4 |
+        Where-Object {
+            $_.IPAddress -notlike '127.*' -and
+            $_.IPAddress -notlike '169.254.*' -and
+            $_.PrefixOrigin -ne 'WellKnown'
+        } |
+        Select-Object -First 1
+    ).IPAddress
+    if ($lanIp) {
+        Write-Host ""
+        Write-Host "Same network: http://${lanIp}:$Port/ (one port: UI + API + WebSocket)"
+        Write-Host ""
+    }
+}
+catch { }
+
+Write-Host "Listening on port $Port (stop Node with Task Manager if needed)."
+Write-Host "If LAN access is blocked: New-NetFirewallRule -DisplayName ScrumTracker -Direction Inbound -LocalPort $Port -Protocol TCP -Action Allow (run PowerShell as Administrator)."
