@@ -47,8 +47,13 @@ export function markThreadRead(
   lastMessageId: string | null,
 ) {
   const map = loadMap(userId)
-  if (lastMessageId) map[threadKey] = lastMessageId
-  else delete map[threadKey]
+  if (lastMessageId) {
+    if (map[threadKey] === lastMessageId) return
+    map[threadKey] = lastMessageId
+  } else {
+    if (!(threadKey in map)) return
+    delete map[threadKey]
+  }
   saveMap(userId, map)
 }
 

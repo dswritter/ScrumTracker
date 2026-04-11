@@ -23,6 +23,8 @@ import {
 import { useTrackerStore } from '../store/useTrackerStore'
 import type { TeamChatMessage } from '../types'
 
+const EMPTY_TEAM_CHAT_THREADS: Record<string, TeamChatMessage[]> = {}
+
 export function Chat() {
   const ctx = useTeamContextNullable()
   const user = useCurrentUser()
@@ -49,7 +51,10 @@ export function Chat() {
       .sort((a, b) => a.localeCompare(b))
   }, [teamMembers, me])
 
-  const threads = ctx?.teamChatThreads ?? {}
+  const threads = useMemo(
+    () => ctx?.teamChatThreads ?? EMPTY_TEAM_CHAT_THREADS,
+    [ctx?.teamChatThreads],
+  )
   const [draft, setDraft] = useState('')
   const [soundOn, setSoundOn] = useState(true)
   const listRef = useRef<HTMLDivElement>(null)
@@ -65,12 +70,12 @@ export function Chat() {
   }, [user?.id])
 
   useEffect(() => {
-    if (!user?.id || !peerDecoded || !me || !ctx) return
+    if (!user?.id || !peerDecoded || !me || !ctx?.teamId) return
     const key = dmThreadKey(me, peerDecoded)
     const msgs = threads[key] ?? []
     const lastId = msgs[msgs.length - 1]?.id ?? null
     markThreadRead(user.id, key, lastId)
-  }, [user?.id, peerDecoded, me, ctx, threads])
+  }, [user?.id, peerDecoded, me, ctx?.teamId, threads])
 
   useEffect(() => {
     if (!ctx || !me || !user?.id) return
