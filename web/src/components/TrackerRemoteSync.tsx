@@ -1,11 +1,12 @@
 import { useEffect } from 'react'
-import { syncFetch, syncTrackerWebSocketUrl } from '../lib/syncFetch'
+import { isTrackerSyncEnabled } from '../lib/syncConfigured'
+import { syncApiBaseUrl, syncFetch, syncTrackerWebSocketUrl } from '../lib/syncFetch'
 import { useTrackerStore } from '../store/useTrackerStore'
 
 /**
- * When `VITE_SYNC_API_URL` is set (e.g. your ngrok URL for port 3847), keeps the
- * Zustand snapshot in sync with the Node server so Chrome, Safari, and other
- * machines share one workspace. See SERVER.md.
+ * When sync is enabled (`VITE_SYNC_SAME_ORIGIN` or `VITE_SYNC_API_URL`), keeps the
+ * Zustand snapshot in sync with the Node server. Same-origin builds use relative `/api/*`
+ * (SPA + API on one port, e.g. behind ngrok).
  *
  * Uses WebSocket `/ws/tracker` for push when the snapshot rev changes (no 2.5s polling).
  * Falls back to slow polling if the socket is down. GET `/api/tracker` uses
@@ -13,10 +14,9 @@ import { useTrackerStore } from '../store/useTrackerStore'
  */
 export function TrackerRemoteSync() {
   useEffect(() => {
-    const raw = import.meta.env.VITE_SYNC_API_URL?.trim()
-    if (!raw) return
+    if (!isTrackerSyncEnabled()) return
 
-    const base = raw.replace(/\/$/, '') // used only for logging
+    const base = syncApiBaseUrl() || '(same-origin)'
     let cancelled = false
     let applyingRemote = false
     let lastRev = 0

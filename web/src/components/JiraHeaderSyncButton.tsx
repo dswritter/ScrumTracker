@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { useTeamContextNullable } from '../hooks/useTeamContext'
 import { runJiraSyncFromStore } from '../lib/runJiraSync'
+import { isTrackerSyncEnabled } from '../lib/syncConfigured'
 import { useTrackerStore } from '../store/useTrackerStore'
 
-/** Admin-only: quick sync from Jira (same as Settings). Requires VITE_SYNC_API_URL. */
+/** Admin-only: quick sync from Jira (same as Settings). Requires sync enabled in the build. */
 export function JiraHeaderSyncButton() {
   const ctx = useTeamContextNullable()
   const exportSnapshotJson = useTrackerStore((s) => s.exportSnapshotJson)
@@ -11,7 +12,7 @@ export function JiraHeaderSyncButton() {
   const [busy, setBusy] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
 
-  const hasSyncServer = Boolean(import.meta.env.VITE_SYNC_API_URL?.trim())
+  const hasSyncServer = isTrackerSyncEnabled()
   if (!ctx || !hasSyncServer) return null
 
   const teamId = ctx.teamId

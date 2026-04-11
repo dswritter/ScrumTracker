@@ -207,12 +207,15 @@ export function Chat() {
       {!remoteSync ? (
         <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
           <strong className="font-semibold">Sync not configured.</strong> Chat
-          messages stay on this browser only until{' '}
+          stays in this browser until the app is built with{' '}
+          <code className="rounded bg-amber-100/80 px-1 text-xs">
+            VITE_SYNC_SAME_ORIGIN=true
+          </code>{' '}
+          (public tunnel to the Node server) or{' '}
           <code className="rounded bg-amber-100/80 px-1 text-xs">
             VITE_SYNC_API_URL
-          </code>{' '}
-          points at your team sync server. See{' '}
-          <span className="font-medium">SERVER.md</span>.
+          </code>
+          . See <span className="font-medium">SERVER.md</span>.
         </div>
       ) : null}
 

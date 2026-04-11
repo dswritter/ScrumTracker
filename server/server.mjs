@@ -96,13 +96,37 @@ app.get('/api/health', (_req, res) => {
 
 registerJiraRoutes(app, { dataDir: DATA_DIR })
 
+const WEB_DIST = path.join(__dirname, '../web/dist')
+const webIndex = path.join(WEB_DIST, 'index.html')
+if (!fs.existsSync(webIndex)) {
+  console.warn(
+    `[scrum-tracker] No ${webIndex} — run "npm run build" in web/ so the UI is served on this port.`,
+  )
+} else {
+  app.use(express.static(WEB_DIST, { index: false }))
+  app.use((req, res, next) => {
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      next()
+      return
+    }
+    if (req.path.startsWith('/api')) {
+      next()
+      return
+    }
+    res.sendFile(webIndex, (err) => {
+      if (err) next(err)
+    })
+  })
+}
+
 const server = http.createServer(app)
 trackerWss = new WebSocketServer({ server, path: '/ws/tracker' })
 
 server.listen(PORT, HOST, () => {
   console.log(
-    `Scrum tracker sync listening on http://${HOST === '0.0.0.0' ? '<this-pc-ip>' : HOST}:${PORT}`,
+    `Scrum tracker listening on http://${HOST === '0.0.0.0' ? '<this-pc-ip>' : HOST}:${PORT}`,
   )
+  console.log(`  Static (if built): web/dist — open this port in the browser (or tunnel it with ngrok)`)
   console.log(`  GET  /api/tracker  — fetch shared snapshot + revision (ETag / If-None-Match)`)
   console.log(`  PUT  /api/tracker  — push full snapshot (JSON string body.snapshot)`)
   console.log(`  WS   /ws/tracker — push { type: 'tracker_rev', rev } when snapshot changes`)

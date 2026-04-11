@@ -4,6 +4,7 @@ import { useCurrentUser } from '../hooks/useCurrentUser'
 import { useTeamContextNullable } from '../hooks/useTeamContext'
 import { getJiraTokenStatus, postJiraToken } from '../lib/jiraApi'
 import { runJiraSyncFromStore } from '../lib/runJiraSync'
+import { isTrackerSyncEnabled } from '../lib/syncConfigured'
 import { useTrackerStore } from '../store/useTrackerStore'
 
 export function Settings() {
@@ -40,7 +41,7 @@ export function Settings() {
   const [jiraTokenStatus, setJiraTokenStatus] = useState<string | null>(null)
   const [jiraSyncing, setJiraSyncing] = useState(false)
 
-  const hasSyncServer = Boolean(import.meta.env.VITE_SYNC_API_URL?.trim())
+  const hasSyncServer = isTrackerSyncEnabled()
 
   useEffect(() => {
     setJiraDraftJql(jiraSyncJql)
@@ -325,16 +326,18 @@ export function Settings() {
       <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <h2 className="text-sm font-bold text-slate-900">Jira integration</h2>
         <p className="text-xs text-slate-600">
-          PAT and sync run on the <strong>sync server</strong> only (
-          <code className="rounded bg-slate-100 px-1">VITE_SYNC_API_URL</code>
-          ). Tokens are never stored in the browser. See{' '}
+          PAT and sync run on the <strong>Node server</strong> only (not in the
+          browser). Production builds use{' '}
+          <code className="rounded bg-slate-100 px-1">VITE_SYNC_SAME_ORIGIN</code> so
+          the UI and API share one public URL. See{' '}
           <code className="rounded bg-slate-100 px-1">docs/JIRA Integration Architecture.md</code>
           .
         </p>
         {!hasSyncServer ? (
           <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
-            Set <code className="font-mono">VITE_SYNC_API_URL</code> to your Node
-            sync server (port 3847) to enable Jira sync.
+            Enable sync in the build (<code className="font-mono">VITE_SYNC_SAME_ORIGIN=true</code>{' '}
+            or <code className="font-mono">VITE_SYNC_API_URL</code>) so Jira sync can
+            reach the server.
           </p>
         ) : null}
         <label className="block text-xs font-semibold text-slate-700">

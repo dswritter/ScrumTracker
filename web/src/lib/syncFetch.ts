@@ -1,19 +1,46 @@
-/** Headers that help ngrok free tier return JSON instead of an HTML interstitial page. */
-const EXTRA_HEADERS: Record<string, string> = {
-  'ngrok-skip-browser-warning': 'true',
-}
+import { isTrackerSyncEnabled } from './syncConfigured'
 
-export function syncApiBaseUrl(): string | null {
-  const raw = import.meta.env.VITE_SYNC_API_URL?.trim()
-  return raw ? raw.replace(/\/$/, '') : null
-}
-
-/** `ws:` / `wss:` URL for instant tracker revision notifications (same host as `VITE_SYNC_API_URL`). */
-export function syncTrackerWebSocketUrl(): string | null {
-  const b = syncApiBaseUrl()
-  if (!b) return null
+function ngrokSkipHeaderWanted(base: string): boolean {
+  if (!base || base.startsWith('/')) return false
   try {
-    const u = new URL(b)
+    const h = new URL(base).hostname
+    return h.includes('ngrok')
+  } catch {
+    return false
+  }
+}
+
+/** Base URL for sync HTTP calls: empty string = same origin as the page. */
+export function syncApiBaseUrl(): string {
+  if (import.meta.env.VITE_SYNC_SAME_ORIGIN === 'true') return ''
+  const raw = import.meta.env.VITE_SYNC_API_URL?.trim()
+  if (raw) return raw.replace(/\/$/, '')
+  throw new Error(
+    'Sync API not configured: set VITE_SYNC_SAME_ORIGIN=true or VITE_SYNC_API_URL',
+  )
+}
+
+/** `ws:` / `wss:` for tracker rev push (same host as HTTP sync). */
+export function syncTrackerWebSocketUrl(): string | null {
+  if (!isTrackerSyncEnabled()) return null
+
+  if (import.meta.env.VITE_SYNC_SAME_ORIGIN === 'true') {
+    if (typeof window === 'undefined') return null
+    const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    return `${wsProto}//${window.location.host}/ws/tracker`
+  }
+
+  const raw = import.meta.env.VITE_SYNC_API_URL?.trim()
+  if (!raw) return null
+
+  if (raw.startsWith('/')) {
+    if (typeof window === 'undefined') return null
+    const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    return `${wsProto}//${window.location.host}${raw.replace(/\/$/, '')}/ws/tracker`
+  }
+
+  try {
+    const u = new URL(raw)
     u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:'
     u.pathname = '/ws/tracker'
     u.search = ''
@@ -24,19 +51,16 @@ export function syncTrackerWebSocketUrl(): string | null {
   }
 }
 
-function baseUrl(): string | null {
-  return syncApiBaseUrl()
-}
-
 export async function syncFetch(
   path: string,
   init?: RequestInit,
 ): Promise<Response> {
-  const b = baseUrl()
-  if (!b) throw new Error('VITE_SYNC_API_URL is not set')
+  const b = syncApiBaseUrl()
   const headers = new Headers(init?.headers)
-  for (const [k, v] of Object.entries(EXTRA_HEADERS)) {
-    if (!headers.has(k)) headers.set(k, v)
+  if (ngrokSkipHeaderWanted(b)) {
+    if (!headers.has('ngrok-skip-browser-warning')) {
+      headers.set('ngrok-skip-browser-warning', 'true')
+    }
   }
   return fetch(`${b}${path}`, { ...init, headers })
 }
