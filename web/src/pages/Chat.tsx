@@ -1,7 +1,7 @@
 import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { ChatComposer } from '../components/ChatComposer'
 import { ChatMessageBody, initials } from '../components/ChatMessageBody'
-import { ChatNotificationPrompt } from '../components/ChatNotificationPrompt'
 import { useCurrentUser } from '../hooks/useCurrentUser'
 import { useTeamContextNullable } from '../hooks/useTeamContext'
 import {
@@ -16,6 +16,10 @@ import {
   subscribeChatSoundPrefs,
 } from '../lib/chatSound'
 import {
+  isRemoteSyncConfigured,
+  pushTrackerSnapshotNow,
+} from '../lib/pushTrackerSnapshotNow'
+import {
   dmThreadKey,
   EMPTY_TEAM_CHAT_THREADS,
   formatChatListTime,
@@ -23,6 +27,8 @@ import {
 } from '../lib/teamChat'
 import { useTrackerStore } from '../store/useTrackerStore'
 import type { TeamChatMessage } from '../types'
+
+const CHAT_NOTIF_TIP_KEY = 'scrum-chat-notif-https-tip-dismissed'
 
 export function Chat() {
   const ctx = useTeamContextNullable()
@@ -56,9 +62,25 @@ export function Chat() {
   )
   const [draft, setDraft] = useState('')
   const [soundOn, setSoundOn] = useState(true)
+  const [notifTick, setNotifTick] = useState(0)
+  const [httpsTipDismissed, setHttpsTipDismissed] = useState(() =>
+    typeof localStorage !== 'undefined'
+      ? localStorage.getItem(CHAT_NOTIF_TIP_KEY) === '1'
+      : true,
+  )
   const listRef = useRef<HTMLDivElement>(null)
   const prevThreadsRef = useRef(threads)
   const skipIncomingFxRef = useRef(true)
+
+  const remoteSync = isRemoteSyncConfigured()
+  const canUseNotification =
+    typeof window !== 'undefined' && typeof Notification !== 'undefined'
+  const secureContext =
+    typeof window !== 'undefined' && window.isSecureContext === true
+  const notifPermission = useMemo(
+    () => (canUseNotification ? Notification.permission : 'denied'),
+    [canUseNotification, notifTick],
+  )
 
   useEffect(() => {
     if (!user?.id) return
@@ -98,7 +120,10 @@ export function Chat() {
         playChatMessageSound()
       }
 
-      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+      if (
+        canUseNotification &&
+        notifPermission === 'granted'
+      ) {
         const viewingThisDm =
           peerDecoded != null && peer.trim() === peerDecoded.trim()
         if (viewingThisDm && document.visibilityState === 'visible') continue
@@ -110,7 +135,15 @@ export function Chat() {
       }
     }
     prevThreadsRef.current = threads
-  }, [threads, ctx, me, peerDecoded, user?.id])
+  }, [
+    threads,
+    ctx,
+    me,
+    peerDecoded,
+    user?.id,
+    canUseNotification,
+    notifPermission,
+ ])
 
   const activeMessages: TeamChatMessage[] =
     peerDecoded && me
@@ -124,43 +157,126 @@ export function Chat() {
     })
   }, [peerDecoded, activeMessages.length])
 
-  const handleSend = (e: FormEvent) => {
-    e.preventDefault()
+  const handleSend = async () => {
     if (!ctx || !peerDecoded || !draft.trim() || !me) return
     if (!peers.some((p) => p.trim() === peerDecoded.trim())) return
     appendTeamChatMessage(ctx.teamId, me, peerDecoded, draft)
     setDraft('')
+    await pushTrackerSnapshotNow()
+  }
+
+  const onFormSubmit = (e: FormEvent) => {
+    e.preventDefault()
+    void handleSend()
+  }
+
+  const dismissHttpsTip = () => {
+    localStorage.setItem(CHAT_NOTIF_TIP_KEY, '1')
+    setHttpsTipDismissed(true)
   }
 
   if (!user || !ctx) return null
 
+  let notifButtonLabel = 'Enable alerts'
+  let notifTitle =
+    'Ask the browser once for permission to show message alerts when this tab is in the background.'
+  let notifDisabled = false
+
+  if (!canUseNotification) {
+    notifButtonLabel = 'Alerts n/a'
+    notifTitle = 'This browser does not support notifications.'
+    notifDisabled = true
+  } else if (!secureContext) {
+    notifButtonLabel = 'HTTPS for alerts'
+    notifTitle =
+      'Most browsers only allow notifications on HTTPS (http://localhost is treated as secure). Host the app over HTTPS or use ngrok.'
+    notifDisabled = true
+  } else if (notifPermission === 'granted') {
+    notifButtonLabel = 'Alerts on'
+    notifTitle = 'Desktop alerts are enabled. Turn off in the browser site settings if needed.'
+    notifDisabled = true
+  } else if (notifPermission === 'denied') {
+    notifButtonLabel = 'Alerts blocked'
+    notifTitle =
+      'Notifications were blocked. Use the site lock icon → Site settings → Notifications → Allow, then reload.'
+    notifDisabled = true
+  }
+
   return (
-    <>
-      <ChatNotificationPrompt />
-      <div className="flex h-[min(70vh,calc(100vh-10rem))] min-h-[420px] overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 shadow-lg">
-        <aside className="flex w-full max-w-[min(100%,280px)] flex-col border-r border-slate-800 bg-slate-900 sm:max-w-[320px]">
-          <div className="flex items-start justify-between gap-2 border-b border-slate-800 px-3 py-3">
+    <div className="-mx-4 -my-8 flex min-h-[calc(100svh-5rem)] flex-col sm:-mx-6 lg:-mx-8">
+      {!remoteSync ? (
+        <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+          <strong className="font-semibold">Sync not configured.</strong> Chat
+          messages stay on this browser only until{' '}
+          <code className="rounded bg-amber-100/80 px-1 text-xs">
+            VITE_SYNC_API_URL
+          </code>{' '}
+          points at your team sync server. See{' '}
+          <span className="font-medium">SERVER.md</span>.
+        </div>
+      ) : null}
+
+      {!secureContext && canUseNotification && !httpsTipDismissed ? (
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+          <span>
+            Desktop notifications usually require{' '}
+            <strong>HTTPS</strong> (except{' '}
+            <code className="rounded bg-white px-1">localhost</code>).
+          </span>
+          <button
+            type="button"
+            className="text-[#007a3d] underline hover:no-underline"
+            onClick={dismissHttpsTip}
+          >
+            Dismiss
+          </button>
+        </div>
+      ) : null}
+
+      <div className="flex min-h-[calc(100svh-8rem)] flex-1 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <aside className="flex w-full max-w-[min(100%,280px)] flex-col border-r border-slate-200 bg-slate-50/80 sm:max-w-[320px]">
+          <div className="flex flex-wrap items-start justify-between gap-2 border-b border-slate-200 bg-white px-3 py-3">
             <div className="min-w-0">
-              <h2 className="text-sm font-bold text-white">Team chat</h2>
-              <p className="text-[11px] text-slate-400">Direct messages</p>
+              <h2 className="text-sm font-bold text-[#0d5c2e]">Team chat</h2>
+              <p className="text-[11px] text-slate-500">Direct messages</p>
             </div>
-            <button
-              type="button"
-              className="shrink-0 rounded-lg border border-slate-600 px-2 py-1 text-[10px] font-semibold text-slate-200 hover:bg-slate-800"
-              aria-pressed={soundOn}
-              title={
-                soundOn
-                  ? 'Message sound on (click to mute)'
-                  : 'Message sound off (click to enable)'
-              }
-              onClick={() => {
-                const next = !getChatSoundEnabled(user.id)
-                setChatSoundEnabled(user.id, next)
-                setSoundOn(next)
-              }}
-            >
-              {soundOn ? 'Sound on' : 'Sound off'}
-            </button>
+            <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
+              <button
+                type="button"
+                className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+                aria-pressed={soundOn}
+                title={
+                  soundOn
+                    ? 'Message sound on (click to mute)'
+                    : 'Message sound off (click to enable)'
+                }
+                onClick={() => {
+                  const next = !getChatSoundEnabled(user.id)
+                  setChatSoundEnabled(user.id, next)
+                  setSoundOn(next)
+                }}
+              >
+                {soundOn ? 'Sound on' : 'Sound off'}
+              </button>
+              <button
+                type="button"
+                className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                title={notifTitle}
+                disabled={notifDisabled}
+                onClick={async () => {
+                  if (notifDisabled || !secureContext || !canUseNotification)
+                    return
+                  try {
+                    await Notification.requestPermission()
+                    setNotifTick((t) => t + 1)
+                  } catch {
+                    setNotifTick((t) => t + 1)
+                  }
+                }}
+              >
+                {notifButtonLabel}
+              </button>
+            </div>
           </div>
           <div className="flex-1 overflow-y-auto">
             {peers.map((p) => {
@@ -182,13 +298,13 @@ export function Chat() {
                 <Link
                   key={p}
                   to={`/chat/${encodeURIComponent(p)}`}
-                  className={`flex gap-2 border-b border-slate-800/80 px-3 py-2.5 transition-colors hover:bg-slate-800/50 ${
+                  className={`flex gap-2 border-b border-slate-100 px-3 py-2.5 transition-colors hover:bg-white ${
                     active
-                      ? 'bg-amber-500/10 ring-1 ring-inset ring-amber-500/30'
+                      ? 'bg-[#00B050]/10 ring-1 ring-inset ring-[#00B050]/25'
                       : ''
                   }`}
                 >
-                  <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-slate-600 to-slate-800 text-[10px] font-bold text-white">
+                  <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#00B050] to-emerald-700 text-[10px] font-bold text-white">
                     {initials(p)}
                     {unread > 0 ? (
                       <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-bold text-white">
@@ -198,7 +314,7 @@ export function Chat() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline justify-between gap-1">
-                      <span className="truncate text-xs font-semibold text-slate-100">
+                      <span className="truncate text-xs font-semibold text-slate-900">
                         {p}
                       </span>
                       {last ? (
@@ -207,32 +323,37 @@ export function Chat() {
                         </span>
                       ) : null}
                     </div>
-                    <p className="truncate text-[11px] text-slate-400">{preview}</p>
+                    <p className="truncate text-[11px] text-slate-600">{preview}</p>
                   </div>
                 </Link>
               )
             })}
           </div>
         </aside>
-        <section className="flex min-w-0 flex-1 flex-col bg-slate-950">
+        <section className="flex min-w-0 flex-1 flex-col bg-white">
           {!peerDecoded ? (
             <div className="flex flex-1 items-center justify-center text-sm text-slate-500">
               Select a teammate to start chatting
             </div>
           ) : !peers.some((p) => p.trim() === peerDecoded.trim()) ? (
             <div className="flex flex-1 flex-col items-center justify-center gap-2 p-4 text-center">
-              <p className="text-sm text-slate-400">
+              <p className="text-sm text-slate-600">
                 That teammate is not on the roster.
               </p>
-              <Link to="/chat" className="text-sm text-amber-400 underline">
+              <Link
+                to="/chat"
+                className="text-sm font-semibold text-[#007a3d] underline"
+              >
                 Back to chat list
               </Link>
             </div>
           ) : (
             <>
-              <header className="border-b border-slate-800 px-4 py-3">
-                <h3 className="text-sm font-bold text-white">{peerDecoded}</h3>
-                <p className="text-[11px] text-slate-400">Direct message</p>
+              <header className="border-b border-slate-200 bg-[#00B050]/8 px-4 py-3">
+                <h3 className="text-sm font-bold text-[#0d5c2e]">
+                  {peerDecoded}
+                </h3>
+                <p className="text-[11px] text-slate-600">Direct message</p>
               </header>
               <div
                 ref={listRef}
@@ -245,12 +366,12 @@ export function Chat() {
                 ) : (
                   activeMessages.map((m) => (
                     <div key={m.id} className="flex gap-2">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-800 text-[10px] font-bold text-slate-200">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-200 text-[10px] font-bold text-slate-700">
                         {initials(m.authorName)}
                       </div>
-                      <div className="min-w-0 rounded-lg bg-slate-800/80 px-3 py-2">
+                      <div className="min-w-0 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
                         <div className="flex flex-wrap items-baseline gap-2">
-                          <span className="text-xs font-semibold text-amber-200">
+                          <span className="text-xs font-semibold text-[#0d5c2e]">
                             {m.authorName}
                           </span>
                           <span className="text-[10px] text-slate-500">
@@ -268,21 +389,21 @@ export function Chat() {
                 )}
               </div>
               <form
-                onSubmit={handleSend}
-                className="border-t border-slate-800 p-3"
+                onSubmit={onFormSubmit}
+                className="border-t border-slate-200 bg-slate-50/50 p-3"
               >
                 <div className="flex gap-2">
-                  <input
-                    type="text"
+                  <ChatComposer
                     value={draft}
-                    onChange={(e) => setDraft(e.target.value)}
-                    placeholder={`Message ${peerDecoded}… (use @Full Name)`}
-                    className="min-w-0 flex-1 rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-[#00B050] focus:outline-none focus:ring-1 focus:ring-[#00B050]"
+                    onChange={setDraft}
+                    onSubmit={() => void handleSend()}
+                    placeholder={`Message ${peerDecoded}… (@ for names)`}
+                    mentionNames={mentionNames}
                   />
                   <button
                     type="submit"
                     disabled={!draft.trim()}
-                    className="shrink-0 rounded-xl bg-[#00B050] px-4 py-2 text-sm font-semibold text-white hover:bg-[#009948] disabled:opacity-40"
+                    className="shrink-0 rounded-xl bg-[#00B050] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[#009948] disabled:opacity-40"
                   >
                     Send
                   </button>
@@ -292,6 +413,6 @@ export function Chat() {
           )}
         </section>
       </div>
-    </>
+    </div>
   )
 }

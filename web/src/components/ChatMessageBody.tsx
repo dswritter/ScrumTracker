@@ -62,7 +62,7 @@ export function ChatMessageBody({
         <Link
           key={`${messageId}-@${partIdx}-${at}`}
           to={`/chat/${encodeURIComponent(matched)}`}
-          className="font-semibold text-amber-400 hover:text-amber-300 hover:underline"
+          className="font-semibold text-[#007a3d] hover:text-[#0d5c2e] hover:underline"
         >
           @{matched}
         </Link>,
@@ -74,7 +74,7 @@ export function ChatMessageBody({
     }
   }
   return (
-    <span className="whitespace-pre-wrap break-words text-slate-100">
+    <span className="whitespace-pre-wrap break-words text-slate-800">
       {parts}
     </span>
   )
