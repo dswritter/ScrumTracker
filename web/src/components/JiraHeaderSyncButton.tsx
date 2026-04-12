@@ -1,5 +1,10 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useTeamContextNullable } from '../hooks/useTeamContext'
+import {
+  fetchJiraTokenStatusPayload,
+  jiraTokenStatusAllowsSync,
+} from '../lib/jiraApi'
 import { runJiraSyncFromStore } from '../lib/runJiraSync'
 import { isTrackerSyncEnabled } from '../lib/syncConfigured'
 import { useTrackerStore } from '../store/useTrackerStore'
@@ -11,6 +16,7 @@ export function JiraHeaderSyncButton() {
   const importSnapshotJson = useTrackerStore((s) => s.importSnapshotJson)
   const [busy, setBusy] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
+  const navigate = useNavigate()
 
   const hasSyncServer = isTrackerSyncEnabled()
   if (!ctx || !hasSyncServer) return null
@@ -27,17 +33,25 @@ export function JiraHeaderSyncButton() {
         onClick={async () => {
           setToast(null)
           setBusy(true)
-          const r = await runJiraSyncFromStore(
-            exportSnapshotJson,
-            importSnapshotJson,
-            teamId,
-          )
-          setBusy(false)
-          if (r.ok) {
-            setToast(r.message)
-            window.setTimeout(() => setToast(null), 4000)
-          } else {
-            window.alert(r.message)
+          try {
+            const tokenPayload = await fetchJiraTokenStatusPayload()
+            if (!jiraTokenStatusAllowsSync(tokenPayload)) {
+              navigate('/settings#jira-integration')
+              return
+            }
+            const r = await runJiraSyncFromStore(
+              exportSnapshotJson,
+              importSnapshotJson,
+              teamId,
+            )
+            if (r.ok) {
+              setToast(r.message)
+              window.setTimeout(() => setToast(null), 4000)
+            } else {
+              window.alert(r.message)
+            }
+          } finally {
+            setBusy(false)
           }
         }}
       >

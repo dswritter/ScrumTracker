@@ -34,6 +34,7 @@ import {
 import { generateId } from '../lib/ids'
 import { normalizeLoginUsername } from '../lib/username'
 import { mergeBundledSlackDefaults } from '../data/defaultSlackDmUrls'
+import { DEFAULT_NEW_TEAM_JIRA_SPRINT_FIELD_ID } from '../data/jiraDefaults'
 import { parseSlackDmUrlInput } from '../lib/slackDm'
 
 /** Must match `persist.name` (localStorage key for cross-tab sync). */
@@ -917,6 +918,7 @@ export const useTrackerStore = create<TrackerState>()(
           workItems: [],
           teamMembers: [adminDisplayName],
           jiraBaseUrl: 'https://jira.corp.adobe.com/browse/',
+          jiraSprintFieldId: DEFAULT_NEW_TEAM_JIRA_SPRINT_FIELD_ID,
         }
         set({
           teams: [...s.teams, team],

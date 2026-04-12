@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import type { TrackerUserAccount } from '../types'
 import { useCurrentUser } from '../hooks/useCurrentUser'
 import { useTeamContextNullable } from '../hooks/useTeamContext'
@@ -8,6 +9,7 @@ import { isTrackerSyncEnabled } from '../lib/syncConfigured'
 import { useTrackerStore } from '../store/useTrackerStore'
 
 export function Settings() {
+  const location = useLocation()
   const user = useCurrentUser()
   const ctx = useTeamContextNullable()
   const teamId = ctx?.teamId ?? ''
@@ -85,6 +87,16 @@ export function Settings() {
   useEffect(() => {
     setNewTeamName(teamName)
   }, [teamName])
+
+  useEffect(() => {
+    if (location.hash !== '#jira-integration') return
+    const el = document.getElementById('jira-integration')
+    if (el) {
+      window.requestAnimationFrame(() =>
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+      )
+    }
+  }, [location.hash])
 
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -323,7 +335,10 @@ export function Settings() {
         />
       </section>
 
-      <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <section
+        id="jira-integration"
+        className="space-y-3 scroll-mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+      >
         <h2 className="text-sm font-bold text-slate-900">Jira integration</h2>
         <p className="text-xs text-slate-600">
           PAT and sync run on the <strong>Node server</strong> only (not in the
@@ -364,13 +379,13 @@ export function Settings() {
         </label>
         <p className="text-xs text-slate-600">
           Custom field id for the Sprint field (e.g.{' '}
-          <code className="rounded bg-slate-100 px-1">customfield_10020</code>). Leave
+          <code className="rounded bg-slate-100 px-1">customfield_11002</code>). Leave
           empty to skip sprint mapping. Find it in Jira issue JSON or Fields admin.
         </p>
         <div className="flex flex-wrap items-end gap-2">
           <input
             className={`${field} max-w-md font-mono text-xs`}
-            placeholder="customfield_10020"
+            placeholder="customfield_11002"
             value={jiraDraftSprintField}
             onChange={(e) => setJiraDraftSprintField(e.target.value)}
           />

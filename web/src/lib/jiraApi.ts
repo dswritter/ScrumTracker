@@ -19,6 +19,31 @@ export async function getJiraTokenStatus() {
   return syncFetch('/api/jira/token-status', { headers: jiraHeaders() })
 }
 
+export type JiraTokenStatusPayload = {
+  status?: string
+  daysRemaining?: number | null
+  message?: string
+}
+
+export async function fetchJiraTokenStatusPayload(): Promise<JiraTokenStatusPayload | null> {
+  try {
+    const res = await getJiraTokenStatus()
+    if (!res.ok) return null
+    return (await res.json()) as JiraTokenStatusPayload
+  } catch {
+    return null
+  }
+}
+
+/** True when the sync server has an active (non-expired) Jira PAT — sync can run. */
+export function jiraTokenStatusAllowsSync(
+  payload: JiraTokenStatusPayload | null,
+): boolean {
+  const s = payload?.status
+  if (!s || s === 'none' || s === 'expired') return false
+  return true
+}
+
 export async function postJiraSync(body: {
   snapshot: string
   teamId: string
