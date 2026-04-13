@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
+import { SEED_TEAM_ID } from '../data/seed'
 import type { TrackerUserAccount } from '../types'
 import { useCurrentUser } from '../hooks/useCurrentUser'
 import { useTeamContextNullable } from '../hooks/useTeamContext'
@@ -78,6 +79,62 @@ function MemberIdentityEditor({
   )
 }
 
+function CollapsibleSettingsSection({
+  id,
+  title,
+  subtitle,
+  children,
+  defaultOpen = false,
+  openWhenHash,
+}: {
+  id?: string
+  title: string
+  subtitle?: string
+  children: ReactNode
+  defaultOpen?: boolean
+  /** When location hash matches, expand (e.g. #jira-integration). */
+  openWhenHash?: string
+}) {
+  const { hash } = useLocation()
+  const [open, setOpen] = useState(defaultOpen)
+  useEffect(() => {
+    if (openWhenHash && hash === openWhenHash) setOpen(true)
+  }, [hash, openWhenHash])
+  return (
+    <section
+      id={id}
+      className="scroll-mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900/90"
+    >
+      <button
+        type="button"
+        className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/50"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <i
+          className={`fa-solid fa-chevron-${open ? 'down' : 'right'} mt-0.5 w-4 shrink-0 text-slate-500 dark:text-slate-400`}
+          aria-hidden
+        />
+        <div className="min-w-0 flex-1">
+          <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+            {title}
+          </h2>
+          {subtitle ? (
+            <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+              {subtitle}
+            </p>
+          ) : null}
+        </div>
+      </button>
+      {open ? (
+        <div className="space-y-3 border-t border-slate-100 px-4 pb-4 pt-3 dark:border-slate-800">
+          {children}
+        </div>
+      ) : null}
+    </section>
+  )
+}
+
 export function Settings() {
   const location = useLocation()
   const user = useCurrentUser()
@@ -88,7 +145,10 @@ export function Settings() {
   const users = useTrackerStore((s) => s.users)
   const importSnapshotJson = useTrackerStore((s) => s.importSnapshotJson)
   const exportSnapshotJson = useTrackerStore((s) => s.exportSnapshotJson)
-  const resetToSeed = useTrackerStore((s) => s.resetToSeed)
+  const resetToSeedFull = useTrackerStore((s) => s.resetToSeedFull)
+  const resetTeamWorkspaceToDefaults = useTrackerStore(
+    (s) => s.resetTeamWorkspaceToDefaults,
+  )
   const addTeamMemberAccount = useTrackerStore((s) => s.addTeamMemberAccount)
   const removeUser = useTrackerStore((s) => s.removeUser)
   const setUserRole = useTrackerStore((s) => s.setUserRole)
@@ -174,6 +234,7 @@ export function Settings() {
   }, [location.hash])
 
   const fileRef = useRef<HTMLInputElement>(null)
+  const isSeedTeam = teamId === SEED_TEAM_ID
 
   const [uUsername, setUUsername] = useState('')
   const [uDisplay, setUDisplay] = useState('')
@@ -234,8 +295,12 @@ export function Settings() {
   if (!user || !ctx) return null
 
   return (
-    <div className="mx-auto w-full max-w-none space-y-8">
-      <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
+    <div className="mx-auto w-full max-w-3xl space-y-3">
+      <CollapsibleSettingsSection
+        title="Team name"
+        subtitle="Display name for this workspace"
+        defaultOpen
+      >
         <div className="flex flex-wrap gap-2">
           <input
             className={`max-w-md flex-1 ${field}`}
@@ -252,9 +317,13 @@ export function Settings() {
             Save
           </button>
         </div>
-      </section>
+      </CollapsibleSettingsSection>
 
-      <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
+      <CollapsibleSettingsSection
+        title="Accounts & roster"
+        subtitle="Create logins, Slack URLs, roles, temporary passwords"
+      >
+        <div className="space-y-4">
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           <input
             className={field}
@@ -447,9 +516,15 @@ export function Settings() {
             )
           })}
         </ul>
-      </section>
+        </div>
+      </CollapsibleSettingsSection>
 
-      <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
+      <CollapsibleSettingsSection
+        id="jira-integration"
+        title="Jira integration"
+        subtitle="Base URL, JQL, PAT on server, sync"
+        openWhenHash="#jira-integration"
+      >
         <p className="text-xs text-slate-600 dark:text-slate-300">
           Keys on work items open as <span className="font-mono">base + KEY</span>
           .
@@ -458,16 +533,8 @@ export function Settings() {
           className={field}
           value={jiraBaseUrl}
           onChange={(e) => setJiraBaseUrl(teamId, e.target.value)}
+          placeholder="https://jira.example.com/browse/"
         />
-      </section>
-
-      <section
-        id="jira-integration"
-        className="space-y-3 scroll-mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/90"
-      >
-        <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">
-          Jira integration
-        </h2>
         <p className="text-xs text-slate-600 dark:text-slate-300">
           PAT and sync run on the <strong>Node server</strong> only (not in the
           browser). Production builds use{' '}
@@ -616,9 +683,12 @@ export function Settings() {
             {jiraMsg}
           </p>
         ) : null}
-      </section>
+      </CollapsibleSettingsSection>
 
-      <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
+      <CollapsibleSettingsSection
+        title="Export & import"
+        subtitle="Full JSON backup / restore (includes passwords)"
+      >
         <p className="text-xs text-slate-600 dark:text-slate-300">
           Export is a <strong>full snapshot</strong> (schema v3): every team, each
           team&apos;s sprints, work items, roster, Slack DM map, JIRA
@@ -660,31 +730,74 @@ export function Settings() {
             {importMsg}
           </p>
         ) : null}
-      </section>
+      </CollapsibleSettingsSection>
 
-      <section className="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/50 dark:bg-amber-950/30">
-        <p className="text-xs text-amber-950/80 dark:text-amber-100/90">
-          Reset to built-in sample data (clears local changes for this browser).
-        </p>
-        <button
-          type="button"
-          className="mt-3 rounded-lg border border-amber-300 bg-white px-4 py-2 text-sm font-semibold text-amber-950 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-900 dark:text-amber-100 dark:hover:bg-amber-900/80"
-          onClick={() => {
-            if (confirm('Reset all data to seed? This cannot be undone.'))
-              resetToSeed()
-          }}
-        >
-          Reset to seed data
-        </button>
-      </section>
+      <CollapsibleSettingsSection
+        title="Reset & demo data"
+        subtitle="Clear tracker data without touching logins, or full factory reset"
+        defaultOpen={false}
+      >
+        <div className="space-y-3 rounded-lg border border-amber-200/80 bg-amber-50/80 p-3 dark:border-amber-900/50 dark:bg-amber-950/25">
+          <p className="text-xs text-amber-950/90 dark:text-amber-100/90">
+            <strong>Reset workspace only</strong> — removes work items, direct-message
+            chat, and sprints
+            {isSeedTeam
+              ? ' (restores bundled sprint calendar; no sample tasks).'
+              : ' (clears sprints for this team; re-sync from Jira to rebuild).'}{' '}
+            Preserves <strong>all user accounts</strong>, passwords, roster names, Jira
+            URL, JQL, and Slack map.
+          </p>
+          <button
+            type="button"
+            className="rounded-lg border border-amber-400 bg-white px-3 py-2 text-xs font-semibold text-amber-950 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-900 dark:text-amber-100 dark:hover:bg-amber-900/80"
+            onClick={() => {
+              if (
+                confirm(
+                  'Reset workspace data for this team? Login accounts and Jira settings stay. This cannot be undone.',
+                )
+              ) {
+                resetTeamWorkspaceToDefaults(teamId)
+              }
+            }}
+          >
+            Reset workspace data only
+          </button>
+        </div>
+        <div className="space-y-3 rounded-lg border border-rose-200/80 bg-rose-50/60 p-3 dark:border-rose-900/40 dark:bg-rose-950/20">
+          <p className="text-xs text-rose-950/90 dark:text-rose-100/90">
+            <strong>Full reset to seed</strong> — restores the bundled demo team only,
+            seed sprint list, empty work items, and the <strong>original seed user
+            list and passwords</strong>. Removes other teams and any accounts you added.
+            Cannot be undone.
+          </p>
+          <button
+            type="button"
+            className="rounded-lg border border-rose-400 bg-white px-3 py-2 text-xs font-semibold text-rose-900 hover:bg-rose-100 dark:border-rose-800 dark:bg-rose-950 dark:text-rose-100 dark:hover:bg-rose-900/80"
+            onClick={() => {
+              if (
+                !confirm(
+                  'FULL FACTORY RESET: Keep only the bundled demo team, restore the original seed user list (passwords reset), and remove any other teams or accounts you added. This cannot be undone. Continue?',
+                )
+              ) {
+                return
+              }
+              if (window.prompt('Type DELETE to confirm full factory reset') !== 'DELETE') {
+                return
+              }
+              resetToSeedFull()
+            }}
+          >
+            Full reset (users + data)
+          </button>
+        </div>
+      </CollapsibleSettingsSection>
 
-      <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
-        <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">
-          Your password
-        </h2>
+      <CollapsibleSettingsSection
+        title="Your password"
+        subtitle={`Signed in as @${user.username}`}
+      >
         <p className="text-xs text-slate-600 dark:text-slate-300">
-          Change the password for your account (
-          <span className="font-mono">@{user.username}</span>).
+          Change the password for your account.
         </p>
         <Link
           to="/change-password"
@@ -692,7 +805,7 @@ export function Settings() {
         >
           Change password
         </Link>
-      </section>
+      </CollapsibleSettingsSection>
     </div>
   )
 }

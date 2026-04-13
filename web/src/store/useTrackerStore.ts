@@ -241,6 +241,11 @@ function normalizeTeamChatThreads(
       const m = item as Record<string, unknown>
       const body = typeof m.body === 'string' ? m.body : ''
       if (!body.trim()) continue
+      const editedRaw = m.editedAt
+      const editedAt =
+        typeof editedRaw === 'string' && editedRaw.trim()
+          ? editedRaw.trim()
+          : undefined
       list.push({
         id: typeof m.id === 'string' ? m.id : newId('chat'),
         authorName:
@@ -252,6 +257,7 @@ function normalizeTeamChatThreads(
           typeof m.createdAt === 'string' && m.createdAt
             ? m.createdAt
             : new Date().toISOString(),
+        ...(editedAt ? { editedAt } : {}),
       })
     }
     if (list.length) out[key] = list
@@ -462,7 +468,10 @@ export interface TrackerState {
 
   importSnapshotJson: (json: string) => { ok: true } | { ok: false; error: string }
   exportSnapshotJson: () => string
-  resetToSeed: () => void
+  /** Full factory reset: demo team, seed users, wipes other teams. */
+  resetToSeedFull: () => void
+  /** Clear work items / chat / (non-demo: sprints); keep accounts & Jira config. */
+  resetTeamWorkspaceToDefaults: (teamId: string) => void
 
   appendTeamChatMessage: (
     teamId: string,
@@ -470,6 +479,14 @@ export interface TrackerState {
     peerDisplayName: string,
     body: string,
   ) => void
+
+  editTeamChatMessage: (
+    teamId: string,
+    threadKey: string,
+    messageId: string,
+    editorDisplayName: string,
+    newBody: string,
+  ) => { ok: true } | { ok: false; error: string }
 }
 
 const defaultWorkItem = (): WorkItem => ({
@@ -576,6 +593,47 @@ export const useTrackerStore = create<TrackerState>()(
             teamsData: patchSlice(s, teamId, { teamChatThreads: threads }),
           }
         })
+      },
+
+      editTeamChatMessage: (
+        teamId,
+        threadKey,
+        messageId,
+        editorDisplayName,
+        newBody,
+      ) => {
+        const t = newBody.trim()
+        if (!t) return { ok: false as const, error: 'Message cannot be empty.' }
+        const editor = editorDisplayName.trim()
+        if (!editor) return { ok: false as const, error: 'Not signed in.' }
+        const key = threadKey.trim()
+        if (!key.includes('|||'))
+          return { ok: false as const, error: 'Invalid thread.' }
+        let okResult = false
+        set((s) => {
+          const d = getSlice(s, teamId)
+          const threads = { ...(d.teamChatThreads ?? {}) }
+          const list = threads[key]
+          if (!list) return s
+          const idx = list.findIndex((m) => m.id === messageId)
+          if (idx < 0) return s
+          const msg = list[idx]
+          if (msg.authorName.trim() !== editor) return s
+          const next = [...list]
+          next[idx] = {
+            ...msg,
+            body: t,
+            editedAt: new Date().toISOString(),
+          }
+          threads[key] = next
+          okResult = true
+          return {
+            teamsData: patchSlice(s, teamId, { teamChatThreads: threads }),
+          }
+        })
+        return okResult
+          ? { ok: true as const }
+          : { ok: false as const, error: 'Could not edit this message.' }
       },
 
       deleteComment: (teamId, itemId, commentId) =>
@@ -1166,13 +1224,43 @@ export const useTrackerStore = create<TrackerState>()(
         return JSON.stringify(snap, null, 2)
       },
 
-      resetToSeed: () =>
+      resetToSeedFull: () =>
         set({
           teams: initialTeams,
           teamsData: {
             [SEED_TEAM_ID]: { ...SEED_TEAM_PAYLOAD },
           },
           users: [...SEED_USERS],
+        }),
+
+      resetTeamWorkspaceToDefaults: (teamId) =>
+        set((s) => {
+          const cur = getSlice(s, teamId)
+          const preserved = {
+            teamMembers: cur.teamMembers,
+            jiraBaseUrl: cur.jiraBaseUrl,
+            jiraSyncJql: cur.jiraSyncJql,
+            jiraSprintFieldId: cur.jiraSprintFieldId,
+            slackDmUrlByDisplayName: cur.slackDmUrlByDisplayName,
+            weeklyWikiPageUrl: cur.weeklyWikiPageUrl,
+          }
+          if (teamId === SEED_TEAM_ID) {
+            return {
+              teamsData: patchSlice(s, teamId, {
+                ...SEED_TEAM_PAYLOAD,
+                ...preserved,
+              }),
+            }
+          }
+          return {
+            teamsData: patchSlice(s, teamId, {
+              ...cur,
+              sprints: [],
+              workItems: [],
+              teamChatThreads: {},
+              ...preserved,
+            }),
+          }
         }),
     }),
     {

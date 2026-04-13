@@ -35,6 +35,7 @@ export function Chat() {
   const user = useCurrentUser()
   const { peerName: peerParam } = useParams<{ peerName: string }>()
   const appendTeamChatMessage = useTrackerStore((s) => s.appendTeamChatMessage)
+  const editTeamChatMessage = useTrackerStore((s) => s.editTeamChatMessage)
 
   const peerDecoded = useMemo(() => {
     if (!peerParam) return null
@@ -61,6 +62,8 @@ export function Chat() {
     [ctx?.teamChatThreads],
   )
   const [draft, setDraft] = useState('')
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editDraft, setEditDraft] = useState('')
   const [soundOn, setSoundOn] = useState(true)
   const [notifTick, setNotifTick] = useState(0)
   const [httpsTipDismissed, setHttpsTipDismissed] = useState(() =>
@@ -145,17 +148,18 @@ export function Chat() {
     notifPermission,
  ])
 
+  const threadKey =
+    peerDecoded && me ? dmThreadKey(me, peerDecoded) : ''
+
   const activeMessages: TeamChatMessage[] =
-    peerDecoded && me
-      ? (threads[dmThreadKey(me, peerDecoded)] ?? [])
-      : []
+    threadKey ? (threads[threadKey] ?? []) : []
 
   useEffect(() => {
     listRef.current?.scrollTo({
       top: listRef.current.scrollHeight,
       behavior: 'smooth',
     })
-  }, [peerDecoded, activeMessages.length])
+  }, [peerDecoded, activeMessages.length, editingId])
 
   const handleSend = async () => {
     if (!ctx || !peerDecoded || !draft.trim() || !me) return
@@ -375,10 +379,12 @@ export function Chat() {
                   <p className="text-center text-xs text-slate-500 dark:text-slate-400">
                     No messages yet — say hello.
                   </p>
-                               ) : (
+                ) : (
                   activeMessages.map((m) => {
                     const isMine =
-                      m.authorName.trim().toLowerCase() === me.trim().toLowerCase()
+                      m.authorName.trim().toLowerCase() ===
+                      me.trim().toLowerCase()
+                    const editing = editingId === m.id
                     return (
                       <div
                         key={m.id}
@@ -405,19 +411,88 @@ export function Chat() {
                               </span>
                               <span className="text-[10px] text-slate-500 dark:text-slate-400">
                                 {formatChatListTime(m.createdAt)}
+                                {m.editedAt ? (
+                                  <span className="ml-1 font-medium text-slate-400 dark:text-slate-500">
+                                    · edited
+                                  </span>
+                                ) : null}
                               </span>
                             </div>
                           ) : null}
-                          <ChatMessageBody
-                            body={m.body}
-                            mentionNames={mentionNames}
-                            messageId={m.id}
-                            tone={isMine ? 'sent' : 'received'}
-                          />
+                          {editing ? (
+                            <div className="space-y-2">
+                              <textarea
+                                className="w-full min-h-[4rem] rounded-lg border border-emerald-700/30 bg-white/90 px-2 py-1.5 text-sm text-slate-900 dark:border-emerald-600/40 dark:bg-slate-950 dark:text-slate-100"
+                                value={editDraft}
+                                onChange={(e) => setEditDraft(e.target.value)}
+                                autoFocus
+                              />
+                              <div className="flex flex-wrap justify-end gap-2">
+                                <button
+                                  type="button"
+                                  className="rounded-lg border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-700 dark:border-slate-500 dark:text-slate-200"
+                                  onClick={() => {
+                                    setEditingId(null)
+                                    setEditDraft('')
+                                  }}
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  type="button"
+                                  className="rounded-lg bg-[#00B050] px-2 py-1 text-[11px] font-semibold text-white"
+                                  onClick={() => {
+                                    if (!ctx || !threadKey) return
+                                    const r = editTeamChatMessage(
+                                      ctx.teamId,
+                                      threadKey,
+                                      m.id,
+                                      me,
+                                      editDraft,
+                                    )
+                                    if (!r.ok) {
+                                      window.alert(r.error)
+                                      return
+                                    }
+                                    setEditingId(null)
+                                    setEditDraft('')
+                                    void pushTrackerSnapshotNow()
+                                  }}
+                                >
+                                  Save
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <ChatMessageBody
+                              body={m.body}
+                              mentionNames={mentionNames}
+                              messageId={m.id}
+                              tone={isMine ? 'sent' : 'received'}
+                            />
+                          )}
                           {isMine ? (
-                            <div className="mt-1 flex justify-end">
+                            <div className="mt-1 flex flex-wrap items-center justify-end gap-2">
+                              {editing ? null : (
+                                <button
+                                  type="button"
+                                  className="text-[10px] font-semibold text-[#0d5c2e]/90 hover:underline dark:text-emerald-200/90"
+                                  title="Edit message"
+                                  onClick={() => {
+                                    setEditingId(m.id)
+                                    setEditDraft(m.body)
+                                  }}
+                                >
+                                  Edit
+                                </button>
+                              )}
                               <span className="text-[10px] tabular-nums text-slate-600/90 dark:text-emerald-100/75">
                                 {formatChatListTime(m.createdAt)}
+                                {m.editedAt ? (
+                                  <span className="ml-1 font-medium opacity-90">
+                                    · edited
+                                  </span>
+                                ) : null}
                               </span>
                             </div>
                           ) : null}

@@ -34,6 +34,8 @@ export interface TeamChatMessage {
   body: string
   /** ISO timestamp */
   createdAt: string
+  /** Set when the author edits the message body. */
+  editedAt?: string
 }
 
 export interface WorkItem {
