@@ -34,7 +34,7 @@ export const SEED_TEAM = [
   'Shubham Kumar',
 ] as const
 
-/** No bundled sprints — use Jira sync (or auto-sprint when one exists). */
+/** No bundled sprints — populate via Jira sync. */
 export const SEED_SPRINTS: Sprint[] = []
 
 /** No bundled work items — populate via Jira sync or add manually. */

@@ -32,7 +32,11 @@ import {
   personCompletionPercent,
 } from '../lib/stats'
 import { resolveSlackDmUrl } from '../lib/slackDm'
-import { getCurrentSprint, sprintDayProgress } from '../lib/sdates'
+import {
+  getCurrentSprint,
+  sprintDayProgress,
+  sprintsSortedNewestFirst,
+} from '../lib/sdates'
 import {
   buildWeeklyProgressCards,
   eligibleMemberDisplayNames,
@@ -66,16 +70,12 @@ export function Dashboard() {
 
   const sortedSprints = useMemo(() => {
     if (!ctx?.sprints?.length) return []
-    return [...ctx.sprints].sort(
-      (a, b) => a.start.localeCompare(b.start) || a.id.localeCompare(b.id),
-    )
+    return sprintsSortedNewestFirst(ctx.sprints)
   }, [ctx])
 
   const defaultSprintId = useMemo(() => {
     if (sortedSprints.length === 0) return null
-    return (
-      getCurrentSprint(sortedSprints)?.id ?? sortedSprints[sortedSprints.length - 1].id
-    )
+    return getCurrentSprint(sortedSprints)?.id ?? sortedSprints[0].id
   }, [sortedSprints])
 
   const [searchParams, setSearchParams] = useSearchParams()
@@ -103,8 +103,7 @@ export function Dashboard() {
     if (sortedSprints.length === 0) return
     const sp = new URLSearchParams(searchParams)
     const hasScope = sp.has('scope')
-    const current =
-      getCurrentSprint(sortedSprints)?.id ?? sortedSprints[sortedSprints.length - 1].id
+    const current = getCurrentSprint(sortedSprints)?.id ?? sortedSprints[0].id
 
     if (!hasScope) {
       const sid = sp.get('sprint')
@@ -402,10 +401,14 @@ export function Dashboard() {
                 </span>
                 <button
                   type="button"
-                  aria-label="Previous sprint"
-                  disabled={scope.type !== 'sprint' || sprintIndex <= 0}
+                  aria-label="Older sprint"
+                  disabled={
+                    scope.type !== 'sprint' ||
+                    sprintIndex < 0 ||
+                    sprintIndex >= sortedSprints.length - 1
+                  }
                   className="rounded border border-slate-200/80 bg-white/90 px-2 py-0.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-white disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-200 dark:hover:bg-slate-800"
-                  onClick={() => goSprint(-1)}
+                  onClick={() => goSprint(1)}
                 >
                   ←
                 </button>
@@ -455,14 +458,10 @@ export function Dashboard() {
                 </button>
                 <button
                   type="button"
-                  aria-label="Next sprint"
-                  disabled={
-                    scope.type !== 'sprint' ||
-                    sprintIndex < 0 ||
-                    sprintIndex >= sortedSprints.length - 1
-                  }
+                  aria-label="Newer sprint"
+                  disabled={scope.type !== 'sprint' || sprintIndex <= 0}
                   className="rounded border border-slate-200/80 bg-white/90 px-2 py-0.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-white disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-200 dark:hover:bg-slate-800"
-                  onClick={() => goSprint(1)}
+                  onClick={() => goSprint(-1)}
                 >
                   →
                 </button>

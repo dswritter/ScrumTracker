@@ -45,6 +45,17 @@ export function isDateInSprint(isoDay: string, sprint: Sprint): boolean {
   return isoDay >= sprint.start && isoDay <= sprint.end
 }
 
+/** Newest sprint first (by start date), then stable by id. */
+export function compareSprintStartDesc(a: Sprint, b: Sprint): number {
+  const byStart = b.start.localeCompare(a.start)
+  if (byStart !== 0) return byStart
+  return a.id.localeCompare(b.id)
+}
+
+export function sprintsSortedNewestFirst(sprints: Sprint[]): Sprint[] {
+  return [...sprints].sort(compareSprintStartDesc)
+}
+
 export function getCurrentSprint(
   sprints: Sprint[],
   today: Date = new Date(),

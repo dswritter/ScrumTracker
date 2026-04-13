@@ -19,12 +19,6 @@ import {
   SEED_USERS,
   stripLegacyBundledSeedSlice,
 } from '../data/seed'
-import {
-  defaultEndForStart,
-  getCurrentSprint,
-  suggestedNextSprintStart,
-  daysInclusiveUntilEnd,
-} from '../lib/sdates'
 import { rollIncompleteItemsToNextSprint } from '../lib/sprintRoll'
 import {
   DEMO_SEED_ADMIN_PASSWORD,
@@ -39,6 +33,7 @@ import { mergeBundledSlackDefaults } from '../data/defaultSlackDmUrls'
 import { DEFAULT_NEW_TEAM_JIRA_SPRINT_FIELD_ID } from '../data/jiraDefaults'
 import { parseSlackDmUrlInput } from '../lib/slackDm'
 import { dmThreadKey } from '../lib/teamChat'
+import { useAuthStore } from './useAuthStore'
 
 /** Must match `persist.name` (localStorage key for cross-tab sync). */
 export const TRACKER_PERSIST_KEY = 'scrum-tracker-v2'
@@ -89,6 +84,37 @@ function normalizeWorkItem(raw: unknown): WorkItem {
 const WEAK_PASSWORDS = new Set(['admin', 'demo'])
 
 /** Replace legacy demo passwords and enforce minimum length. */
+/** User has finished first-time password setup (not subject to stale remote reverting mustChangePassword). */
+function localAuthLockedIn(u: TrackerUserAccount): boolean {
+  if (u.mustChangePassword) return false
+  const pw = (u.password || '').trim()
+  if (pw.length < 8 || WEAK_PASSWORDS.has(pw.toLowerCase())) return false
+  return true
+}
+
+/**
+ * Remote full-snapshot sync can race behind the current tab (e.g. chat PUT + pull).
+ * Preserve this session's credentials when the member already completed onboarding.
+ */
+function mergeImportedUsersWithSession(
+  imported: TrackerUserAccount[],
+  sessionUserId: string | null,
+  localUsers: TrackerUserAccount[],
+): TrackerUserAccount[] {
+  if (!sessionUserId) return imported
+  const local = localUsers.find((u) => u.id === sessionUserId)
+  if (!local || !localAuthLockedIn(local)) return imported
+  return imported.map((u) =>
+    u.id === sessionUserId
+      ? {
+          ...u,
+          password: local.password,
+          mustChangePassword: false,
+        }
+      : u,
+  )
+}
+
 function finalizePasswordPolicy(u: TrackerUserAccount): TrackerUserAccount {
   const pw = (u.password || '').trim()
   if (u.role === 'admin') {
@@ -383,7 +409,6 @@ export interface TrackerState {
 
   deleteComment: (teamId: string, itemId: string, commentId: string) => void
 
-  ensureAutoSprints: (teamId: string) => void
   rollIncompleteWorkItems: (teamId: string) => void
 
   setJiraBaseUrl: (teamId: string, url: string) => void
@@ -651,35 +676,6 @@ export const useTrackerStore = create<TrackerState>()(
                     }
                   : w,
               ),
-            }),
-          }
-        }),
-
-      ensureAutoSprints: (teamId) =>
-        set((state) => {
-          const d = getSlice(state, teamId)
-          const sprints = [...d.sprints]
-          if (sprints.length === 0) return state
-          const sorted = [...sprints].sort(
-            (a, b) =>
-              a.start.localeCompare(b.start) || a.id.localeCompare(b.id),
-          )
-          const current = getCurrentSprint(sorted)
-          if (!current) return state
-          const daysLeft = daysInclusiveUntilEnd(current.end)
-          if (daysLeft > 10) return state
-          const nextStart = suggestedNextSprintStart(current)
-          const hasNext = sorted.some((sp) => sp.start >= nextStart)
-          if (hasNext) return state
-          const sprint: Sprint = {
-            id: newId('sprint'),
-            name: `Sprint ${sprints.length}`,
-            start: nextStart,
-            end: defaultEndForStart(nextStart),
-          }
-          return {
-            teamsData: patchSlice(state, teamId, {
-              sprints: [...sprints, sprint],
             }),
           }
         }),
@@ -1151,10 +1147,14 @@ export const useTrackerStore = create<TrackerState>()(
               teamsData[k] = normalizeTeamData(v)
             }
             const defaultTid = data.teams[0]?.id ?? SEED_TEAM_ID
+            const sessionId = useAuthStore.getState().currentUserId
+            const prevUsers = get().users
+            let users = data.users.map((u) => normalizeUser(u, defaultTid))
+            users = mergeImportedUsersWithSession(users, sessionId, prevUsers)
             set({
               teams: data.teams as TrackerTeam[],
               teamsData,
-              users: data.users.map((u) => normalizeUser(u, defaultTid)),
+              users,
             })
             return { ok: true as const }
           }
@@ -1167,6 +1167,12 @@ export const useTrackerStore = create<TrackerState>()(
               users: unknown[]
             }
             const tid = `team-import-${newId('m')}`
+            const sessionId = useAuthStore.getState().currentUserId
+            const prevUsers = get().users
+            let impUsers = Array.isArray(o.users)
+              ? o.users.map((u) => normalizeUser(u, tid))
+              : []
+            impUsers = mergeImportedUsersWithSession(impUsers, sessionId, prevUsers)
             set({
               teams: [{ id: tid, name: 'Imported team' }],
               teamsData: {
@@ -1177,9 +1183,7 @@ export const useTrackerStore = create<TrackerState>()(
                   jiraBaseUrl: o.jiraBaseUrl,
                 },
               },
-              users: Array.isArray(o.users)
-                ? o.users.map((u) => normalizeUser(u, tid))
-                : [],
+              users: impUsers,
             })
             return { ok: true as const }
           }

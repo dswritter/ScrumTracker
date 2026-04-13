@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useDismissOnEscape } from '../hooks/useDismissOnEscape'
+import { sprintsSortedNewestFirst } from '../lib/sdates'
 import type { Sprint, WorkItem } from '../types'
 
 export function SprintPickerCell({
@@ -18,10 +19,7 @@ export function SprintPickerCell({
   const close = useCallback(() => setOpen(false), [])
   useDismissOnEscape(open, close)
 
-  const sorted = useMemo(
-    () => [...sprints].sort((a, b) => a.start.localeCompare(b.start)),
-    [sprints],
-  )
+  const sorted = useMemo(() => sprintsSortedNewestFirst(sprints), [sprints])
 
   const filtered = useMemo(() => {
     const t = q.trim().toLowerCase()

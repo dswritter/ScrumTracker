@@ -235,6 +235,13 @@ export function Settings() {
   const [uSlack, setUSlack] = useState('')
   const [uRole, setURole] = useState<TrackerUserAccount['role']>('member')
   const [userMsg, setUserMsg] = useState<string | null>(null)
+  /** Copiable one-time password after create-account or temp reset. */
+  const [credentialToShare, setCredentialToShare] = useState<{
+    variant: 'new-account' | 'temp-reset'
+    username: string
+    displayName: string
+    password: string
+  } | null>(null)
   /** Expanded roster rows (compact by default). */
   const [rosterExpanded, setRosterExpanded] = useState<Record<string, boolean>>(
     {},
@@ -247,6 +254,8 @@ export function Settings() {
 
   const onCreateUser = () => {
     setUserMsg(null)
+    const createdUsername = uUsername.trim()
+    const createdDisplay = uDisplay.trim()
     const r = addTeamMemberAccount(teamId, {
       username: uUsername,
       displayName: uDisplay,
@@ -261,9 +270,12 @@ export function Settings() {
     setUDisplay('')
     setUSlack('')
     setURole('member')
-    setUserMsg(
-      `Account created. Give this one-time temporary password to the teammate: ${r.generatedPassword}`,
-    )
+    setCredentialToShare({
+      variant: 'new-account',
+      username: createdUsername,
+      displayName: createdDisplay,
+      password: r.generatedPassword,
+    })
   }
 
   const exportFile = () => {
@@ -367,6 +379,52 @@ export function Settings() {
           sign in and set their own password, then the temp code stops working.
         </p>
 
+        {credentialToShare ? (
+          <div className="rounded-lg border border-amber-200 bg-amber-50/90 p-3 dark:border-amber-800 dark:bg-amber-950/40">
+            <p className="text-xs font-semibold text-amber-950 dark:text-amber-100">
+              {credentialToShare.variant === 'new-account'
+                ? 'New account — temporary password'
+                : 'One-time password (reset)'}
+            </p>
+            <p className="mt-0.5 text-[11px] text-amber-900/90 dark:text-amber-200/90">
+              @{credentialToShare.username} · {credentialToShare.displayName}. Copy and
+              send securely. Only the latest code works if you issue again.
+            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <input
+                readOnly
+                aria-label="Temporary password"
+                className="min-w-[12rem] flex-1 rounded border border-amber-300 bg-white px-2 py-1.5 font-mono text-sm text-slate-900 dark:border-amber-700 dark:bg-slate-900 dark:text-amber-100"
+                value={credentialToShare.password}
+                onFocus={(e) => e.target.select()}
+              />
+              <button
+                type="button"
+                className="rounded-lg bg-amber-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-900 dark:bg-amber-700 dark:hover:bg-amber-600"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(credentialToShare.password)
+                    setUserMsg('Copied to clipboard.')
+                  } catch {
+                    setUserMsg(
+                      'Could not copy automatically—select the password field and copy manually.',
+                    )
+                  }
+                }}
+              >
+                Copy
+              </button>
+              <button
+                type="button"
+                className="text-xs font-medium text-amber-900/80 underline dark:text-amber-200/90"
+                onClick={() => setCredentialToShare(null)}
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        ) : null}
+
         <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200 dark:divide-slate-700 dark:border-slate-600">
           {teamUsers.map((u) => {
             const adminCount = teamUsers.filter((x) => x.role === 'admin').length
@@ -463,10 +521,13 @@ export function Settings() {
                             return
                           }
                           setUserMsg(null)
+                          setCredentialToShare({
+                            variant: 'temp-reset',
+                            username: u.username,
+                            displayName: u.displayName,
+                            password: r.temporaryPassword,
+                          })
                           void pushTrackerSnapshotNow()
-                          window.alert(
-                            `Temporary password for @${u.username} (${u.displayName}):\n\n${r.temporaryPassword}\n\nShare this offline only. Only the latest code works if issued again. It stops working after they set a new password.`,
-                          )
                         }}
                       >
                         Issue temp password

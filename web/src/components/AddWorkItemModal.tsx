@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useDismissOnEscape } from '../hooks/useDismissOnEscape'
-import { getCurrentSprint } from '../lib/sdates'
+import { getCurrentSprint, sprintsSortedNewestFirst } from '../lib/sdates'
 import { STATUS_OPTIONS } from '../store/useTrackerStore'
 import type { Sprint, TrackerUserAccount, WorkItem, WorkStatus } from '../types'
 
@@ -31,10 +31,7 @@ export function AddWorkItemModal({
   const close = useCallback(() => onClose(), [onClose])
   useDismissOnEscape(true, close)
 
-  const sortedSprints = useMemo(
-    () => [...sprints].sort((a, b) => a.start.localeCompare(b.start)),
-    [sprints],
-  )
+  const sortedSprints = useMemo(() => sprintsSortedNewestFirst(sprints), [sprints])
 
   const defaultSprintIds = useMemo(() => {
     const cur = getCurrentSprint(sortedSprints)

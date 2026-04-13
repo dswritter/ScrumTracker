@@ -36,16 +36,14 @@ export function Layout() {
   const user = useCurrentUser()
   const teamCtx = useTeamContextNullable()
   const chatUnread = useChatUnreadTotal()
-  const ensureAutoSprints = useTrackerStore((s) => s.ensureAutoSprints)
   const rollIncompleteWorkItems = useTrackerStore(
     (s) => s.rollIncompleteWorkItems,
   )
 
   useEffect(() => {
     if (!teamCtx?.teamId) return
-    ensureAutoSprints(teamCtx.teamId)
     rollIncompleteWorkItems(teamCtx.teamId)
-  }, [teamCtx?.teamId, ensureAutoSprints, rollIncompleteWorkItems])
+  }, [teamCtx?.teamId, rollIncompleteWorkItems])
 
   const nav = user && isAdmin(user) ? adminNav : memberNav
 
