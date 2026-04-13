@@ -69,6 +69,26 @@ export const SEED_SPRINTS: Sprint[] = [
 /** No bundled work items — populate via Jira sync or add manually. */
 export const SEED_ITEMS: WorkItem[] = []
 
+/**
+ * Work item ids from the old bundled MS-doc sample data. These are stripped on
+ * load from persisted storage so empty SEED_ITEMS takes effect for everyone.
+ */
+export const LEGACY_SEED_WORK_ITEM_IDS = new Set(
+  Array.from({ length: 15 }, (_, i) => `wi-${i + 1}`),
+)
+
+/** Remove legacy bundled tasks from a team slice (no-op for other teams). */
+export function stripLegacyBundledWorkItems(
+  teamId: string,
+  data: TrackerTeamData,
+): TrackerTeamData {
+  if (teamId !== SEED_TEAM_ID) return data
+  return {
+    ...data,
+    workItems: data.workItems.filter((w) => !LEGACY_SEED_WORK_ITEM_IDS.has(w.id)),
+  }
+}
+
 export const SEED_TEAM_PAYLOAD: TrackerTeamData = {
   sprints: [...SEED_SPRINTS],
   workItems: [...SEED_ITEMS],

@@ -17,6 +17,7 @@ import {
   SEED_TEAM_META,
   SEED_TEAM_PAYLOAD,
   SEED_USERS,
+  stripLegacyBundledWorkItems,
 } from '../data/seed'
 import {
   defaultEndForStart,
@@ -151,7 +152,11 @@ function mergePersistedTrackerState(
     Pick<TrackerState, 'teams' | 'teamsData' | 'users'>
   >
   const teams = p.teams ?? currentState.teams
-  const teamsData = p.teamsData ?? currentState.teamsData
+  const rawTeamsData = p.teamsData ?? currentState.teamsData
+  const teamsData: Record<string, TrackerTeamData> = {}
+  for (const [k, v] of Object.entries(rawTeamsData)) {
+    teamsData[k] = stripLegacyBundledWorkItems(k, normalizeTeamData(v))
+  }
   const defaultTid = teams[0]?.id ?? SEED_TEAM_ID
   const rawUsers =
     Array.isArray(p.users) && p.users.length > 0
@@ -1283,7 +1288,7 @@ export const useTrackerStore = create<TrackerState>()(
           for (const [k, v] of Object.entries(
             p.teamsData as Record<string, unknown>,
           )) {
-            teamsData[k] = normalizeTeamData(v)
+            teamsData[k] = stripLegacyBundledWorkItems(k, normalizeTeamData(v))
           }
           const teams = (p.teams as TrackerTeam[]) ?? []
           const defaultTid = teams[0]?.id ?? SEED_TEAM_ID
@@ -1302,7 +1307,7 @@ export const useTrackerStore = create<TrackerState>()(
           { id: tid, name: 'Color & Graphics' },
         ]
         const teamsData: Record<string, TrackerTeamData> = {
-          [tid]: {
+          [tid]: stripLegacyBundledWorkItems(tid, {
             sprints: Array.isArray(p.sprints) ? (p.sprints as Sprint[]) : [],
             workItems,
             teamMembers: Array.isArray(p.teamMembers)
@@ -1313,7 +1318,7 @@ export const useTrackerStore = create<TrackerState>()(
                 ? p.jiraBaseUrl
                 : 'https://jira.corp.adobe.com/browse/',
             teamChatThreads: {},
-          },
+          }),
         }
         let users: TrackerUserAccount[] = SEED_USERS
         if (Array.isArray(p.users) && p.users.length) {
