@@ -77,6 +77,33 @@ export function stripLegacyBundledSeedSlice(
   }
 }
 
+/**
+ * Old client auto-sprint used `name: "Sprint ${n}"` and ids like `sprint-xxxxxxxx`.
+ * Remove those placeholders from any team so Jira-synced sprints are the source of truth.
+ */
+export function isAutoInsertedPlaceholderSprint(s: Sprint): boolean {
+  const name = s.name.trim()
+  if (!/^Sprint \d+$/.test(name)) return false
+  return /^sprint-[a-z0-9]+$/i.test(s.id)
+}
+
+export function stripAutoPlaceholderSprints(
+  data: TrackerTeamData,
+): TrackerTeamData {
+  const drop = new Set(
+    data.sprints.filter(isAutoInsertedPlaceholderSprint).map((x) => x.id),
+  )
+  if (drop.size === 0) return data
+  return {
+    ...data,
+    sprints: data.sprints.filter((s) => !drop.has(s.id)),
+    workItems: data.workItems.map((w) => ({
+      ...w,
+      sprintIds: w.sprintIds.filter((id) => !drop.has(id)),
+    })),
+  }
+}
+
 export const SEED_TEAM_PAYLOAD: TrackerTeamData = {
   sprints: [...SEED_SPRINTS],
   workItems: [...SEED_ITEMS],

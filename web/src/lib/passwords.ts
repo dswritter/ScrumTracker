@@ -34,7 +34,22 @@ export function isStrongEnoughPassword(p: string): boolean {
   return p.trim().length >= 8
 }
 
-/** Compare stored credential to user input (trimmed); avoids paste/space mismatches. */
+/**
+ * Strip invisible / bidi control characters some browsers (notably Safari) insert
+ * when pasting or autofilling passwords.
+ */
+export function normalizePasswordInput(s: string): string {
+  let t: string
+  try {
+    t = s.normalize('NFKC')
+  } catch {
+    t = s
+  }
+  t = t.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f\u200b-\u200f\u202a-\u202e\u2060\ufeff]/g, '')
+  return t.trim()
+}
+
+/** Compare stored credential to user input; normalizes trim + invisible chars. */
 export function passwordsMatch(stored: string, attempt: string): boolean {
-  return stored.trim() === attempt.trim()
+  return normalizePasswordInput(stored) === normalizePasswordInput(attempt)
 }

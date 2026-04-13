@@ -418,7 +418,10 @@ export function Dashboard() {
                   value={scopeSelectValue(scope)}
                   onChange={(e) => onScopeSelectChange(e.target.value)}
                 >
-                  <optgroup label="Sprints">
+                  <optgroup
+                    label="Sprints"
+                    className="dark:text-slate-200 [&>option]:dark:text-slate-100"
+                  >
                     {sortedSprints.map((s) => (
                       <option key={s.id} value={`sprint:${s.id}`}>
                         {s.emoji ?? ''} {s.name} · {s.start} → {s.end}
@@ -426,7 +429,10 @@ export function Dashboard() {
                     ))}
                   </optgroup>
                   <option value="all">All sprints to date</option>
-                  <optgroup label="By month">
+                  <optgroup
+                    label="By month"
+                    className="dark:text-slate-200 [&>option]:dark:text-slate-100"
+                  >
                     {monthOpts.map((m) => (
                       <option
                         key={`${m.year}-${m.month}`}
@@ -436,13 +442,16 @@ export function Dashboard() {
                       </option>
                     ))}
                   </optgroup>
-                  <optgroup label="By year">
+                  <optgroup
+                    label="By year"
+                    className="dark:text-slate-200 [&>option]:dark:text-slate-100"
+                  >
                     {yearOpts.map((y) => (
                       <option key={y} value={`year:${y}`}>
                         {y}
                       </option>
                     ))}
-                                   </optgroup>
+                  </optgroup>
                 </select>
                 <button
                   type="button"

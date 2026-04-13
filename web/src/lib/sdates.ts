@@ -56,15 +56,18 @@ export function sprintsSortedNewestFirst(sprints: Sprint[]): Sprint[] {
   return [...sprints].sort(compareSprintStartDesc)
 }
 
+/**
+ * Prefer the **newest** sprint whose range includes today (by start date, then id).
+ * When several ranges overlap (e.g. duplicate Jira dates), the oldest match is not the active sprint.
+ */
 export function getCurrentSprint(
   sprints: Sprint[],
   today: Date = new Date(),
 ): Sprint | null {
   const todayStr = formatYMD(today)
-  const sorted = [...sprints].sort(
-    (a, b) => a.start.localeCompare(b.start) || a.id.localeCompare(b.id),
-  )
-  return sorted.find((s) => isDateInSprint(todayStr, s)) ?? null
+  const candidates = sprints.filter((s) => isDateInSprint(todayStr, s))
+  if (candidates.length === 0) return null
+  return [...candidates].sort(compareSprintStartDesc)[0] ?? null
 }
 
 export function sprintDayProgress(

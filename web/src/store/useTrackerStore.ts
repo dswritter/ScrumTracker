@@ -17,6 +17,7 @@ import {
   SEED_TEAM_META,
   SEED_TEAM_PAYLOAD,
   SEED_USERS,
+  stripAutoPlaceholderSprints,
   stripLegacyBundledSeedSlice,
 } from '../data/seed'
 import { rollIncompleteItemsToNextSprint } from '../lib/sprintRoll'
@@ -215,7 +216,7 @@ function ensureSeedColorGraphicsAdmin(
 
 function normalizeTeamData(raw: unknown): TrackerTeamData {
   const o = raw as Record<string, unknown>
-  return {
+  const base: TrackerTeamData = {
     sprints: Array.isArray(o.sprints) ? (o.sprints as Sprint[]) : [],
     workItems: Array.isArray(o.workItems)
       ? o.workItems.map((w) => normalizeWorkItem(w))
@@ -258,6 +259,7 @@ function normalizeTeamData(raw: unknown): TrackerTeamData {
         ? normalizeTeamChatThreads(o.teamChatThreads as Record<string, unknown>)
         : undefined,
   }
+  return stripAutoPlaceholderSprints(base)
 }
 
 function normalizeTeamChatThreads(
@@ -1269,18 +1271,20 @@ export const useTrackerStore = create<TrackerState>()(
           { id: tid, name: 'Color & Graphics' },
         ]
         const teamsData: Record<string, TrackerTeamData> = {
-          [tid]: stripLegacyBundledSeedSlice(tid, {
-            sprints: Array.isArray(p.sprints) ? (p.sprints as Sprint[]) : [],
-            workItems,
-            teamMembers: Array.isArray(p.teamMembers)
-              ? (p.teamMembers as string[])
-              : [],
-            jiraBaseUrl:
-              typeof p.jiraBaseUrl === 'string'
-                ? p.jiraBaseUrl
-                : 'https://jira.corp.adobe.com/browse/',
-            teamChatThreads: {},
-          }),
+          [tid]: stripAutoPlaceholderSprints(
+            stripLegacyBundledSeedSlice(tid, {
+              sprints: Array.isArray(p.sprints) ? (p.sprints as Sprint[]) : [],
+              workItems,
+              teamMembers: Array.isArray(p.teamMembers)
+                ? (p.teamMembers as string[])
+                : [],
+              jiraBaseUrl:
+                typeof p.jiraBaseUrl === 'string'
+                  ? p.jiraBaseUrl
+                  : 'https://jira.corp.adobe.com/browse/',
+              teamChatThreads: {},
+            }),
+          ),
         }
         let users: TrackerUserAccount[] = SEED_USERS
         if (Array.isArray(p.users) && p.users.length) {

@@ -134,7 +134,7 @@ function jiraHref(base: string, key: string): string {
 export function resolveWeeklyCardPerson(
   commentAuthor: string,
   item: WorkItem,
-  commentId: string,
+  _commentId: string,
   eligible: string[],
 ): string | null {
   if (inEligible(commentAuthor, eligible)) {
@@ -143,14 +143,13 @@ export function resolveWeeklyCardPerson(
       commentAuthor.trim()
     return match
   }
-  if (commentId.startsWith('jira-cmt-')) {
-    const assignee = item.assignees.find((a) => inEligible(a, eligible))
-    if (assignee) {
-      return (
-        eligible.find((e) => normName(e) === normName(assignee)) ??
-        assignee.trim()
-      )
-    }
+  /** Jira + local ScrumTracker comments: if author is not on the eligible roster, attribute to an eligible assignee (admin / bot / Jira user names). */
+  const assignee = item.assignees.find((a) => inEligible(a, eligible))
+  if (assignee) {
+    return (
+      eligible.find((e) => normName(e) === normName(assignee)) ??
+      assignee.trim()
+    )
   }
   return null
 }
