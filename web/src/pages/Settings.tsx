@@ -105,6 +105,10 @@ export function Settings() {
   const [uSlack, setUSlack] = useState('')
   const [uRole, setURole] = useState<TrackerUserAccount['role']>('member')
   const [userMsg, setUserMsg] = useState<string | null>(null)
+  /** Per-user: reveal password text on roster (default hidden). */
+  const [passwordVisibleByUserId, setPasswordVisibleByUserId] = useState<
+    Record<string, boolean>
+  >({})
 
   const field =
     'w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100'
@@ -249,11 +253,47 @@ export function Settings() {
                     </span>
                   ) : null}
                 </div>
-                <div className="font-mono text-xs text-slate-700 dark:text-slate-200">
+                <div className="flex flex-wrap items-center gap-2 font-mono text-xs text-slate-700 dark:text-slate-200">
                   <span className="text-slate-500 dark:text-slate-400">
                     Password:{' '}
                   </span>
-                  {u.password}
+                  <span
+                    className={`min-w-[6ch] ${passwordVisibleByUserId[u.id] ? '' : 'select-none'}`}
+                  >
+                    {passwordVisibleByUserId[u.id]
+                      ? u.password
+                      : '\u2022'.repeat(8)}
+                  </span>
+                  <button
+                    type="button"
+                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
+                    title={
+                      passwordVisibleByUserId[u.id]
+                        ? 'Hide password'
+                        : 'Show password'
+                    }
+                    aria-label={
+                      passwordVisibleByUserId[u.id]
+                        ? 'Hide password'
+                        : 'Show password'
+                    }
+                    aria-pressed={passwordVisibleByUserId[u.id] ?? false}
+                    onClick={() =>
+                      setPasswordVisibleByUserId((prev) => ({
+                        ...prev,
+                        [u.id]: !prev[u.id],
+                      }))
+                    }
+                  >
+                    <i
+                      className={
+                        passwordVisibleByUserId[u.id]
+                          ? 'fa-solid fa-eye-slash'
+                          : 'fa-solid fa-eye'
+                      }
+                      aria-hidden
+                    />
+                  </button>
                 </div>
                 <div className="w-full max-w-sm flex-[1_1_100%]">
                   <label className="text-[10px] font-semibold text-slate-600 dark:text-slate-400">
