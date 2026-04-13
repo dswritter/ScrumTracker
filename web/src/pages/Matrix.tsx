@@ -25,19 +25,19 @@ export function Matrix() {
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
         <table className="min-w-max border-collapse text-left text-xs">
           <thead>
-            <tr className="border-b border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/80">
-              <th className="sticky left-0 z-[1] bg-slate-50 px-3 py-2 font-bold text-slate-600">
+            <tr className="border-b border-slate-200 bg-slate-50 dark:border-slate-600 dark:bg-slate-800">
+              <th className="sticky left-0 z-[1] bg-slate-50 px-3 py-2 font-bold text-slate-700 dark:bg-slate-800 dark:text-slate-100">
                 Person
               </th>
               {sortedSprints.map((sp) => (
                 <th
                   key={sp.id}
-                  className="min-w-[140px] px-2 py-2 font-bold text-slate-800"
+                  className="min-w-[140px] px-2 py-2 font-bold text-slate-800 dark:text-slate-100"
                 >
                   <span className="block whitespace-nowrap">
                     {sp.emoji} {sp.name}
                   </span>
-                  <span className="block text-[10px] font-normal text-slate-500">
+                  <span className="block text-[10px] font-normal text-slate-600 dark:text-slate-400">
                     {sp.start} → {sp.end}
                   </span>
                 </th>
@@ -54,7 +54,7 @@ export function Matrix() {
               return (
                 <tr
                   key={person}
-                  className="border-b border-slate-100 hover:bg-slate-50/80"
+                  className="border-b border-slate-100 hover:bg-slate-50/80 dark:border-slate-700 dark:hover:bg-slate-800/60"
                 >
                   <td className="sticky left-0 z-[1] bg-white px-3 py-2 font-semibold text-slate-800 dark:bg-slate-900 dark:text-slate-100">
                     <span className="inline-flex items-center gap-2">
@@ -64,7 +64,7 @@ export function Matrix() {
                           href={slackUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex h-6 w-6 items-center justify-center rounded text-[#4A154B] hover:bg-purple-50"
+                          className="inline-flex h-6 w-6 items-center justify-center rounded text-[#4A154B] hover:bg-purple-50 dark:text-[#e9d5ff] dark:hover:bg-slate-800"
                           title="Slack"
                           aria-label={`Slack: ${person}`}
                         >
@@ -78,16 +78,18 @@ export function Matrix() {
                     return (
                       <td
                         key={sp.id}
-                        className="align-top px-2 py-2 text-slate-600"
+                        className="align-top px-2 py-2 text-slate-700 dark:text-slate-200"
                       >
                         {titles.length === 0 ? (
-                          <span className="text-slate-400">—</span>
+                          <span className="text-slate-400 dark:text-slate-500">
+                            —
+                          </span>
                         ) : (
-                          <ul className="list-inside list-disc space-y-1">
+                          <ul className="list-inside list-disc space-y-1 marker:text-[#00B050] dark:marker:text-emerald-400">
                             {titles.map((t, i) => (
                               <li
                                 key={i}
-                                className="max-w-[200px] truncate"
+                                className="max-w-[200px] truncate text-slate-800 dark:text-slate-200"
                                 title={t}
                               >
                                 {t}
