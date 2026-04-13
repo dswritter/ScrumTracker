@@ -10,6 +10,16 @@ Enable **admin-triggered JIRA sync** to import work items into the Scrum Tracker
 
 ---
 
+## Reference JQL (active sprint items)
+
+Use this JQL when configuring sync to load issues in **open sprints** for the CoreTech / Color-related projects:
+
+```text
+project in ("CT AGM", "CT SVG", "CT Color-ACE", "CT ARE", "CT AGM-Print", "CoreTech Research") AND sprint in openSprints()
+```
+
+---
+
 # 🧱 High-Level Architecture
 
 ```text

@@ -474,10 +474,6 @@ export interface TrackerState {
 
   importSnapshotJson: (json: string) => { ok: true } | { ok: false; error: string }
   exportSnapshotJson: () => string
-  /** Full factory reset: demo team, seed users, wipes other teams. */
-  resetToSeedFull: () => void
-  /** Clear work items / chat / (non-demo: sprints); keep accounts & Jira config. */
-  resetTeamWorkspaceToDefaults: (teamId: string) => void
 
   appendTeamChatMessage: (
     teamId: string,
@@ -1230,44 +1226,6 @@ export const useTrackerStore = create<TrackerState>()(
         return JSON.stringify(snap, null, 2)
       },
 
-      resetToSeedFull: () =>
-        set({
-          teams: initialTeams,
-          teamsData: {
-            [SEED_TEAM_ID]: { ...SEED_TEAM_PAYLOAD },
-          },
-          users: [...SEED_USERS],
-        }),
-
-      resetTeamWorkspaceToDefaults: (teamId) =>
-        set((s) => {
-          const cur = getSlice(s, teamId)
-          const preserved = {
-            teamMembers: cur.teamMembers,
-            jiraBaseUrl: cur.jiraBaseUrl,
-            jiraSyncJql: cur.jiraSyncJql,
-            jiraSprintFieldId: cur.jiraSprintFieldId,
-            slackDmUrlByDisplayName: cur.slackDmUrlByDisplayName,
-            weeklyWikiPageUrl: cur.weeklyWikiPageUrl,
-          }
-          if (teamId === SEED_TEAM_ID) {
-            return {
-              teamsData: patchSlice(s, teamId, {
-                ...SEED_TEAM_PAYLOAD,
-                ...preserved,
-              }),
-            }
-          }
-          return {
-            teamsData: patchSlice(s, teamId, {
-              ...cur,
-              sprints: [],
-              workItems: [],
-              teamChatThreads: {},
-              ...preserved,
-            }),
-          }
-        }),
     }),
     {
       name: TRACKER_PERSIST_KEY,

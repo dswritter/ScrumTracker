@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { SEED_TEAM_ID } from '../data/seed'
 import type { TrackerUserAccount } from '../types'
 import { useCurrentUser } from '../hooks/useCurrentUser'
 import { useTeamContextNullable } from '../hooks/useTeamContext'
@@ -146,10 +145,6 @@ export function Settings() {
   const users = useTrackerStore((s) => s.users)
   const importSnapshotJson = useTrackerStore((s) => s.importSnapshotJson)
   const exportSnapshotJson = useTrackerStore((s) => s.exportSnapshotJson)
-  const resetToSeedFull = useTrackerStore((s) => s.resetToSeedFull)
-  const resetTeamWorkspaceToDefaults = useTrackerStore(
-    (s) => s.resetTeamWorkspaceToDefaults,
-  )
   const addTeamMemberAccount = useTrackerStore((s) => s.addTeamMemberAccount)
   const removeUser = useTrackerStore((s) => s.removeUser)
   const setUserRole = useTrackerStore((s) => s.setUserRole)
@@ -235,8 +230,6 @@ export function Settings() {
   }, [location.hash])
 
   const fileRef = useRef<HTMLInputElement>(null)
-  const isSeedTeam = teamId === SEED_TEAM_ID
-
   const [uUsername, setUUsername] = useState('')
   const [uDisplay, setUDisplay] = useState('')
   const [uSlack, setUSlack] = useState('')
@@ -732,66 +725,6 @@ export function Settings() {
             {importMsg}
           </p>
         ) : null}
-      </CollapsibleSettingsSection>
-
-      <CollapsibleSettingsSection
-        title="Reset & demo data"
-        subtitle="Clear tracker data without touching logins, or full factory reset"
-        defaultOpen={false}
-      >
-        <div className="space-y-3 rounded-lg border border-amber-200/80 bg-amber-50/80 p-3 dark:border-amber-900/50 dark:bg-amber-950/25">
-          <p className="text-xs text-amber-950/90 dark:text-amber-100/90">
-            <strong>Reset workspace only</strong> — removes work items, direct-message
-            chat, and sprints
-            {isSeedTeam
-              ? ' (restores bundled sprint calendar; no sample tasks).'
-              : ' (clears sprints for this team; re-sync from Jira to rebuild).'}{' '}
-            Preserves <strong>all user accounts</strong>, passwords, roster names, Jira
-            URL, JQL, and Slack map.
-          </p>
-          <button
-            type="button"
-            className="rounded-lg border border-amber-400 bg-white px-3 py-2 text-xs font-semibold text-amber-950 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-900 dark:text-amber-100 dark:hover:bg-amber-900/80"
-            onClick={() => {
-              if (
-                confirm(
-                  'Reset workspace data for this team? Login accounts and Jira settings stay. This cannot be undone.',
-                )
-              ) {
-                resetTeamWorkspaceToDefaults(teamId)
-              }
-            }}
-          >
-            Reset workspace data only
-          </button>
-        </div>
-        <div className="space-y-3 rounded-lg border border-rose-200/80 bg-rose-50/60 p-3 dark:border-rose-900/40 dark:bg-rose-950/20">
-          <p className="text-xs text-rose-950/90 dark:text-rose-100/90">
-            <strong>Full reset to seed</strong> — restores the bundled demo team only,
-            seed sprint list, empty work items, and the <strong>original seed user
-            list and passwords</strong>. Removes other teams and any accounts you added.
-            Cannot be undone.
-          </p>
-          <button
-            type="button"
-            className="rounded-lg border border-rose-400 bg-white px-3 py-2 text-xs font-semibold text-rose-900 hover:bg-rose-100 dark:border-rose-800 dark:bg-rose-950 dark:text-rose-100 dark:hover:bg-rose-900/80"
-            onClick={() => {
-              if (
-                !confirm(
-                  'FULL FACTORY RESET: Keep only the bundled demo team, restore the original seed user list (passwords reset), and remove any other teams or accounts you added. This cannot be undone. Continue?',
-                )
-              ) {
-                return
-              }
-              if (window.prompt('Type DELETE to confirm full factory reset') !== 'DELETE') {
-                return
-              }
-              resetToSeedFull()
-            }}
-          >
-            Full reset (users + data)
-          </button>
-        </div>
       </CollapsibleSettingsSection>
 
       <CollapsibleSettingsSection
