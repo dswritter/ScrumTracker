@@ -29,6 +29,7 @@ import {
   DEMO_SEED_ADMIN_PASSWORD,
   generateMasterPassword8,
   isStrongEnoughPassword,
+  passwordsMatch,
   seedPasswordFromKey,
 } from '../lib/passwords'
 import { generateId } from '../lib/ids'
@@ -824,7 +825,7 @@ export const useTrackerStore = create<TrackerState>()(
         if (s.users.some((x) => x.username === username)) {
           return { ok: false, error: 'Username already exists.' }
         }
-        const generatedPassword = generateMasterPassword8()
+        const generatedPassword = generateMasterPassword8().trim()
         const acc: TrackerUserAccount = {
           id: newId('user'),
           teamId,
@@ -905,7 +906,7 @@ export const useTrackerStore = create<TrackerState>()(
         const s = get()
         const u = s.users.find((x) => x.id === userId && x.teamId === teamId)
         if (!u) return { ok: false, error: 'User not found.' }
-        const temporaryPassword = generateMasterPassword8()
+        const temporaryPassword = generateMasterPassword8().trim()
         set({
           users: s.users.map((x) =>
             x.id === userId && x.teamId === teamId
@@ -1008,7 +1009,7 @@ export const useTrackerStore = create<TrackerState>()(
         newPassword,
         confirmPassword,
       ) => {
-        if (newPassword !== confirmPassword) {
+        if (newPassword.trim() !== confirmPassword.trim()) {
           return { ok: false, error: 'New password and confirmation do not match.' }
         }
         if (!isStrongEnoughPassword(newPassword)) {
@@ -1022,13 +1023,13 @@ export const useTrackerStore = create<TrackerState>()(
         if (!u || !u.mustChangePassword) {
           return { ok: false, error: 'Password change not required.' }
         }
-        if (u.password !== masterPassword) {
-          return { ok: false, error: 'Master password is incorrect.' }
+        if (!passwordsMatch(u.password, masterPassword)) {
+          return { ok: false, error: 'Temporary password is incorrect.' }
         }
         set({
           users: s.users.map((x) =>
             x.id === userId
-              ? { ...x, password: newPassword, mustChangePassword: false }
+              ? { ...x, password: newPassword.trim(), mustChangePassword: false }
               : x,
           ),
         })
@@ -1041,7 +1042,7 @@ export const useTrackerStore = create<TrackerState>()(
         newPassword,
         confirmPassword,
       ) => {
-        if (newPassword !== confirmPassword) {
+        if (newPassword.trim() !== confirmPassword.trim()) {
           return { ok: false, error: 'New password and confirmation do not match.' }
         }
         if (!isStrongEnoughPassword(newPassword)) {
@@ -1053,13 +1054,13 @@ export const useTrackerStore = create<TrackerState>()(
         const s = get()
         const u = s.users.find((x) => x.id === userId)
         if (!u) return { ok: false, error: 'User not found.' }
-        if (u.password !== currentPassword) {
+        if (!passwordsMatch(u.password, currentPassword)) {
           return { ok: false, error: 'Current password is incorrect.' }
         }
         set({
           users: s.users.map((x) =>
             x.id === userId
-              ? { ...x, password: newPassword, mustChangePassword: false }
+              ? { ...x, password: newPassword.trim(), mustChangePassword: false }
               : x,
           ),
         })
@@ -1072,7 +1073,7 @@ export const useTrackerStore = create<TrackerState>()(
         newPassword,
         confirmPassword,
       ) => {
-        if (newPassword !== confirmPassword) {
+        if (newPassword.trim() !== confirmPassword.trim()) {
           return { ok: false, error: 'New password and confirmation do not match.' }
         }
         if (!isStrongEnoughPassword(newPassword)) {
@@ -1084,13 +1085,13 @@ export const useTrackerStore = create<TrackerState>()(
         const s = get()
         const u = s.users.find((x) => x.id === userId)
         if (!u) return { ok: false, error: 'User not found.' }
-        if (u.password !== masterPassword) {
-          return { ok: false, error: 'Master password is incorrect.' }
+        if (!passwordsMatch(u.password, masterPassword)) {
+          return { ok: false, error: 'Temporary password is incorrect.' }
         }
         set({
           users: s.users.map((x) =>
             x.id === userId
-              ? { ...x, password: newPassword, mustChangePassword: false }
+              ? { ...x, password: newPassword.trim(), mustChangePassword: false }
               : x,
           ),
         })

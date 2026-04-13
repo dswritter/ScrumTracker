@@ -31,17 +31,16 @@ export function PersonProgressBar({
       ? 'hover:border-[#00B050]/40 hover:shadow-sm focus-within:ring-2 focus-within:ring-[#00B050]/25'
       : '')
 
+  /** Card stays white in dark mode; use green names so they stay readable. */
+  const nameCls =
+    'min-w-0 truncate font-semibold text-slate-900 hover:text-[#007a3d] hover:underline dark:text-[#0d5c2e] dark:hover:text-[#007a3d]'
+
   const nameEl = to ? (
-    <Link
-      to={to}
-           className="min-w-0 truncate font-semibold text-slate-900 hover:text-[#007a3d] hover:underline dark:text-slate-100 dark:hover:text-emerald-300"
-    >
+    <Link to={to} className={nameCls}>
       {name}
     </Link>
   ) : (
-    <span className="min-w-0 truncate font-semibold text-slate-900 dark:text-slate-100">
-      {name}
-    </span>
+    <span className={nameCls}>{name}</span>
   )
 
   return (
@@ -62,7 +61,7 @@ export function PersonProgressBar({
             </a>
           ) : null}
         </div>
-        <span className="shrink-0 text-xs tabular-nums text-slate-500">
+        <span className="shrink-0 text-xs tabular-nums text-slate-500 dark:text-slate-600">
           {itemCount} item{itemCount === 1 ? '' : 's'} · {p}% done
         </span>
       </div>

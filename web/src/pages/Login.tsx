@@ -3,6 +3,7 @@ import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { PasswordField } from '../components/PasswordField'
 import { useAuthHydrated } from '../hooks/useAuthHydrated'
 import { useCurrentUser } from '../hooks/useCurrentUser'
+import { passwordsMatch } from '../lib/passwords'
 import { normalizeLoginUsername } from '../lib/username'
 import { useAuthStore } from '../store/useAuthStore'
 import { useTrackerStore } from '../store/useTrackerStore'
@@ -51,9 +52,8 @@ export function Login() {
     e.preventDefault()
     setError(null)
     const un = normalizeLoginUsername(username)
-    const pw = password.trim()
     const u = users.find((x) => x.username === un)
-    if (!u || u.password.trim() !== pw) {
+    if (!u || !passwordsMatch(u.password, password)) {
       setError('Invalid username or password.')
       return
     }

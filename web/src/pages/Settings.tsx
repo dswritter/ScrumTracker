@@ -5,6 +5,7 @@ import type { TrackerUserAccount } from '../types'
 import { useCurrentUser } from '../hooks/useCurrentUser'
 import { useTeamContextNullable } from '../hooks/useTeamContext'
 import { getJiraTokenStatus, postJiraToken } from '../lib/jiraApi'
+import { pushTrackerSnapshotNow } from '../lib/pushTrackerSnapshotNow'
 import { runJiraSyncFromStore } from '../lib/runJiraSync'
 import { isTrackerSyncEnabled } from '../lib/syncConfigured'
 import { useTrackerStore } from '../store/useTrackerStore'
@@ -469,8 +470,9 @@ export function Settings() {
                             return
                           }
                           setUserMsg(null)
+                          void pushTrackerSnapshotNow()
                           window.alert(
-                            `Temporary password for @${u.username} (${u.displayName}):\n\n${r.temporaryPassword}\n\nShare this offline only. It stops working after they set a new password.`,
+                            `Temporary password for @${u.username} (${u.displayName}):\n\n${r.temporaryPassword}\n\nShare this offline only. Only the latest code works if issued again. It stops working after they set a new password.`,
                           )
                         }}
                       >

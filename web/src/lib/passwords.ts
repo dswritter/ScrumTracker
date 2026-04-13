@@ -33,3 +33,8 @@ export function seedPasswordFromKey(key: string): string {
 export function isStrongEnoughPassword(p: string): boolean {
   return p.trim().length >= 8
 }
+
+/** Compare stored credential to user input (trimmed); avoids paste/space mismatches. */
+export function passwordsMatch(stored: string, attempt: string): boolean {
+  return stored.trim() === attempt.trim()
+}
