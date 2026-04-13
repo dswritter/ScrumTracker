@@ -34,37 +34,8 @@ export const SEED_TEAM = [
   'Shubham Kumar',
 ] as const
 
-/** Aligned with Color & Graphics March plan (M15/M16). */
-export const SEED_SPRINTS: Sprint[] = [
-  {
-    id: 'sprint-0',
-    name: 'CG M15 Sprint 1',
-    start: '2026-02-16',
-    end: '2026-02-27',
-    emoji: '🟢',
-  },
-  {
-    id: 'sprint-1',
-    name: 'CG M15 Sprint 2',
-    start: '2026-03-02',
-    end: '2026-03-13',
-    emoji: '🔵',
-  },
-  {
-    id: 'sprint-2',
-    name: 'CG M16 Sprint 1',
-    start: '2026-03-16',
-    end: '2026-03-31',
-    emoji: '🟠',
-  },
-  {
-    id: 'sprint-3',
-    name: 'CG M16 Sprint 2',
-    start: '2026-04-01',
-    end: '2026-04-15',
-    emoji: '🟣',
-  },
-]
+/** No bundled sprints — use Jira sync (or auto-sprint when one exists). */
+export const SEED_SPRINTS: Sprint[] = []
 
 /** No bundled work items — populate via Jira sync or add manually. */
 export const SEED_ITEMS: WorkItem[] = []
@@ -77,15 +48,32 @@ export const LEGACY_SEED_WORK_ITEM_IDS = new Set(
   Array.from({ length: 15 }, (_, i) => `wi-${i + 1}`),
 )
 
-/** Remove legacy bundled tasks from a team slice (no-op for other teams). */
-export function stripLegacyBundledWorkItems(
+/** Bundled demo sprint rows (CG M15/M16) removed from seed; strip from storage. */
+export const LEGACY_SEED_SPRINT_IDS = new Set([
+  'sprint-0',
+  'sprint-1',
+  'sprint-2',
+  'sprint-3',
+])
+
+/**
+ * Remove legacy bundled demo tasks and sprints from persisted data for the
+ * seed team only; drops references to legacy sprint ids on remaining items.
+ */
+export function stripLegacyBundledSeedSlice(
   teamId: string,
   data: TrackerTeamData,
 ): TrackerTeamData {
   if (teamId !== SEED_TEAM_ID) return data
   return {
     ...data,
-    workItems: data.workItems.filter((w) => !LEGACY_SEED_WORK_ITEM_IDS.has(w.id)),
+    sprints: data.sprints.filter((s) => !LEGACY_SEED_SPRINT_IDS.has(s.id)),
+    workItems: data.workItems
+      .filter((w) => !LEGACY_SEED_WORK_ITEM_IDS.has(w.id))
+      .map((w) => ({
+        ...w,
+        sprintIds: w.sprintIds.filter((id) => !LEGACY_SEED_SPRINT_IDS.has(id)),
+      })),
   }
 }
 

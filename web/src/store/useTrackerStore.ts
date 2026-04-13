@@ -17,7 +17,7 @@ import {
   SEED_TEAM_META,
   SEED_TEAM_PAYLOAD,
   SEED_USERS,
-  stripLegacyBundledWorkItems,
+  stripLegacyBundledSeedSlice,
 } from '../data/seed'
 import {
   defaultEndForStart,
@@ -155,7 +155,7 @@ function mergePersistedTrackerState(
   const rawTeamsData = p.teamsData ?? currentState.teamsData
   const teamsData: Record<string, TrackerTeamData> = {}
   for (const [k, v] of Object.entries(rawTeamsData)) {
-    teamsData[k] = stripLegacyBundledWorkItems(k, normalizeTeamData(v))
+    teamsData[k] = stripLegacyBundledSeedSlice(k, normalizeTeamData(v))
   }
   const defaultTid = teams[0]?.id ?? SEED_TEAM_ID
   const rawUsers =
@@ -1288,7 +1288,7 @@ export const useTrackerStore = create<TrackerState>()(
           for (const [k, v] of Object.entries(
             p.teamsData as Record<string, unknown>,
           )) {
-            teamsData[k] = stripLegacyBundledWorkItems(k, normalizeTeamData(v))
+            teamsData[k] = stripLegacyBundledSeedSlice(k, normalizeTeamData(v))
           }
           const teams = (p.teams as TrackerTeam[]) ?? []
           const defaultTid = teams[0]?.id ?? SEED_TEAM_ID
@@ -1307,7 +1307,7 @@ export const useTrackerStore = create<TrackerState>()(
           { id: tid, name: 'Color & Graphics' },
         ]
         const teamsData: Record<string, TrackerTeamData> = {
-          [tid]: stripLegacyBundledWorkItems(tid, {
+          [tid]: stripLegacyBundledSeedSlice(tid, {
             sprints: Array.isArray(p.sprints) ? (p.sprints as Sprint[]) : [],
             workItems,
             teamMembers: Array.isArray(p.teamMembers)
