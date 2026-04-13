@@ -62,7 +62,8 @@ export function WeeklyProgressPanel({
   return (
     <div className="space-y-4">
       <p className="text-xs text-slate-600 dark:text-slate-300">
-        One card per comment in the selected week. Includes{' '}
+        One card per task and teammate in the selected week (all comments merged).
+        Includes{' '}
         <strong className="text-slate-800 dark:text-slate-100">
           ScrumTracker comments
         </strong>{' '}
@@ -166,15 +167,26 @@ export function WeeklyProgressPanel({
                 <span className="rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-semibold text-slate-700 ring-1 ring-slate-200/80 dark:bg-slate-800/90 dark:text-slate-100 dark:ring-slate-600">
                   {c.section}
                 </span>
-                <span
-                  className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
-                    c.source === 'jira'
-                      ? 'bg-blue-100 text-blue-900 dark:bg-slate-700 dark:text-slate-100'
-                      : 'bg-[#00B050]/15 text-[#0d5c2e] dark:bg-emerald-950/60 dark:text-emerald-200'
-                  }`}
-                >
-                  {c.source === 'jira' ? 'Jira' : 'Tracker'}
-                </span>
+                {c.source === 'mixed' ? (
+                  <>
+                    <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-900 dark:bg-slate-700 dark:text-slate-100">
+                      Jira
+                    </span>
+                    <span className="rounded-full bg-[#00B050]/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#0d5c2e] dark:bg-emerald-950/60 dark:text-emerald-200">
+                      Tracker
+                    </span>
+                  </>
+                ) : (
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                      c.source === 'jira'
+                        ? 'bg-blue-100 text-blue-900 dark:bg-slate-700 dark:text-slate-100'
+                        : 'bg-[#00B050]/15 text-[#0d5c2e] dark:bg-emerald-950/60 dark:text-emerald-200'
+                    }`}
+                  >
+                    {c.source === 'jira' ? 'Jira' : 'Tracker'}
+                  </span>
+                )}
               </div>
               <p className="mt-2 text-[11px] text-slate-600 dark:text-slate-300">
                 Task:{' '}
@@ -186,17 +198,27 @@ export function WeeklyProgressPanel({
                 </Link>
               </p>
               <ul className="mt-2 space-y-1.5 border-t border-slate-200/70 pt-2 dark:border-slate-600/60">
-                {c.bullets.map((line, i) => (
-                  <li
-                    key={`${c.id}-b-${i}`}
-                    className="flex gap-2 text-sm leading-snug text-slate-800 dark:text-slate-100"
-                  >
-                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#00B050] dark:bg-emerald-400" />
-                    <span className="min-w-0 whitespace-pre-wrap break-words">
-                      {line}
-                    </span>
-                  </li>
-                ))}
+                {c.bullets.map((line, i) =>
+                  line === '—' ? (
+                    <li
+                      key={`${c.id}-b-${i}`}
+                      className="list-none py-1 text-center text-xs text-slate-400 dark:text-slate-500"
+                      aria-hidden
+                    >
+                      ···
+                    </li>
+                  ) : (
+                    <li
+                      key={`${c.id}-b-${i}`}
+                      className="flex gap-2 text-sm leading-snug text-slate-800 dark:text-slate-100"
+                    >
+                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#00B050] dark:bg-emerald-400" />
+                      <span className="min-w-0 whitespace-pre-wrap break-words">
+                        {line}
+                      </span>
+                    </li>
+                  ),
+                )}
               </ul>
               {c.jiraLinks.length > 0 ? (
                 <div className="mt-3 flex flex-wrap gap-1 border-t border-slate-200/70 pt-2 dark:border-slate-600/60">

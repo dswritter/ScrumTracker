@@ -64,7 +64,7 @@ export function Matrix() {
                           href={slackUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex h-6 w-6 items-center justify-center rounded text-[#4A154B] hover:bg-purple-50 dark:text-[#e9d5ff] dark:hover:bg-slate-800"
+                          className="inline-flex h-6 w-6 items-center justify-center rounded text-[#4A154B] hover:bg-purple-50 dark:text-[#ecb22e] dark:hover:bg-white/10"
                           title="Slack"
                           aria-label={`Slack: ${person}`}
                         >

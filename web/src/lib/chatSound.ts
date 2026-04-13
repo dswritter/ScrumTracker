@@ -18,14 +18,49 @@ export function subscribeChatSoundPrefs(cb: () => void) {
   return () => window.removeEventListener(CHAT_SOUND_PREFS_EVENT, cb)
 }
 
-/** Short pleasant ping (Web Audio API; no asset file). */
-export function playChatMessageSound() {
+let sharedCtx: AudioContext | null = null
+
+function getAudioContext(): AudioContext | null {
   try {
+    if (sharedCtx) return sharedCtx
     const AC =
       window.AudioContext ||
       (window as unknown as { webkitAudioContext: typeof AudioContext })
         .webkitAudioContext
-    const ctx = new AC()
+    sharedCtx = new AC()
+    return sharedCtx
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Safari / iOS block audio until a user gesture. Call when the user enables
+ * sound or interacts with chat so incoming message pings can play later.
+ */
+export function primeChatSoundFromUserGesture(): void {
+  const ctx = getAudioContext()
+  if (!ctx) return
+  try {
+    if (ctx.state === 'suspended') {
+      void ctx.resume()
+    }
+    const buffer = ctx.createBuffer(1, 1, 22050)
+    const src = ctx.createBufferSource()
+    src.buffer = buffer
+    src.connect(ctx.destination)
+    src.start(0)
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Short pleasant ping (Web Audio API; no asset file). */
+export function playChatMessageSound() {
+  const ctx = getAudioContext()
+  if (!ctx) return
+  try {
+    void ctx.resume()
     const o = ctx.createOscillator()
     const g = ctx.createGain()
     o.type = 'sine'
@@ -38,9 +73,6 @@ export function playChatMessageSound() {
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.12)
     o.start(t0)
     o.stop(t0 + 0.13)
-    o.onended = () => {
-      void ctx.close()
-    }
   } catch {
     /* autoplay or API blocked */
   }

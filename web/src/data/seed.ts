@@ -82,9 +82,9 @@ export function stripLegacyBundledSeedSlice(
  * Remove those placeholders from any team so Jira-synced sprints are the source of truth.
  */
 export function isAutoInsertedPlaceholderSprint(s: Sprint): boolean {
-  const name = s.name.trim()
-  if (!/^Sprint \d+$/.test(name)) return false
-  return /^sprint-[a-z0-9]+$/i.test(s.id)
+  const head = (s.name.split(/\s*·\s*/)[0] ?? s.name).trim()
+  if (!/^Sprint \d+$/.test(head)) return false
+  return /^sprint-/i.test(s.id)
 }
 
 export function stripAutoPlaceholderSprints(

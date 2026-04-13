@@ -12,6 +12,7 @@ import {
 import {
   getChatSoundEnabled,
   playChatMessageSound,
+  primeChatSoundFromUserGesture,
   setChatSoundEnabled,
   subscribeChatSoundPrefs,
 } from '../lib/chatSound'
@@ -264,6 +265,10 @@ export function Chat() {
                 }
                 onClick={() => {
                   const next = !getChatSoundEnabled(user.id)
+                  if (next) {
+                    primeChatSoundFromUserGesture()
+                    playChatMessageSound()
+                  }
                   setChatSoundEnabled(user.id, next)
                   setSoundOn(next)
                 }}

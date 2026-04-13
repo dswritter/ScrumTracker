@@ -4,6 +4,7 @@ import type { TrackerUserAccount } from '../types'
 import { useCurrentUser } from '../hooks/useCurrentUser'
 import { useTeamContextNullable } from '../hooks/useTeamContext'
 import { getJiraTokenStatus, postJiraToken } from '../lib/jiraApi'
+import { copyTextToClipboard } from '../lib/copyToClipboard'
 import { pushTrackerSnapshotNow } from '../lib/pushTrackerSnapshotNow'
 import { runJiraSyncFromStore } from '../lib/runJiraSync'
 import { isTrackerSyncEnabled } from '../lib/syncConfigured'
@@ -401,15 +402,17 @@ export function Settings() {
               <button
                 type="button"
                 className="rounded-lg bg-amber-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-900 dark:bg-amber-700 dark:hover:bg-amber-600"
-                onClick={async () => {
-                  try {
-                    await navigator.clipboard.writeText(credentialToShare.password)
-                    setUserMsg('Copied to clipboard.')
-                  } catch {
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  void (async () => {
+                    const ok = await copyTextToClipboard(credentialToShare.password)
                     setUserMsg(
-                      'Could not copy automatically—select the password field and copy manually.',
+                      ok
+                        ? 'Copied to clipboard.'
+                        : 'Could not copy—select the password field and copy manually.',
                     )
-                  }
+                  })()
                 }}
               >
                 Copy

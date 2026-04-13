@@ -45,15 +45,77 @@ export function isDateInSprint(isoDay: string, sprint: Sprint): boolean {
   return isoDay >= sprint.start && isoDay <= sprint.end
 }
 
-/** Newest sprint first (by start date), then stable by id. */
-export function compareSprintStartDesc(a: Sprint, b: Sprint): number {
+const MONTH_ABBR: Record<string, number> = {
+  jan: 0,
+  feb: 1,
+  mar: 2,
+  apr: 3,
+  may: 4,
+  jun: 5,
+  jul: 6,
+  aug: 7,
+  sep: 8,
+  oct: 9,
+  nov: 10,
+  dec: 11,
+}
+
+function inferYearFromSprintStart(isoStart: string): number {
+  const y = parseInt(isoStart.slice(0, 4), 10)
+  return Number.isFinite(y) && y >= 2000 ? y : new Date().getFullYear()
+}
+
+/**
+ * Sort key from the human-readable range in the sprint **name** (e.g. `16Oct`,
+ * `01-15Apr`), not only `start`/`end` (which may be wrong or identical after Jira sync).
+ */
+export function sprintTimelineSortKey(s: Sprint): number {
+  const y = inferYearFromSprintStart(s.start)
+  const name = s.name
+
+  const rangeOneMonth = name.match(
+    /(\d{1,2})\s*-\s*(\d{1,2})\s*([A-Za-z]{3})\b/i,
+  )
+  if (rangeOneMonth) {
+    const day = parseInt(rangeOneMonth[1], 10)
+    const mon = MONTH_ABBR[rangeOneMonth[3].toLowerCase()]
+    if (mon !== undefined && day >= 1 && day <= 31) {
+      return new Date(y, mon, day).getTime()
+    }
+  }
+
+  const dayMon = [...name.matchAll(/(\d{1,2})\s*([A-Za-z]{3})\b/gi)]
+  if (dayMon.length > 0) {
+    const first = dayMon[0]
+    const day = parseInt(first[1], 10)
+    const mon = MONTH_ABBR[first[2].toLowerCase()]
+    if (mon !== undefined && day >= 1 && day <= 31) {
+      return new Date(y, mon, day).getTime()
+    }
+  }
+
+  return parseYMD(s.start).getTime()
+}
+
+/** Newest sprint first (label timeline, then ISO start, then id). */
+export function compareSprintTimelineDesc(a: Sprint, b: Sprint): number {
+  const ta = sprintTimelineSortKey(a)
+  const tb = sprintTimelineSortKey(b)
+  if (Number.isFinite(ta) && Number.isFinite(tb) && ta !== tb) {
+    return tb - ta
+  }
   const byStart = b.start.localeCompare(a.start)
   if (byStart !== 0) return byStart
   return a.id.localeCompare(b.id)
 }
 
+/** @deprecated prefer compareSprintTimelineDesc */
+export function compareSprintStartDesc(a: Sprint, b: Sprint): number {
+  return compareSprintTimelineDesc(a, b)
+}
+
 export function sprintsSortedNewestFirst(sprints: Sprint[]): Sprint[] {
-  return [...sprints].sort(compareSprintStartDesc)
+  return [...sprints].sort(compareSprintTimelineDesc)
 }
 
 /**
@@ -67,7 +129,7 @@ export function getCurrentSprint(
   const todayStr = formatYMD(today)
   const candidates = sprints.filter((s) => isDateInSprint(todayStr, s))
   if (candidates.length === 0) return null
-  return [...candidates].sort(compareSprintStartDesc)[0] ?? null
+  return [...candidates].sort(compareSprintTimelineDesc)[0] ?? null
 }
 
 export function sprintDayProgress(

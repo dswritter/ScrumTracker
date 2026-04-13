@@ -123,7 +123,7 @@ export function PersonDetail() {
               href={slackUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-purple-200 bg-purple-50 px-2.5 py-1 text-xs font-semibold text-[#4A154B] hover:bg-purple-100"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-purple-200 bg-purple-50 px-2.5 py-1 text-xs font-semibold text-[#4A154B] hover:bg-purple-100 dark:border-purple-500/40 dark:bg-purple-950/50 dark:text-[#ecb22e] dark:hover:bg-purple-900/60"
             >
               <i className="fa-brands fa-slack" aria-hidden />
               Slack

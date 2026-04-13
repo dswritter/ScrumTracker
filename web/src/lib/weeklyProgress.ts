@@ -13,7 +13,7 @@ export type WeeklyProgressCard = {
   itemTitle: string
   itemId: string
   jiraLinks: { key: string; href: string }[]
-  source: 'jira' | 'tracker'
+  source: 'jira' | 'tracker' | 'mixed'
 }
 
 /** Team roster names excluding anyone with an admin login on this team. */
@@ -154,6 +154,60 @@ export function resolveWeeklyCardPerson(
   return null
 }
 
+function mergeWeeklyCardAuthors(a: string, b: string): string {
+  const seen = new Set<string>()
+  for (const raw of [a, b]) {
+    for (const part of raw.split('·')) {
+      const t = part.trim()
+      if (t) seen.add(t)
+    }
+  }
+  return [...seen].join(' · ')
+}
+
+/** One card per work item + attributed person per week; all comments merged. */
+function mergeWeeklyCardsForItemAndPerson(
+  cards: WeeklyProgressCard[],
+): WeeklyProgressCard[] {
+  const chronological = [...cards].sort((x, y) =>
+    x.createdAt.localeCompare(y.createdAt),
+  )
+  const map = new Map<string, WeeklyProgressCard>()
+  for (const c of chronological) {
+    const key = `${c.itemId}\0${c.personName}`
+    const ex = map.get(key)
+    if (!ex) {
+      map.set(key, { ...c })
+      continue
+    }
+    const sep = ex.bullets.length && c.bullets.length ? (['—'] as string[]) : []
+    const mergedBullets = [...ex.bullets, ...sep, ...c.bullets]
+    const jiraSeen = new Set(ex.jiraLinks.map((j) => j.key))
+    const mergedLinks = [...ex.jiraLinks]
+    for (const j of c.jiraLinks) {
+      if (!jiraSeen.has(j.key)) {
+        jiraSeen.add(j.key)
+        mergedLinks.push(j)
+      }
+    }
+    let source: WeeklyProgressCard['source'] = ex.source
+    if (ex.source !== c.source) source = 'mixed'
+    const latest = ex.createdAt >= c.createdAt ? ex : c
+    map.set(key, {
+      ...ex,
+      id: `${c.itemId}:${c.personName}:week`,
+      authorRaw: mergeWeeklyCardAuthors(ex.authorRaw, c.authorRaw),
+      bullets: mergedBullets,
+      createdAt: latest.createdAt,
+      dateKey: latest.dateKey,
+      dateLabel: latest.dateLabel,
+      jiraLinks: mergedLinks,
+      source,
+    })
+  }
+  return [...map.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+}
+
 export function buildWeeklyProgressCards(
   items: WorkItem[],
   eligible: string[],
@@ -216,6 +270,5 @@ export function buildWeeklyProgressCards(
     }
   }
 
-  out.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-  return out
+  return mergeWeeklyCardsForItemAndPerson(out)
 }

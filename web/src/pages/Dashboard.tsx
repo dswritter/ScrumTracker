@@ -365,7 +365,7 @@ export function Dashboard() {
                         href={slackUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-[#4A154B] hover:bg-purple-50"
+                        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-[#4A154B] hover:bg-purple-50 dark:text-[#ecb22e] dark:hover:bg-white/10"
                         title={`Slack: ${name}`}
                         aria-label={`Open Slack for ${name}`}
                         onClick={(e) => e.stopPropagation()}
