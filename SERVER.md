@@ -76,6 +76,7 @@ Behavior:
 - **GET** `/api/tracker` supports **`ETag` / `If-None-Match`** so a client that already has the latest `rev` can receive **304** and skip re-downloading the full snapshot JSON.
 - **Browser:** the app still **persists** the workspace in `localStorage` (Zustand persist) as the primary offline cache; HTTP revalidation complements that when online.
 - **Conflict model:** last successful push wins (good enough for a small team demo).
+- **Recovery after outage:** the server **cannot** pull data from users’ browsers (browsers do not accept inbound connections). When the client can reach the host again, it **pushes** the snapshot with `PUT /api/tracker`. The web client also performs an **immediate flush** after connectivity was lost (failed PUT/GET or WebSocket drop) so local edits are less likely to be stranded behind the debounced push if the tab is closed quickly. **Multi-user caveat:** the model is still **last full snapshot wins**—two people editing offline at the same time can overwrite each other; true merge would need per-change ops or CRDTs.
 
 ### Jira (PAT on server, admin UI in Settings)
 

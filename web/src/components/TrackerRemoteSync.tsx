@@ -28,12 +28,45 @@ export function TrackerRemoteSync() {
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null
     let reconnectAttempt = 0
     let wsPullDebounce: ReturnType<typeof setTimeout> | null = null
+    /** After PUT/GET errors or WS drop, next pull flushes local state with an immediate PUT (no debounce). */
+    let pendingReconnectFlush = false
+
+    const markSyncFailure = () => {
+      pendingReconnectFlush = true
+    }
 
     const waitHydrate = () =>
       new Promise<void>((resolve) => {
         if (useTrackerStore.persist.hasHydrated()) resolve()
         else useTrackerStore.persist.onFinishHydration(() => resolve())
       })
+
+    const flushLocalSnapshotNow = async (): Promise<boolean> => {
+      if (cancelled || applyingRemote) return false
+      try {
+        const snap = useTrackerStore.getState().exportSnapshotJson()
+        const res = await syncFetch('/api/tracker', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ snapshot: snap }),
+        })
+        if (!res.ok) {
+          if (import.meta.env.DEV) {
+            console.warn('[sync] PUT (flush) failed', res.status, await res.text())
+          }
+          return false
+        }
+        const j = (await res.json()) as { rev?: number }
+        if (typeof j.rev === 'number') lastRev = j.rev
+        pendingReconnectFlush = false
+        return true
+      } catch (e) {
+        if (import.meta.env.DEV) {
+          console.warn('[sync] PUT (flush) error', base, e)
+        }
+        return false
+      }
+    }
 
     const schedulePush = () => {
       if (pushTimer) clearTimeout(pushTimer)
@@ -51,14 +84,17 @@ export function TrackerRemoteSync() {
             if (import.meta.env.DEV) {
               console.warn('[sync] PUT failed', res.status, await res.text())
             }
+            markSyncFailure()
             return
           }
           const j = (await res.json()) as { rev?: number }
           if (typeof j.rev === 'number') lastRev = j.rev
+          pendingReconnectFlush = false
         } catch (e) {
           if (import.meta.env.DEV) {
             console.warn('[sync] PUT error', base, e)
           }
+          markSyncFailure()
         }
       }, 900)
     }
@@ -79,6 +115,9 @@ export function TrackerRemoteSync() {
 
     const pullOnce = async () => {
       if (cancelled) return
+      if (pendingReconnectFlush && !applyingRemote) {
+        await flushLocalSnapshotNow()
+      }
       try {
         const inm =
           lastRev > 0
@@ -92,6 +131,7 @@ export function TrackerRemoteSync() {
           if (import.meta.env.DEV) {
             console.warn('[sync] GET failed', res.status, await res.text())
           }
+          markSyncFailure()
           return
         }
         const text = await res.text()
@@ -105,6 +145,7 @@ export function TrackerRemoteSync() {
               text.slice(0, 200),
             )
           }
+          markSyncFailure()
           return
         }
         if (cancelled) return
@@ -123,6 +164,7 @@ export function TrackerRemoteSync() {
         if (import.meta.env.DEV) {
           console.warn('[sync] GET error', base, e)
         }
+        markSyncFailure()
       }
     }
 
@@ -163,6 +205,7 @@ export function TrackerRemoteSync() {
       } catch (e) {
         if (import.meta.env.DEV) console.warn('[sync] WebSocket construct failed', e)
         wsLive = false
+        markSyncFailure()
         startFallbackPoll()
         scheduleReconnect()
         return
@@ -193,6 +236,7 @@ export function TrackerRemoteSync() {
         wsLive = false
         ws = null
         if (cancelled) return
+        markSyncFailure()
         startFallbackPoll()
         scheduleReconnect()
       }
