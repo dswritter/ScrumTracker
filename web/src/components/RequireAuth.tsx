@@ -1,9 +1,19 @@
 import { matchPath, Navigate, Outlet, useLocation } from 'react-router-dom'
+import { useAuthHydrated } from '../hooks/useAuthHydrated'
 import { useCurrentUser } from '../hooks/useCurrentUser'
 
 export function RequireAuth() {
+  const authHydrated = useAuthHydrated()
   const user = useCurrentUser()
   const loc = useLocation()
+
+  if (!authHydrated) {
+    return (
+      <div className="flex min-h-svh items-center justify-center bg-slate-50 dark:bg-slate-950">
+        <p className="text-sm text-slate-500 dark:text-slate-400">Loading…</p>
+      </div>
+    )
+  }
 
   if (!user) {
     return <Navigate to="/login" replace state={{ from: loc.pathname }} />

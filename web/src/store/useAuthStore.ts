@@ -14,7 +14,7 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'scrum-tracker-auth',
-      storage: createJSONStorage(() => sessionStorage),
+      storage: createJSONStorage(() => localStorage),
       partialize: (s) => ({ currentUserId: s.currentUserId }),
     },
   ),

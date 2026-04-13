@@ -14,7 +14,6 @@ import {
 
 const GREEN = '#00B050'
 const GREEN_MID = '#3DCC7A'
-const GREEN_AXIS = '#0d5c2e'
 
 const tooltipProps = {
   cursor: false as const,
@@ -22,10 +21,12 @@ const tooltipProps = {
     fontSize: 12,
     padding: '8px 12px',
     borderRadius: 8,
-    border: '1px solid rgb(226 232 240)',
+    backgroundColor: 'var(--chart-tooltip-bg)',
+    color: 'var(--chart-tooltip-fg)',
+    border: '1px solid var(--chart-tooltip-border)',
     boxShadow: '0 4px 14px rgba(15, 23, 42, 0.08)',
   },
-  labelStyle: { fontWeight: 600, marginBottom: 4 },
+  labelStyle: { fontWeight: 600, marginBottom: 4, color: 'var(--chart-tooltip-fg)' },
 }
 
 const activeBarGlow = {
@@ -77,7 +78,7 @@ export function MetabuildStatusPie({
   if (!data.length || data.every((d) => d.value === 0)) {
     return (
       <div
-        className={`flex items-center justify-center text-xs text-slate-500 ${
+        className={`flex items-center justify-center text-xs text-slate-500 dark:text-slate-400 ${
           compact ? 'h-[140px]' : 'h-[200px]'
         }`}
       >
@@ -100,7 +101,7 @@ export function MetabuildStatusPie({
           outerRadius={outerR}
           paddingAngle={2}
           activeShape={pieActiveShape}
-          labelLine={{ stroke: '#0d5c2e', strokeWidth: 1 }}
+          labelLine={{ stroke: 'var(--chart-label)', strokeWidth: 1 }}
           label={(props: Record<string, unknown>) => {
             const cx = Number(props.cx ?? 0)
             const cy = Number(props.cy ?? 0)
@@ -116,7 +117,7 @@ export function MetabuildStatusPie({
               <text
                 x={x}
                 y={y}
-                fill="#0d5c2e"
+                fill="var(--chart-label)"
                 textAnchor={x > cx ? 'start' : 'end'}
                 dominantBaseline="central"
                 fontSize={compact ? 9 : 10}
@@ -128,7 +129,12 @@ export function MetabuildStatusPie({
           }}
         >
           {data.map((entry) => (
-            <Cell key={entry.name} fill={entry.fill} stroke="#fff" strokeWidth={1} />
+            <Cell
+              key={entry.name}
+              fill={entry.fill}
+              stroke="var(--chart-tooltip-bg)"
+              strokeWidth={1}
+            />
           ))}
         </Pie>
         <Tooltip {...tooltipProps} formatter={(v: number) => [v, 'Items']} />
@@ -148,7 +154,7 @@ export function MetabuildSectionBars({
   if (!rows.length) {
     return (
       <div
-        className={`flex items-center justify-center text-xs text-slate-500 ${
+        className={`flex items-center justify-center text-xs text-slate-500 dark:text-slate-400 ${
           compact ? 'h-[160px]' : 'h-[200px]'
         }`}
       >
@@ -163,12 +169,16 @@ export function MetabuildSectionBars({
         layout="vertical"
         margin={{ left: 8, right: 24, top: 8, bottom: 8 }}
       >
-        <XAxis type="number" domain={[0, 100]} tick={{ fill: GREEN_AXIS, fontSize: 10 }} />
+        <XAxis
+          type="number"
+          domain={[0, 100]}
+          tick={{ fill: 'var(--chart-label)', fontSize: 10 }}
+        />
         <YAxis
           type="category"
           dataKey="name"
           width={compact ? 76 : 88}
-          tick={{ fill: GREEN_AXIS, fontSize: 10 }}
+          tick={{ fill: 'var(--chart-label)', fontSize: 10 }}
         />
         <Tooltip
           {...tooltipProps}
@@ -203,7 +213,7 @@ export function MetabuildAssigneeBars({
   if (!rows.length) {
     return (
       <div
-        className={`flex items-center justify-center text-xs text-slate-500 ${
+        className={`flex items-center justify-center text-xs text-slate-500 dark:text-slate-400 ${
           compact ? 'h-[120px]' : 'h-[180px]'
         }`}
       >
@@ -218,13 +228,17 @@ export function MetabuildAssigneeBars({
         layout="vertical"
         margin={{ left: 12, right: 28, top: 8, bottom: 8 }}
       >
-        <XAxis type="number" domain={[0, 100]} tick={{ fill: GREEN_AXIS, fontSize: 10 }} />
+        <XAxis
+          type="number"
+          domain={[0, 100]}
+          tick={{ fill: 'var(--chart-label)', fontSize: 10 }}
+        />
         <YAxis
           type="category"
           dataKey="label"
           width={compact ? 112 : 100}
           interval={0}
-          tick={{ fill: GREEN_AXIS, fontSize: 9 }}
+          tick={{ fill: 'var(--chart-label)', fontSize: 9 }}
         />
         <Tooltip
           {...tooltipProps}

@@ -42,25 +42,25 @@ export function RegisterTeam() {
   }
 
   const field =
-    'mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 shadow-sm'
+    'mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 shadow-sm dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100'
 
   return (
-    <div className="flex min-h-svh flex-col items-center justify-center bg-slate-50 px-4 py-10">
-      <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <p className="text-xs font-semibold uppercase tracking-wider text-indigo-700">
+    <div className="flex min-h-svh flex-col items-center justify-center bg-slate-50 px-4 py-10 dark:bg-slate-950">
+      <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
+        <p className="text-xs font-semibold uppercase tracking-wider text-indigo-700 dark:text-indigo-400">
           New team
         </p>
-        <h1 className="mt-1 text-xl font-bold text-slate-900">
+        <h1 className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-100">
           Register as team admin
         </h1>
-        <p className="mt-2 text-sm text-slate-600">
+        <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
           Creates an isolated workspace: only users you add can see this team&apos;s
           data. All of this is saved in your browser (local storage)—there is no
           separate backend server to run. Leading @ on usernames is optional.
         </p>
 
         {existing ? (
-          <div className="mt-4 space-y-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-950">
+          <div className="mt-4 space-y-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100">
             <p>
               You are signed in as{' '}
               <span className="font-semibold">
@@ -72,14 +72,14 @@ export function RegisterTeam() {
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-950 shadow-sm hover:bg-amber-100/80"
+                className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-950 shadow-sm hover:bg-amber-100/80 dark:border-amber-700 dark:bg-amber-900 dark:text-amber-100 dark:hover:bg-amber-900/80"
                 onClick={() => setCurrentUserId(null)}
               >
                 Sign out
               </button>
               <Link
                 to="/"
-                className="inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-sm hover:bg-slate-50"
+                className="inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-sm hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
               >
                 Back to dashboard
               </Link>
@@ -88,7 +88,10 @@ export function RegisterTeam() {
         ) : (
           <form className="mt-6 space-y-3" onSubmit={onSubmit}>
             <div>
-              <label className="text-xs font-semibold text-slate-600" htmlFor="tn">
+              <label
+                className="text-xs font-semibold text-slate-600 dark:text-slate-400"
+                htmlFor="tn"
+              >
                 Team name
               </label>
               <input
@@ -100,7 +103,10 @@ export function RegisterTeam() {
               />
             </div>
             <div>
-              <label className="text-xs font-semibold text-slate-600" htmlFor="dn">
+              <label
+                className="text-xs font-semibold text-slate-600 dark:text-slate-400"
+                htmlFor="dn"
+              >
                 Your display name
               </label>
               <input
@@ -112,7 +118,10 @@ export function RegisterTeam() {
               />
             </div>
             <div>
-              <label className="text-xs font-semibold text-slate-600" htmlFor="un">
+              <label
+                className="text-xs font-semibold text-slate-600 dark:text-slate-400"
+                htmlFor="un"
+              >
                 Username (e.g. LDAP)
               </label>
               <input
@@ -138,7 +147,9 @@ export function RegisterTeam() {
               onChange={setConfirm}
             />
             {error ? (
-              <p className="text-sm font-medium text-rose-700">{error}</p>
+              <p className="text-sm font-medium text-rose-700 dark:text-rose-400">
+                {error}
+              </p>
             ) : null}
             <button
               type="submit"
@@ -149,10 +160,10 @@ export function RegisterTeam() {
           </form>
         )}
 
-        <p className="mt-4 text-center text-sm text-slate-600">
+        <p className="mt-4 text-center text-sm text-slate-600 dark:text-slate-400">
           <Link
             to="/login"
-            className="font-semibold text-indigo-700 underline hover:text-indigo-900"
+            className="font-semibold text-indigo-700 underline hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300"
           >
             Back to sign in
           </Link>

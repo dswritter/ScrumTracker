@@ -41,7 +41,7 @@ export function People() {
             return (
               <div
                 key={name}
-                className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+                className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/90"
               >
                 <PersonProgressBar
                   name={name}
@@ -94,7 +94,7 @@ export function People() {
               <li key={name}>
                 <Link
                   to={`/people/${encodeURIComponent(name)}`}
-                  className="inline-block rounded-full border border-slate-200 bg-white px-3 py-1 text-sm font-medium text-slate-800 shadow-sm hover:border-indigo-200 hover:text-indigo-800"
+                  className="inline-block rounded-full border border-slate-200 bg-white px-3 py-1 text-sm font-medium text-slate-800 shadow-sm hover:border-indigo-200 hover:text-indigo-800 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:border-indigo-500 dark:hover:text-indigo-300"
                 >
                   {name}
                 </Link>

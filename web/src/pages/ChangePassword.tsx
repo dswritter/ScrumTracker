@@ -60,13 +60,13 @@ export function ChangePassword() {
     return (
       <div className="mx-auto max-w-md space-y-6 px-4 py-8">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-indigo-700">
+          <p className="text-xs font-semibold uppercase tracking-wider text-indigo-700 dark:text-indigo-400">
             First sign-in
           </p>
-          <h1 className="mt-1 text-xl font-bold text-slate-900">
+          <h1 className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-100">
             Set your password
           </h1>
-          <p className="mt-2 text-sm text-slate-600">
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
             Enter the <strong>master password</strong> your admin gave you, then
             choose a new password (at least 8 characters) and confirm it.
           </p>
@@ -74,7 +74,7 @@ export function ChangePassword() {
 
         <form
           onSubmit={onFirstLoginSubmit}
-          className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+          className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/90"
         >
           <PasswordField
             id="m"
@@ -98,7 +98,9 @@ export function ChangePassword() {
             onChange={setConfirm}
           />
           {error ? (
-            <p className="text-sm font-medium text-rose-700">{error}</p>
+            <p className="text-sm font-medium text-rose-700 dark:text-rose-400">
+              {error}
+            </p>
           ) : null}
           <button
             type="submit"
@@ -114,26 +116,26 @@ export function ChangePassword() {
   return (
     <div className="mx-auto max-w-md space-y-6 px-4 py-8">
       <div>
-        <p className="text-xs font-semibold uppercase tracking-wider text-indigo-700">
+        <p className="text-xs font-semibold uppercase tracking-wider text-indigo-700 dark:text-indigo-400">
           Account
         </p>
-        <h1 className="mt-1 text-xl font-bold text-slate-900">
+        <h1 className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-100">
           Change password
         </h1>
-        <p className="mt-2 text-sm text-slate-600">
+        <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
           Use your <strong>current password</strong>, or the{' '}
           <strong>master password</strong> your administrator can look up in{' '}
           <strong>Settings</strong> (same value shown next to your account).
         </p>
       </div>
 
-      <div className="flex gap-2 rounded-lg border border-slate-200 bg-slate-50 p-1 text-sm">
+      <div className="flex gap-2 rounded-lg border border-slate-200 bg-slate-50 p-1 text-sm dark:border-slate-600 dark:bg-slate-800/80">
         <button
           type="button"
           className={`flex-1 rounded-md px-3 py-2 font-semibold ${
             voluntaryMode === 'current'
-              ? 'bg-white text-indigo-900 shadow-sm'
-              : 'text-slate-600'
+              ? 'bg-white text-indigo-900 shadow-sm dark:bg-slate-900 dark:text-indigo-300 dark:shadow-slate-900/50'
+              : 'text-slate-600 dark:text-slate-400'
           }`}
           onClick={() => {
             setVoluntaryMode('current')
@@ -146,8 +148,8 @@ export function ChangePassword() {
           type="button"
           className={`flex-1 rounded-md px-3 py-2 font-semibold ${
             voluntaryMode === 'master'
-              ? 'bg-white text-indigo-900 shadow-sm'
-              : 'text-slate-600'
+              ? 'bg-white text-indigo-900 shadow-sm dark:bg-slate-900 dark:text-indigo-300 dark:shadow-slate-900/50'
+              : 'text-slate-600 dark:text-slate-400'
           }`}
           onClick={() => {
             setVoluntaryMode('master')
@@ -160,7 +162,7 @@ export function ChangePassword() {
 
       <form
         onSubmit={onVoluntarySubmit}
-        className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+        className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/90"
       >
         {voluntaryMode === 'current' ? (
           <PasswordField
@@ -179,7 +181,7 @@ export function ChangePassword() {
               value={master}
               onChange={setMaster}
             />
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               If you forgot your login password, ask an admin to confirm the
               password listed for you in Settings, or reset it there first.
             </p>
@@ -200,7 +202,9 @@ export function ChangePassword() {
           onChange={setConfirm}
         />
         {error ? (
-          <p className="text-sm font-medium text-rose-700">{error}</p>
+          <p className="text-sm font-medium text-rose-700 dark:text-rose-400">
+            {error}
+          </p>
         ) : null}
         <button
           type="submit"
@@ -211,7 +215,10 @@ export function ChangePassword() {
       </form>
 
       <p className="text-center text-sm">
-        <Link to={home} className="font-medium text-indigo-700 hover:underline">
+        <Link
+          to={home}
+          className="font-medium text-indigo-700 hover:underline dark:text-indigo-400"
+        >
           Cancel
         </Link>
       </p>

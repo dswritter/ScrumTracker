@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import type { TrackerUserAccount } from '../types'
 import { useCurrentUser } from '../hooks/useCurrentUser'
 import { useTeamContextNullable } from '../hooks/useTeamContext'
@@ -107,7 +107,7 @@ export function Settings() {
   const [userMsg, setUserMsg] = useState<string | null>(null)
 
   const field =
-    'w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm'
+    'w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100'
 
   const teamUsers = users.filter((u) => u.teamId === teamId)
 
@@ -156,7 +156,7 @@ export function Settings() {
 
   return (
     <div className="mx-auto w-full max-w-none space-y-8">
-      <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
         <div className="flex flex-wrap gap-2">
           <input
             className={`max-w-md flex-1 ${field}`}
@@ -165,7 +165,7 @@ export function Settings() {
           />
           <button
             type="button"
-            className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-100"
+            className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
             onClick={() => {
               setTeamName(teamId, newTeamName)
             }}
@@ -175,7 +175,7 @@ export function Settings() {
         </div>
       </section>
 
-      <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           <input
             className={field}
@@ -214,10 +214,12 @@ export function Settings() {
           Create account
         </button>
         {userMsg ? (
-          <p className="text-sm font-medium text-slate-700">{userMsg}</p>
+          <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
+            {userMsg}
+          </p>
         ) : null}
 
-        <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200">
+        <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200 dark:divide-slate-700 dark:border-slate-600">
           {teamUsers.map((u) => {
             const adminCount = teamUsers.filter((x) => x.role === 'admin').length
             return (
@@ -226,31 +228,35 @@ export function Settings() {
                 className="flex flex-col gap-2 px-3 py-3 text-sm sm:flex-row sm:flex-wrap sm:items-center"
               >
                 <div className="min-w-0 flex-1">
-                  <span className="font-semibold text-slate-900">
+                  <span className="font-semibold text-slate-900 dark:text-slate-100">
                     {u.displayName}
                   </span>
-                  <span className="ml-2 text-slate-500">@{u.username}</span>
+                  <span className="ml-2 text-slate-500 dark:text-slate-400">
+                    @{u.username}
+                  </span>
                   <span
                     className={`ml-2 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${
                       u.role === 'admin'
-                        ? 'bg-indigo-100 text-indigo-800'
-                        : 'bg-slate-100 text-slate-600'
+                        ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200'
+                        : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
                     }`}
                   >
                     {u.role}
                   </span>
                   {u.mustChangePassword ? (
-                    <span className="ml-2 text-[10px] font-semibold text-amber-700">
+                    <span className="ml-2 text-[10px] font-semibold text-amber-700 dark:text-amber-400">
                       Must change password
                     </span>
                   ) : null}
                 </div>
-                <div className="font-mono text-xs text-slate-700">
-                  <span className="text-slate-500">Password: </span>
+                <div className="font-mono text-xs text-slate-700 dark:text-slate-200">
+                  <span className="text-slate-500 dark:text-slate-400">
+                    Password:{' '}
+                  </span>
                   {u.password}
                 </div>
                 <div className="w-full max-w-sm flex-[1_1_100%]">
-                  <label className="text-[10px] font-semibold text-slate-600">
+                  <label className="text-[10px] font-semibold text-slate-600 dark:text-slate-400">
                     Slack Chat URL (optional)
                   </label>
                   <input
@@ -267,7 +273,7 @@ export function Settings() {
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
-                    className="rounded border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                    className="rounded border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
                     onClick={() => {
                       const pw = prompt(`New password for @${u.username} (min 8 chars):`)
                       if (pw !== null && pw.trim()) {
@@ -286,7 +292,7 @@ export function Settings() {
                   {u.role === 'member' ? (
                     <button
                       type="button"
-                      className="rounded border border-indigo-200 px-2 py-1 text-xs font-semibold text-indigo-800 hover:bg-indigo-50"
+                      className="rounded border border-indigo-200 px-2 py-1 text-xs font-semibold text-indigo-800 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-200 dark:hover:bg-indigo-950/60"
                       onClick={() => setUserRole(teamId, u.id, 'admin')}
                     >
                       Make admin
@@ -303,7 +309,7 @@ export function Settings() {
                   )}
                   <button
                     type="button"
-                    className="rounded border border-rose-200 px-2 py-1 text-xs font-semibold text-rose-800 hover:bg-rose-50 disabled:opacity-40"
+                    className="rounded border border-rose-200 px-2 py-1 text-xs font-semibold text-rose-800 hover:bg-rose-50 disabled:opacity-40 dark:border-rose-900 dark:text-rose-300 dark:hover:bg-rose-950/50"
                     disabled={u.role === 'admin' && adminCount <= 1}
                     onClick={() => {
                       if (
@@ -323,8 +329,8 @@ export function Settings() {
         </ul>
       </section>
 
-      <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <p className="text-xs text-slate-600">
+      <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
+        <p className="text-xs text-slate-600 dark:text-slate-300">
           Keys on work items open as <span className="font-mono">base + KEY</span>
           .
         </p>
@@ -337,25 +343,32 @@ export function Settings() {
 
       <section
         id="jira-integration"
-        className="space-y-3 scroll-mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+        className="space-y-3 scroll-mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/90"
       >
-        <h2 className="text-sm font-bold text-slate-900">Jira integration</h2>
-        <p className="text-xs text-slate-600">
+        <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+          Jira integration
+        </h2>
+        <p className="text-xs text-slate-600 dark:text-slate-300">
           PAT and sync run on the <strong>Node server</strong> only (not in the
           browser). Production builds use{' '}
-          <code className="rounded bg-slate-100 px-1">VITE_SYNC_SAME_ORIGIN</code> so
+          <code className="rounded bg-slate-100 px-1 dark:bg-slate-800">
+            VITE_SYNC_SAME_ORIGIN
+          </code>{' '}
+          so
           the UI and API share one public URL. See{' '}
-          <code className="rounded bg-slate-100 px-1">docs/JIRA Integration Architecture.md</code>
+          <code className="rounded bg-slate-100 px-1 dark:bg-slate-800">
+            docs/JIRA Integration Architecture.md
+          </code>
           .
         </p>
         {!hasSyncServer ? (
-          <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+          <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100">
             Enable sync in the build (<code className="font-mono">VITE_SYNC_SAME_ORIGIN=true</code>{' '}
             or <code className="font-mono">VITE_SYNC_API_URL</code>) so Jira sync can
             reach the server.
           </p>
         ) : null}
-        <label className="block text-xs font-semibold text-slate-700">
+        <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200">
           JQL (issues to import)
         </label>
         <textarea
@@ -366,7 +379,7 @@ export function Settings() {
         />
         <button
           type="button"
-          className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-100"
+          className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
           onClick={() => {
             setJiraSyncJql(teamId, jiraDraftJql)
             setJiraMsg('JQL saved for this team.')
@@ -374,12 +387,15 @@ export function Settings() {
         >
           Save JQL
         </button>
-        <label className="mt-2 block text-xs font-semibold text-slate-700">
+        <label className="mt-2 block text-xs font-semibold text-slate-700 dark:text-slate-200">
           Jira Sprint field id (optional)
         </label>
-        <p className="text-xs text-slate-600">
+        <p className="text-xs text-slate-600 dark:text-slate-300">
           Custom field id for the Sprint field (e.g.{' '}
-          <code className="rounded bg-slate-100 px-1">customfield_11002</code>). Leave
+          <code className="rounded bg-slate-100 px-1 dark:bg-slate-800">
+            customfield_11002
+          </code>
+          ). Leave
           empty to skip sprint mapping. Find it in Jira issue JSON or Fields admin.
         </p>
         <div className="flex flex-wrap items-end gap-2">
@@ -391,7 +407,7 @@ export function Settings() {
           />
           <button
             type="button"
-            className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-100"
+            className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
             onClick={() => {
               setJiraSprintFieldId(teamId, jiraDraftSprintField)
               setJiraMsg('Sprint field id saved. Re-run Jira sync to apply.')
@@ -451,7 +467,7 @@ export function Settings() {
           <button
             type="button"
             disabled={!hasSyncServer || jiraSyncing}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
             onClick={async () => {
               setJiraMsg(null)
               setJiraSyncing(true)
@@ -471,17 +487,19 @@ export function Settings() {
           </button>
         </div>
         {jiraTokenStatus ? (
-          <p className="text-xs text-slate-600">
+          <p className="text-xs text-slate-600 dark:text-slate-300">
             <span className="font-semibold">Token status:</span> {jiraTokenStatus}
           </p>
         ) : null}
         {jiraMsg ? (
-          <p className="text-xs font-medium text-slate-700">{jiraMsg}</p>
+          <p className="text-xs font-medium text-slate-700 dark:text-slate-200">
+            {jiraMsg}
+          </p>
         ) : null}
       </section>
 
-      <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <p className="text-xs text-slate-600">
+      <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
+        <p className="text-xs text-slate-600 dark:text-slate-300">
           Export is a <strong>full snapshot</strong> (schema v3): every team, each
           team&apos;s sprints, work items, roster, Slack DM map, JIRA
           base URL, and all user
@@ -498,7 +516,7 @@ export function Settings() {
           </button>
           <button
             type="button"
-            className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-100"
+            className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
             onClick={() => fileRef.current?.click()}
           >
             Import JSON
@@ -515,8 +533,8 @@ export function Settings() {
           <p
             className={
               importMsg.includes('success')
-                ? 'text-sm font-medium text-emerald-700'
-                : 'text-sm font-medium text-rose-700'
+                ? 'text-sm font-medium text-emerald-700 dark:text-emerald-400'
+                : 'text-sm font-medium text-rose-700 dark:text-rose-400'
             }
           >
             {importMsg}
@@ -524,13 +542,13 @@ export function Settings() {
         ) : null}
       </section>
 
-      <section className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-        <p className="text-xs text-amber-950/80">
+      <section className="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/50 dark:bg-amber-950/30">
+        <p className="text-xs text-amber-950/80 dark:text-amber-100/90">
           Reset to built-in sample data (clears local changes for this browser).
         </p>
         <button
           type="button"
-          className="mt-3 rounded-lg border border-amber-300 bg-white px-4 py-2 text-sm font-semibold text-amber-950 hover:bg-amber-100"
+          className="mt-3 rounded-lg border border-amber-300 bg-white px-4 py-2 text-sm font-semibold text-amber-950 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-900 dark:text-amber-100 dark:hover:bg-amber-900/80"
           onClick={() => {
             if (confirm('Reset all data to seed? This cannot be undone.'))
               resetToSeed()
@@ -538,6 +556,22 @@ export function Settings() {
         >
           Reset to seed data
         </button>
+      </section>
+
+      <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
+        <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+          Your password
+        </h2>
+        <p className="text-xs text-slate-600 dark:text-slate-300">
+          Change the password for your account (
+          <span className="font-mono">@{user.username}</span>).
+        </p>
+        <Link
+          to="/change-password"
+          className="inline-flex rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+        >
+          Change password
+        </Link>
       </section>
     </div>
   )

@@ -101,7 +101,7 @@ export function ItemDetail() {
       </div>
 
       {readOnly ? (
-        <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+        <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-200">
           <span className="font-semibold">View only</span> — you can read this
           item but not edit it or add comments.
         </p>
@@ -135,7 +135,7 @@ export function ItemDetail() {
         className={`grid gap-4 ${isAdmin(user) ? 'sm:grid-cols-2' : 'sm:grid-cols-1'}`}
       >
         {isAdmin(user) ? (
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
             <h2 className="text-xs font-bold uppercase tracking-wide text-slate-500">
               Assignees
             </h2>
@@ -146,7 +146,7 @@ export function ItemDetail() {
             </p>
           </div>
         ) : null}
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
           <h2 className="text-xs font-bold uppercase tracking-wide text-slate-500">
             Sprints
           </h2>
@@ -158,7 +158,7 @@ export function ItemDetail() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
         <h2 className="text-xs font-bold uppercase tracking-wide text-slate-500">
           JIRA
         </h2>
@@ -186,7 +186,7 @@ export function ItemDetail() {
         )}
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
         <h2 className="text-xs font-bold uppercase tracking-wide text-slate-500">
           Comments
         </h2>
@@ -233,7 +233,7 @@ export function ItemDetail() {
               New comment as {commentAuthorLabel(user)}
             </label>
             <textarea
-              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900"
+              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
               rows={3}
               value={draft}
               placeholder="Write an update…"
@@ -258,7 +258,7 @@ export function ItemDetail() {
       </div>
 
       {!readOnly && otherItems.length > 0 ? (
-        <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4 shadow-sm">
+        <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800/50">
           <h2 className="text-sm font-bold text-slate-900">
             Other items (shared assignees)
           </h2>
@@ -266,7 +266,7 @@ export function ItemDetail() {
             Click a title to open that item. Hover shows comments when available
             (admins).
           </p>
-          <ul className="mt-3 divide-y divide-slate-200 rounded-lg border border-slate-200 bg-white">
+          <ul className="mt-3 divide-y divide-slate-200 rounded-lg border border-slate-200 bg-white dark:divide-slate-700 dark:border-slate-600 dark:bg-slate-900/80">
             {otherItems.map((w) => (
               <li
                 key={w.id}

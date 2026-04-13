@@ -7,10 +7,28 @@
   --color-brand-green-dark: #007a3d;
 }
 
+/* Recharts / SVG (no Tailwind) — follow system dark mode */
+:root {
+  --chart-label: #0d5c2e;
+  --chart-tooltip-bg: #ffffff;
+  --chart-tooltip-border: rgb(226 232 240);
+  --chart-tooltip-fg: #0f172a;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --chart-label: #86efac;
+    --chart-tooltip-bg: #0f172a;
+    --chart-tooltip-border: rgb(51 65 85);
+    --chart-tooltip-fg: #f1f5f9;
+  }
+}
+
 body {
   margin: 0;
   min-height: 100svh;
-  @apply bg-slate-50 font-sans text-slate-800 antialiased;
+  color-scheme: light dark;
+  @apply bg-slate-50 font-sans text-slate-800 antialiased dark:bg-slate-950 dark:text-slate-100;
 }
 
 #root {

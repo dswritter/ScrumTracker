@@ -1,6 +1,7 @@
 import { useState, useSyncExternalStore } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { PasswordField } from '../components/PasswordField'
+import { useAuthHydrated } from '../hooks/useAuthHydrated'
 import { useCurrentUser } from '../hooks/useCurrentUser'
 import { normalizeLoginUsername } from '../lib/username'
 import { useAuthStore } from '../store/useAuthStore'
@@ -23,12 +24,21 @@ export function Login() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const authHydrated = useAuthHydrated()
   const storeHydrated = useSyncExternalStore(
     (onStoreChange) =>
       useTrackerStore.persist.onFinishHydration(onStoreChange),
     () => useTrackerStore.persist.hasHydrated(),
     () => true,
   )
+
+  if (!authHydrated || !storeHydrated) {
+    return (
+      <div className="flex min-h-svh flex-col items-center justify-center bg-slate-50 px-4 dark:bg-slate-950">
+        <p className="text-sm text-slate-600 dark:text-slate-400">Loading…</p>
+      </div>
+    )
+  }
 
   if (existing && !existing.mustChangePassword) {
     return <Navigate to={isAdmin(existing) ? '/' : '/me'} replace />
@@ -39,7 +49,6 @@ export function Login() {
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!storeHydrated) return
     setError(null)
     const un = normalizeLoginUsername(username)
     const pw = password.trim()
@@ -61,35 +70,36 @@ export function Login() {
   }
 
   return (
-    <div className="flex min-h-svh flex-col items-center justify-center bg-slate-50 px-4">
-      <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <p className="text-xs font-semibold uppercase tracking-wider text-indigo-700">
+    <div className="flex min-h-svh flex-col items-center justify-center bg-slate-50 px-4 dark:bg-slate-950">
+      <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
+        <p className="text-xs font-semibold uppercase tracking-wider text-indigo-700 dark:text-indigo-400">
           Scrum tracker
         </p>
-        <h1 className="mt-1 text-xl font-bold text-slate-900">Sign in</h1>
-        <p className="mt-2 text-sm text-slate-600">
+        <h1 className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-100">
+          Sign in
+        </h1>
+        <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
           Use the username and password from your team admin. First-time members
           use the master password once, then choose their own.
         </p>
         {justRegistered ? (
-          <p className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+          <p className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100">
             Team created. Sign in with the username and password you just set.
             Everything stays in this browser only—no server to start.
           </p>
         ) : null}
         <form className="mt-6 space-y-3" onSubmit={onSubmit}>
-          {!storeHydrated ? (
-            <p className="text-sm text-slate-600">Loading saved team data…</p>
-          ) : null}
           <div>
-            <label className="text-xs font-semibold text-slate-600" htmlFor="u">
+            <label
+              className="text-xs font-semibold text-slate-600 dark:text-slate-400"
+              htmlFor="u"
+            >
               Username
             </label>
             <input
               id="u"
               autoComplete="username"
-              disabled={!storeHydrated}
-              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 shadow-sm disabled:cursor-not-allowed disabled:bg-slate-50"
+              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 shadow-sm dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
             />
@@ -98,25 +108,25 @@ export function Login() {
             id="p"
             label="Password"
             autoComplete="current-password"
-            disabled={!storeHydrated}
             value={password}
             onChange={setPassword}
           />
           {error ? (
-            <p className="text-sm font-medium text-rose-700">{error}</p>
+            <p className="text-sm font-medium text-rose-700 dark:text-rose-400">
+              {error}
+            </p>
           ) : null}
           <button
             type="submit"
-            disabled={!storeHydrated}
-            className="w-full rounded-lg bg-indigo-600 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+            className="w-full rounded-lg bg-indigo-600 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"
           >
             Sign in
           </button>
         </form>
-        <p className="mt-4 text-center text-sm text-slate-600">
+        <p className="mt-4 text-center text-sm text-slate-600 dark:text-slate-400">
           <Link
             to="/register"
-            className="font-semibold text-indigo-700 underline hover:text-indigo-900"
+            className="font-semibold text-indigo-700 underline hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300"
           >
             Create a new team (admin)
           </Link>

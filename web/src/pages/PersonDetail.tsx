@@ -160,7 +160,7 @@ export function PersonDetail() {
         itemCount={scopedItems.length}
       />
 
-      <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
         <ul className="divide-y divide-slate-100">
           {scopedItems.map((w) => (
             <li

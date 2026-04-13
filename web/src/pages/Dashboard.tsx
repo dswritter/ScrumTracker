@@ -249,24 +249,24 @@ export function Dashboard() {
   if (!user || !ctx) return null
 
   const titleLinkCls =
-    'font-medium text-indigo-700 hover:text-indigo-900 hover:underline'
+    'font-medium text-indigo-700 hover:text-indigo-900 hover:underline dark:text-indigo-400 dark:hover:text-indigo-300'
 
   const chartAside = (
     <aside className="order-2 w-full max-w-full space-y-3 xl:sticky xl:top-4 xl:order-1 xl:max-h-[min(calc(100vh-5rem),56rem)] xl:max-w-[20rem] xl:justify-self-start xl:overflow-y-auto xl:overscroll-contain xl:pr-1">
-      <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm">
+      <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
         <h3 className="mb-0.5 text-center text-[10px] font-bold uppercase tracking-wide text-[#007a3d]">
           Team progress
         </h3>
         <MetabuildStatusPie data={pieData} compact />
       </div>
-      <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm">
+      <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
         <h3 className="mb-0.5 text-center text-[10px] font-bold uppercase tracking-wide text-[#007a3d]">
           Section (done %)
         </h3>
         <MetabuildSectionBars rows={sectionBarRows} compact />
       </div>
       {isAdmin(user) ? (
-        <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm">
+        <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
           <h3 className="mb-0.5 text-center text-[10px] font-bold uppercase tracking-wide text-[#007a3d]">
             Done % by person
           </h3>
@@ -274,7 +274,7 @@ export function Dashboard() {
         </div>
       ) : null}
       {!isAdmin(user) && teammateNames.length > 0 ? (
-        <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+        <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
           <h3 className="mb-2 text-center text-[10px] font-bold uppercase tracking-wide text-[#007a3d]">
             Teammates
           </h3>
@@ -336,7 +336,7 @@ export function Dashboard() {
       <div className="flex flex-col gap-5 xl:grid xl:grid-cols-[minmax(16.5rem,20rem)_minmax(0,1fr)] xl:items-start xl:gap-5">
         <div className="order-1 min-w-0 space-y-6 xl:order-2">
           {sortedSprints.length > 0 ? (
-            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
               <div className="flex flex-wrap items-center gap-2 gap-y-2 border-b border-[#00B050]/25 bg-[#00B050]/10 px-3 py-2">
                 <span className="text-[10px] font-bold uppercase tracking-wide text-[#007a3d]">
                   Scope
@@ -345,14 +345,14 @@ export function Dashboard() {
                   type="button"
                   aria-label="Previous sprint"
                   disabled={scope.type !== 'sprint' || sprintIndex <= 0}
-                  className="rounded border border-slate-200/80 bg-white/90 px-2 py-0.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
+                  className="rounded border border-slate-200/80 bg-white/90 px-2 py-0.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-white disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-200 dark:hover:bg-slate-800"
                   onClick={() => goSprint(-1)}
                 >
                   ←
                 </button>
                 <select
                   aria-label="Dashboard scope"
-                  className="min-w-0 max-w-[min(100%,280px)] flex-1 rounded border border-slate-200/80 bg-white/95 py-1 pl-2 pr-7 text-xs font-semibold text-slate-900 shadow-sm sm:max-w-md"
+                  className="min-w-0 max-w-[min(100%,280px)] flex-1 rounded border border-slate-200/80 bg-white/95 py-1 pl-2 pr-7 text-xs font-semibold text-slate-900 shadow-sm dark:border-slate-600 dark:bg-slate-900/95 dark:text-slate-100 sm:max-w-md"
                   value={scopeSelectValue(scope)}
                   onChange={(e) => onScopeSelectChange(e.target.value)}
                 >
@@ -390,7 +390,7 @@ export function Dashboard() {
                     sprintIndex < 0 ||
                     sprintIndex >= sortedSprints.length - 1
                   }
-                  className="rounded border border-slate-200/80 bg-white/90 px-2 py-0.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
+                  className="rounded border border-slate-200/80 bg-white/90 px-2 py-0.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-white disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-200 dark:hover:bg-slate-800"
                   onClick={() => goSprint(1)}
                 >
                   →
@@ -462,7 +462,7 @@ export function Dashboard() {
         />
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
         <div className="border-b border-[#00B050]/30 bg-[#00B050] px-3 py-2">
           <h3 className="text-sm font-bold text-white">
             Work items · {scopeShortLabel(scope, sortedSprints)}
@@ -471,7 +471,7 @@ export function Dashboard() {
         <div className="overflow-x-auto">
           <table className="w-full min-w-[56rem] border-collapse text-left text-xs">
             <thead>
-              <tr className="border-b border-slate-200 bg-[#00B050]/12">
+              <tr className="border-b border-slate-200 bg-[#00B050]/12 dark:border-slate-700 dark:bg-[#00B050]/18">
                 <th className="px-3 py-2 font-bold text-[#0d5c2e]">Title</th>
                 <th className="px-3 py-2 font-bold text-[#0d5c2e]">Section</th>
                 {isAdmin(user) ? (
@@ -486,7 +486,7 @@ export function Dashboard() {
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
               {tableItems.length === 0 ? (
                 <tr>
                   <td
@@ -500,7 +500,10 @@ export function Dashboard() {
                 tableItems.map((w) => {
                   const jiraBase = ctx.jiraBaseUrl.trim().replace(/\/$/, '')
                   return (
-                    <tr key={w.id} className="hover:bg-slate-50/80">
+                    <tr
+                      key={w.id}
+                      className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50"
+                    >
                       <td className="max-w-[14rem] px-3 py-2 align-top">
                         <WorkItemTitleLink
                           item={w}
@@ -560,7 +563,7 @@ export function Dashboard() {
               return (
                 <div
                   key={name}
-                  className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm"
+                  className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900/90"
                 >
                   <PersonProgressBar
                     name={name}

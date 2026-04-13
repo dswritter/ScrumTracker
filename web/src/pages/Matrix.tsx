@@ -22,10 +22,10 @@ export function Matrix() {
 
   return (
     <div className="space-y-4">
-      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
         <table className="min-w-max border-collapse text-left text-xs">
           <thead>
-            <tr className="border-b border-slate-200 bg-slate-50">
+            <tr className="border-b border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/80">
               <th className="sticky left-0 z-[1] bg-slate-50 px-3 py-2 font-bold text-slate-600">
                 Person
               </th>
@@ -56,7 +56,7 @@ export function Matrix() {
                   key={person}
                   className="border-b border-slate-100 hover:bg-slate-50/80"
                 >
-                  <td className="sticky left-0 z-[1] bg-white px-3 py-2 font-semibold text-slate-800">
+                  <td className="sticky left-0 z-[1] bg-white px-3 py-2 font-semibold text-slate-800 dark:bg-slate-900 dark:text-slate-100">
                     <span className="inline-flex items-center gap-2">
                       {person}
                       {slackUrl ? (

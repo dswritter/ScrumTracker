@@ -29,7 +29,7 @@ export function JiraHeaderSyncButton() {
         type="button"
         disabled={busy}
         title="Sync work items from Jira (uses JQL and PAT in Settings)"
-        className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-50 disabled:opacity-50"
+        className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
         onClick={async () => {
           setToast(null)
           setBusy(true)

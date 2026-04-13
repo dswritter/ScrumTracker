@@ -60,10 +60,10 @@ function Row({
   const former = formerAssigneesOnItem(item, teamMembers)
 
   const inputCls =
-    'rounded border border-slate-200 bg-white px-2 py-1 text-xs text-slate-900 shadow-sm disabled:bg-slate-100 disabled:text-slate-600'
+    'rounded border border-slate-200 bg-white px-2 py-1 text-xs text-slate-900 shadow-sm disabled:bg-slate-100 disabled:text-slate-600 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:disabled:bg-slate-800 dark:disabled:text-slate-400'
 
   return (
-    <tr className="align-top border-b border-slate-100 hover:bg-slate-50/80">
+    <tr className="align-top border-b border-slate-100 hover:bg-slate-50/80 dark:border-slate-800 dark:hover:bg-slate-800/40">
       <td className="px-2 py-2">
         <input
           className={`w-28 ${inputCls}`}
@@ -102,7 +102,7 @@ function Row({
                 {teamMembers.map((m) => (
                   <label
                     key={m}
-                    className="flex cursor-pointer items-center gap-1 rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] text-slate-700"
+                    className="flex cursor-pointer items-center gap-1 rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
                   >
                     <input
                       type="checkbox"
@@ -345,7 +345,7 @@ export function Items() {
 
   const showAssigneesColumn = isAdmin(user)
   const filterSelectCls =
-    'mt-0.5 w-full min-w-0 rounded border border-slate-200 bg-white px-1 py-1 text-[10px] font-normal text-slate-800 shadow-sm'
+    'mt-0.5 w-full min-w-0 rounded border border-slate-200 bg-white px-1 py-1 text-[10px] font-normal text-slate-800 shadow-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100'
 
   return (
     <div className="space-y-4">
@@ -378,14 +378,14 @@ export function Items() {
       ) : null}
 
       {hasQuery ? (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-indigo-100 bg-indigo-50/80 px-3 py-2 text-sm text-indigo-950">
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-indigo-100 bg-indigo-50/80 px-3 py-2 text-sm text-indigo-950 dark:border-indigo-900/50 dark:bg-indigo-950/40 dark:text-indigo-100">
           <span>
             <span className="font-semibold">Filtered:</span> {filterSummary}
           </span>
           <span className="flex flex-wrap gap-3">
             <button
               type="button"
-              className="font-medium text-indigo-800 underline hover:text-indigo-950"
+              className="font-medium text-indigo-800 underline hover:text-indigo-950 dark:text-indigo-300 dark:hover:text-indigo-200"
               onClick={() => {
                 setTableFilterSection('')
                 setTableFilterComponent('')
@@ -396,7 +396,7 @@ export function Items() {
             </button>
             <Link
               to="/items"
-              className="font-medium text-indigo-800 underline hover:text-indigo-950"
+              className="font-medium text-indigo-800 underline hover:text-indigo-950 dark:text-indigo-300 dark:hover:text-indigo-200"
             >
               Clear all
             </Link>
@@ -404,10 +404,10 @@ export function Items() {
         </div>
       ) : null}
 
-      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
         <table className="w-full min-w-0 border-collapse text-left text-xs">
           <thead>
-            <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+            <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-400">
               <th className="px-2 py-2">Section</th>
               <th className="px-2 py-2">Component</th>
               <th className="px-2 py-2">Title</th>
@@ -421,7 +421,7 @@ export function Items() {
               <th className="px-2 py-2">Comments</th>
               <th className="px-2 py-2" />
             </tr>
-            <tr className="border-b border-slate-200 bg-slate-50/90 text-[10px] font-semibold normal-case text-slate-600">
+            <tr className="border-b border-slate-200 bg-slate-50/90 text-[10px] font-semibold normal-case text-slate-600 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
               <th className="px-2 pb-2 pt-0 align-top">
                 <label className="block font-semibold text-slate-500">
                   Filter

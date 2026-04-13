@@ -205,14 +205,14 @@ export function Chat() {
   return (
     <div className="-mx-4 -my-8 flex min-h-[calc(100svh-5rem)] flex-col sm:-mx-6 lg:-mx-8">
       {!remoteSync ? (
-        <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+        <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/35 dark:text-amber-100">
           <strong className="font-semibold">Sync not configured.</strong> Chat
           stays in this browser until the app is built with{' '}
-          <code className="rounded bg-amber-100/80 px-1 text-xs">
+          <code className="rounded bg-amber-100/80 px-1 text-xs dark:bg-amber-900/60">
             VITE_SYNC_SAME_ORIGIN=true
           </code>{' '}
           (public tunnel to the Node server) or{' '}
-          <code className="rounded bg-amber-100/80 px-1 text-xs">
+          <code className="rounded bg-amber-100/80 px-1 text-xs dark:bg-amber-900/60">
             VITE_SYNC_API_URL
           </code>
           . See <span className="font-medium">SERVER.md</span>.
@@ -220,11 +220,12 @@ export function Chat() {
       ) : null}
 
       {!secureContext && canUseNotification && !httpsTipDismissed ? (
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-200">
           <span>
             Desktop notifications usually require{' '}
             <strong>HTTPS</strong> (except{' '}
-            <code className="rounded bg-white px-1">localhost</code>).
+            <code className="rounded bg-white px-1 dark:bg-slate-900">localhost</code>
+            ).
           </span>
           <button
             type="button"
@@ -236,17 +237,21 @@ export function Chat() {
         </div>
       ) : null}
 
-      <div className="flex min-h-[calc(100svh-8rem)] flex-1 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <aside className="flex w-full max-w-[min(100%,280px)] flex-col border-r border-slate-200 bg-slate-50/80 sm:max-w-[320px]">
-          <div className="flex flex-wrap items-start justify-between gap-2 border-b border-slate-200 bg-white px-3 py-3">
+      <div className="flex min-h-[calc(100svh-8rem)] flex-1 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
+        <aside className="flex w-full max-w-[min(100%,280px)] flex-col border-r border-slate-200 bg-slate-50/80 dark:border-slate-700 dark:bg-slate-900/50 sm:max-w-[320px]">
+          <div className="flex flex-wrap items-start justify-between gap-2 border-b border-slate-200 bg-white px-3 py-3 dark:border-slate-700 dark:bg-slate-900">
             <div className="min-w-0">
-              <h2 className="text-sm font-bold text-[#0d5c2e]">Team chat</h2>
-              <p className="text-[11px] text-slate-500">Direct messages</p>
+              <h2 className="text-sm font-bold text-[#0d5c2e] dark:text-[#86efac]">
+                Team chat
+              </h2>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                Direct messages
+              </p>
             </div>
             <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
               <button
                 type="button"
-                className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+                className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                 aria-pressed={soundOn}
                 title={
                   soundOn
@@ -263,7 +268,7 @@ export function Chat() {
               </button>
               <button
                 type="button"
-                className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                 title={notifTitle}
                 disabled={notifDisabled}
                 onClick={async () => {
@@ -301,9 +306,9 @@ export function Chat() {
                 <Link
                   key={p}
                   to={`/chat/${encodeURIComponent(p)}`}
-                  className={`flex gap-2 border-b border-slate-100 px-3 py-2.5 transition-colors hover:bg-white ${
+                  className={`flex gap-2 border-b border-slate-100 px-3 py-2.5 transition-colors hover:bg-white dark:border-slate-800 dark:hover:bg-slate-800/60 ${
                     active
-                      ? 'bg-[#00B050]/10 ring-1 ring-inset ring-[#00B050]/25'
+                      ? 'bg-[#00B050]/10 ring-1 ring-inset ring-[#00B050]/25 dark:bg-[#00B050]/15'
                       : ''
                   }`}
                 >
@@ -317,30 +322,32 @@ export function Chat() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline justify-between gap-1">
-                      <span className="truncate text-xs font-semibold text-slate-900">
+                      <span className="truncate text-xs font-semibold text-slate-900 dark:text-slate-100">
                         {p}
                       </span>
                       {last ? (
-                        <span className="shrink-0 text-[10px] text-slate-500">
+                        <span className="shrink-0 text-[10px] text-slate-500 dark:text-slate-400">
                           {formatChatListTime(last.createdAt)}
                         </span>
                       ) : null}
                     </div>
-                    <p className="truncate text-[11px] text-slate-600">{preview}</p>
+                    <p className="truncate text-[11px] text-slate-600 dark:text-slate-300">
+                      {preview}
+                    </p>
                   </div>
                 </Link>
               )
             })}
           </div>
         </aside>
-        <section className="flex min-w-0 flex-1 flex-col bg-white">
+        <section className="flex min-w-0 flex-1 flex-col bg-white dark:bg-slate-950">
           {!peerDecoded ? (
-            <div className="flex flex-1 items-center justify-center text-sm text-slate-500">
+            <div className="flex flex-1 items-center justify-center text-sm text-slate-500 dark:text-slate-400">
               Select a teammate to start chatting
             </div>
           ) : !peers.some((p) => p.trim() === peerDecoded.trim()) ? (
             <div className="flex flex-1 flex-col items-center justify-center gap-2 p-4 text-center">
-              <p className="text-sm text-slate-600">
+              <p className="text-sm text-slate-600 dark:text-slate-300">
                 That teammate is not on the roster.
               </p>
               <Link
@@ -352,32 +359,34 @@ export function Chat() {
             </div>
           ) : (
             <>
-              <header className="border-b border-slate-200 bg-[#00B050]/8 px-4 py-3">
-                <h3 className="text-sm font-bold text-[#0d5c2e]">
+              <header className="border-b border-slate-200 bg-[#00B050]/8 px-4 py-3 dark:border-slate-700 dark:bg-[#00B050]/12">
+                <h3 className="text-sm font-bold text-[#0d5c2e] dark:text-[#86efac]">
                   {peerDecoded}
                 </h3>
-                <p className="text-[11px] text-slate-600">Direct message</p>
+                <p className="text-[11px] text-slate-600 dark:text-slate-400">
+                  Direct message
+                </p>
               </header>
               <div
                 ref={listRef}
                 className="flex-1 space-y-3 overflow-y-auto px-4 py-3"
               >
                 {activeMessages.length === 0 ? (
-                  <p className="text-center text-xs text-slate-500">
+                  <p className="text-center text-xs text-slate-500 dark:text-slate-400">
                     No messages yet — say hello.
                   </p>
                 ) : (
                   activeMessages.map((m) => (
                     <div key={m.id} className="flex gap-2">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-200 text-[10px] font-bold text-slate-700">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-200 text-[10px] font-bold text-slate-700 dark:bg-slate-700 dark:text-slate-200">
                         {initials(m.authorName)}
                       </div>
-                      <div className="min-w-0 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+                      <div className="min-w-0 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/80">
                         <div className="flex flex-wrap items-baseline gap-2">
-                          <span className="text-xs font-semibold text-[#0d5c2e]">
+                          <span className="text-xs font-semibold text-[#0d5c2e] dark:text-[#86efac]">
                             {m.authorName}
                           </span>
-                          <span className="text-[10px] text-slate-500">
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400">
                             {formatChatListTime(m.createdAt)}
                           </span>
                         </div>
@@ -393,7 +402,7 @@ export function Chat() {
               </div>
               <form
                 onSubmit={onFormSubmit}
-                className="border-t border-slate-200 bg-slate-50/50 p-3"
+                className="border-t border-slate-200 bg-slate-50/50 p-3 dark:border-slate-700 dark:bg-slate-900/50"
               >
                 <div className="flex gap-2">
                   <ChatComposer
