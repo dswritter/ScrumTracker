@@ -36,6 +36,7 @@ import { normalizeLoginUsername } from '../lib/username'
 import { mergeBundledSlackDefaults } from '../data/defaultSlackDmUrls'
 import { DEFAULT_NEW_TEAM_JIRA_SPRINT_FIELD_ID } from '../data/jiraDefaults'
 import { parseSlackDmUrlInput } from '../lib/slackDm'
+import { dmThreadKey } from '../lib/teamChat'
 
 /** Must match `persist.name` (localStorage key for cross-tab sync). */
 export const TRACKER_PERSIST_KEY = 'scrum-tracker-v2'
@@ -314,6 +315,40 @@ function patchSlice(
   }
 }
 
+function renameDisplayNameInChatThreads(
+  threads: Record<string, TeamChatMessage[]> | undefined,
+  oldName: string,
+  newName: string,
+): Record<string, TeamChatMessage[]> | undefined {
+  if (!threads || Object.keys(threads).length === 0) return threads
+  const o = oldName.trim()
+  const n = newName.trim()
+  if (o === n) return threads
+  const next: Record<string, TeamChatMessage[]> = {}
+  for (const [key, msgs] of Object.entries(threads)) {
+    const parts = key.split('|||')
+    let newKey = key
+    if (parts.length === 2) {
+      let a = parts[0]
+      let b = parts[1]
+      if (a === o) a = n
+      if (b === o) b = n
+      newKey = dmThreadKey(a, b)
+    }
+    const migrated = msgs.map((m) =>
+      m.authorName.trim() === o ? { ...m, authorName: n } : m,
+    )
+    if (next[newKey]) {
+      next[newKey] = [...next[newKey], ...migrated].sort((x, y) =>
+        x.createdAt.localeCompare(y.createdAt),
+      )
+    } else {
+      next[newKey] = migrated
+    }
+  }
+  return Object.keys(next).length > 0 ? next : undefined
+}
+
 export interface TrackerState {
   teams: TrackerTeam[]
   teamsData: Record<string, TrackerTeamData>
@@ -375,6 +410,13 @@ export interface TrackerState {
     userId: string,
     newPassword: string,
     mustChangePassword: boolean,
+  ) => { ok: true } | { ok: false; error: string }
+
+  /** Admin: change login username and/or roster display name (updates assignees, chat, Slack map). */
+  adminUpdateTeamMemberIdentity: (
+    teamId: string,
+    userId: string,
+    input: { username: string; displayName: string },
   ) => { ok: true } | { ok: false; error: string }
 
   completeFirstLoginPasswordChange: (
@@ -787,6 +829,88 @@ export const useTrackerStore = create<TrackerState>()(
               : x,
           ),
         })
+        return { ok: true }
+      },
+
+      adminUpdateTeamMemberIdentity: (teamId, userId, input) => {
+        const newUsername = normalizeLoginUsername(input.username)
+        const newDisplay = input.displayName.trim()
+        if (!newUsername || !newDisplay) {
+          return {
+            ok: false,
+            error: 'Username and full name are required.',
+          }
+        }
+        const s = get()
+        const target = s.users.find(
+          (x) => x.id === userId && x.teamId === teamId,
+        )
+        if (!target) return { ok: false, error: 'User not found.' }
+        if (
+          newUsername !== target.username &&
+          s.users.some((x) => x.username === newUsername)
+        ) {
+          return { ok: false, error: 'Username already exists.' }
+        }
+        const oldDisplay = target.displayName.trim()
+        if (newDisplay !== oldDisplay) {
+          const d = getSlice(s, teamId)
+          const nextMembers = d.teamMembers.map((m) =>
+            m === oldDisplay ? newDisplay : m,
+          )
+          if (new Set(nextMembers).size !== nextMembers.length) {
+            return {
+              ok: false,
+              error: 'That full name is already on the team roster.',
+            }
+          }
+          const slackPrev = d.slackDmUrlByDisplayName ?? {}
+          const nextSlack = { ...slackPrev }
+          if (slackPrev[oldDisplay] !== undefined) {
+            delete nextSlack[oldDisplay]
+            nextSlack[newDisplay] = slackPrev[oldDisplay]
+          }
+          const nextWork = d.workItems.map((w) => ({
+            ...w,
+            assignees: w.assignees.map((a) =>
+              a.trim() === oldDisplay ? newDisplay : a,
+            ),
+            comments: w.comments.map((c) =>
+              c.authorName.trim() === oldDisplay
+                ? { ...c, authorName: newDisplay }
+                : c,
+            ),
+          }))
+          const nextThreads = renameDisplayNameInChatThreads(
+            d.teamChatThreads,
+            oldDisplay,
+            newDisplay,
+          )
+          set({
+            users: s.users.map((x) =>
+              x.id === userId && x.teamId === teamId
+                ? { ...x, username: newUsername, displayName: newDisplay }
+                : x,
+            ),
+            teamsData: patchSlice(s, teamId, {
+              teamMembers: [...nextMembers].sort((a, b) => a.localeCompare(b)),
+              workItems: nextWork,
+              slackDmUrlByDisplayName:
+                Object.keys(nextSlack).length > 0 ? nextSlack : undefined,
+              teamChatThreads: nextThreads,
+            }),
+          })
+          return { ok: true }
+        }
+        if (newUsername !== target.username) {
+          set({
+            users: s.users.map((x) =>
+              x.id === userId && x.teamId === teamId
+                ? { ...x, username: newUsername }
+                : x,
+            ),
+          })
+        }
         return { ok: true }
       },
 

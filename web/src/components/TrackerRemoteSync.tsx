@@ -1,4 +1,8 @@
 import { useEffect } from 'react'
+import {
+  readPersistedTrackerServerRev,
+  writePersistedTrackerServerRev,
+} from '../lib/trackerSyncRev'
 import { isTrackerSyncEnabled } from '../lib/syncConfigured'
 import { syncApiBaseUrl, syncFetch, syncTrackerWebSocketUrl } from '../lib/syncFetch'
 import { useTrackerStore } from '../store/useTrackerStore'
@@ -19,7 +23,7 @@ export function TrackerRemoteSync() {
     const base = syncApiBaseUrl() || '(same-origin)'
     let cancelled = false
     let applyingRemote = false
-    let lastRev = 0
+    let lastRev = readPersistedTrackerServerRev()
     let pushTimer: ReturnType<typeof setTimeout> | null = null
     let pulling = false
     let wsLive = false
@@ -57,7 +61,10 @@ export function TrackerRemoteSync() {
           return false
         }
         const j = (await res.json()) as { rev?: number }
-        if (typeof j.rev === 'number') lastRev = j.rev
+        if (typeof j.rev === 'number') {
+          lastRev = j.rev
+          writePersistedTrackerServerRev(lastRev)
+        }
         pendingReconnectFlush = false
         return true
       } catch (e) {
@@ -88,7 +95,10 @@ export function TrackerRemoteSync() {
             return
           }
           const j = (await res.json()) as { rev?: number }
-          if (typeof j.rev === 'number') lastRev = j.rev
+          if (typeof j.rev === 'number') {
+            lastRev = j.rev
+            writePersistedTrackerServerRev(lastRev)
+          }
           pendingReconnectFlush = false
         } catch (e) {
           if (import.meta.env.DEV) {
@@ -153,6 +163,7 @@ export function TrackerRemoteSync() {
         if (rev < lastRev) return
         if (rev === lastRev) return
         lastRev = rev
+        writePersistedTrackerServerRev(lastRev)
         if (data.snapshot && data.snapshot.length >= 20) {
           applyingRemote = true
           useTrackerStore.getState().importSnapshotJson(data.snapshot)

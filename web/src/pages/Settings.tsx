@@ -8,6 +8,76 @@ import { runJiraSyncFromStore } from '../lib/runJiraSync'
 import { isTrackerSyncEnabled } from '../lib/syncConfigured'
 import { useTrackerStore } from '../store/useTrackerStore'
 
+function MemberIdentityEditor({
+  u,
+  teamId,
+  fieldClass,
+  adminUpdateTeamMemberIdentity,
+  onMessage,
+}: {
+  u: TrackerUserAccount
+  teamId: string
+  fieldClass: string
+  adminUpdateTeamMemberIdentity: (
+    teamId: string,
+    userId: string,
+    input: { username: string; displayName: string },
+  ) => { ok: true } | { ok: false; error: string }
+  onMessage: (msg: string | null) => void
+}) {
+  const [username, setUsername] = useState(u.username)
+  const [displayName, setDisplayName] = useState(u.displayName)
+
+  useEffect(() => {
+    setUsername(u.username)
+    setDisplayName(u.displayName)
+  }, [u.id, u.username, u.displayName])
+
+  return (
+    <div className="flex w-full flex-col gap-2 border-b border-slate-100 pb-3 dark:border-slate-800 sm:flex-row sm:flex-wrap sm:items-end">
+      <div className="min-w-[10rem] flex-1">
+        <label className="text-[10px] font-semibold text-slate-600 dark:text-slate-400">
+          Login username
+        </label>
+        <input
+          className={`${fieldClass} mt-0.5 font-mono text-xs`}
+          autoComplete="off"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+        />
+      </div>
+      <div className="min-w-[12rem] flex-[2]">
+        <label className="text-[10px] font-semibold text-slate-600 dark:text-slate-400">
+          Full name (roster &amp; assignees)
+        </label>
+        <input
+          className={`${fieldClass} mt-0.5`}
+          value={displayName}
+          onChange={(e) => setDisplayName(e.target.value)}
+        />
+      </div>
+      <button
+        type="button"
+        className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+        onClick={() => {
+          onMessage(null)
+          const r = adminUpdateTeamMemberIdentity(teamId, u.id, {
+            username,
+            displayName,
+          })
+          if (!r.ok) {
+            onMessage(r.error)
+            return
+          }
+          onMessage('Profile updated.')
+        }}
+      >
+        Save username &amp; name
+      </button>
+    </div>
+  )
+}
+
 export function Settings() {
   const location = useLocation()
   const user = useCurrentUser()
@@ -23,6 +93,9 @@ export function Settings() {
   const removeUser = useTrackerStore((s) => s.removeUser)
   const setUserRole = useTrackerStore((s) => s.setUserRole)
   const adminSetUserPassword = useTrackerStore((s) => s.adminSetUserPassword)
+  const adminUpdateTeamMemberIdentity = useTrackerStore(
+    (s) => s.adminUpdateTeamMemberIdentity,
+  )
   const setTeamName = useTrackerStore((s) => s.setTeamName)
   const setJiraBaseUrl = useTrackerStore((s) => s.setJiraBaseUrl)
   const setJiraSyncJql = useTrackerStore((s) => s.setJiraSyncJql)
@@ -231,6 +304,13 @@ export function Settings() {
                 key={u.id}
                 className="flex flex-col gap-2 px-3 py-3 text-sm sm:flex-row sm:flex-wrap sm:items-center"
               >
+                <MemberIdentityEditor
+                  u={u}
+                  teamId={teamId}
+                  fieldClass={field}
+                  adminUpdateTeamMemberIdentity={adminUpdateTeamMemberIdentity}
+                  onMessage={setUserMsg}
+                />
                 <div className="min-w-0 flex-1">
                   <span className="font-semibold text-slate-900 dark:text-slate-100">
                     {u.displayName}
