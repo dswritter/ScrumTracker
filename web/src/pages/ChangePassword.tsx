@@ -67,8 +67,9 @@ export function ChangePassword() {
             Set your password
           </h1>
           <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-            Enter the <strong>master password</strong> your admin gave you, then
-            choose a new password (at least 8 characters) and confirm it.
+            Enter the <strong>temporary password</strong> your admin gave you
+            (out of band), then choose a new password (at least 8 characters)
+            and confirm it.
           </p>
         </div>
 
@@ -78,7 +79,7 @@ export function ChangePassword() {
         >
           <PasswordField
             id="m"
-            label="Master password"
+            label="Temporary password"
             autoComplete="off"
             value={master}
             onChange={setMaster}
@@ -123,9 +124,10 @@ export function ChangePassword() {
           Change password
         </h1>
         <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-          Use your <strong>current password</strong>, or the{' '}
-          <strong>master password</strong> your administrator can look up in{' '}
-          <strong>Settings</strong> (same value shown next to your account).
+          Use your <strong>current password</strong>, or a{' '}
+          <strong>temporary password</strong> an admin issues for you in{' '}
+          <strong>Admin settings</strong> and shares out of band (admins never
+          see your chosen password).
         </p>
       </div>
 
@@ -156,7 +158,7 @@ export function ChangePassword() {
             setError(null)
           }}
         >
-          Use master password
+          Temporary password from admin
         </button>
       </div>
 
@@ -176,14 +178,15 @@ export function ChangePassword() {
           <>
             <PasswordField
               id="mast"
-              label="Master password (from admin)"
+              label="Temporary password (from admin)"
               autoComplete="off"
               value={master}
               onChange={setMaster}
             />
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              If you forgot your login password, ask an admin to confirm the
-              password listed for you in Settings, or reset it there first.
+              If you forgot your login password, ask an admin to use{' '}
+              <strong>Issue temp password</strong> for your account and send you
+              the value securely.
             </p>
           </>
         )}

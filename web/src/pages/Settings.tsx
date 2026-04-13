@@ -92,7 +92,9 @@ export function Settings() {
   const addTeamMemberAccount = useTrackerStore((s) => s.addTeamMemberAccount)
   const removeUser = useTrackerStore((s) => s.removeUser)
   const setUserRole = useTrackerStore((s) => s.setUserRole)
-  const adminSetUserPassword = useTrackerStore((s) => s.adminSetUserPassword)
+  const adminIssueTemporaryPassword = useTrackerStore(
+    (s) => s.adminIssueTemporaryPassword,
+  )
   const adminUpdateTeamMemberIdentity = useTrackerStore(
     (s) => s.adminUpdateTeamMemberIdentity,
   )
@@ -178,10 +180,10 @@ export function Settings() {
   const [uSlack, setUSlack] = useState('')
   const [uRole, setURole] = useState<TrackerUserAccount['role']>('member')
   const [userMsg, setUserMsg] = useState<string | null>(null)
-  /** Per-user: reveal password text on roster (default hidden). */
-  const [passwordVisibleByUserId, setPasswordVisibleByUserId] = useState<
-    Record<string, boolean>
-  >({})
+  /** Expanded roster rows (compact by default). */
+  const [rosterExpanded, setRosterExpanded] = useState<Record<string, boolean>>(
+    {},
+  )
 
   const field =
     'w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100'
@@ -205,7 +207,7 @@ export function Settings() {
     setUSlack('')
     setURole('member')
     setUserMsg(
-      `Account created. Give this one-time master password to the teammate: ${r.generatedPassword}`,
+      `Account created. Give this one-time temporary password to the teammate: ${r.generatedPassword}`,
     )
   }
 
@@ -296,153 +298,151 @@ export function Settings() {
           </p>
         ) : null}
 
+        <p className="text-xs text-slate-600 dark:text-slate-400">
+          Passwords are not shown here. When someone needs a reset, use{' '}
+          <strong>Issue temp password</strong>—share the one-time code offline; they
+          sign in and set their own password, then the temp code stops working.
+        </p>
+
         <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200 dark:divide-slate-700 dark:border-slate-600">
           {teamUsers.map((u) => {
             const adminCount = teamUsers.filter((x) => x.role === 'admin').length
+            const expanded = rosterExpanded[u.id] ?? false
             return (
-              <li
-                key={u.id}
-                className="flex flex-col gap-2 px-3 py-3 text-sm sm:flex-row sm:flex-wrap sm:items-center"
-              >
-                <MemberIdentityEditor
-                  u={u}
-                  teamId={teamId}
-                  fieldClass={field}
-                  adminUpdateTeamMemberIdentity={adminUpdateTeamMemberIdentity}
-                  onMessage={setUserMsg}
-                />
-                <div className="min-w-0 flex-1">
-                  <span className="font-semibold text-slate-900 dark:text-slate-100">
-                    {u.displayName}
-                  </span>
-                  <span className="ml-2 text-slate-500 dark:text-slate-400">
-                    @{u.username}
-                  </span>
-                  <span
-                    className={`ml-2 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${
-                      u.role === 'admin'
-                        ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200'
-                        : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
-                    }`}
-                  >
-                    {u.role}
-                  </span>
-                  {u.mustChangePassword ? (
-                    <span className="ml-2 text-[10px] font-semibold text-amber-700 dark:text-amber-400">
-                      Must change password
-                    </span>
-                  ) : null}
-                </div>
-                <div className="flex flex-wrap items-center gap-2 font-mono text-xs text-slate-700 dark:text-slate-200">
-                  <span className="text-slate-500 dark:text-slate-400">
-                    Password:{' '}
-                  </span>
-                  <span
-                    className={`min-w-[6ch] ${passwordVisibleByUserId[u.id] ? '' : 'select-none'}`}
-                  >
-                    {passwordVisibleByUserId[u.id]
-                      ? u.password
-                      : '\u2022'.repeat(8)}
-                  </span>
+              <li key={u.id} className="text-sm">
+                <div className="flex items-center gap-2 px-3 py-2.5">
                   <button
                     type="button"
-                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
-                    title={
-                      passwordVisibleByUserId[u.id]
-                        ? 'Hide password'
-                        : 'Show password'
-                    }
-                    aria-label={
-                      passwordVisibleByUserId[u.id]
-                        ? 'Hide password'
-                        : 'Show password'
-                    }
-                    aria-pressed={passwordVisibleByUserId[u.id] ?? false}
+                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
+                    aria-expanded={expanded}
+                    title={expanded ? 'Collapse' : 'Expand'}
+                    aria-label={expanded ? 'Collapse details' : 'Expand details'}
                     onClick={() =>
-                      setPasswordVisibleByUserId((prev) => ({
+                      setRosterExpanded((prev) => ({
                         ...prev,
-                        [u.id]: !prev[u.id],
+                        [u.id]: !expanded,
                       }))
                     }
                   >
                     <i
-                      className={
-                        passwordVisibleByUserId[u.id]
-                          ? 'fa-solid fa-eye-slash'
-                          : 'fa-solid fa-eye'
-                      }
+                      className={`fa-solid ${expanded ? 'fa-chevron-down' : 'fa-chevron-right'} text-xs`}
                       aria-hidden
                     />
                   </button>
+                  <div className="min-w-0 flex-1">
+                    <span className="font-semibold text-slate-900 dark:text-slate-100">
+                      {u.displayName}
+                    </span>
+                    <span className="ml-2 text-slate-500 dark:text-slate-400">
+                      @{u.username}
+                    </span>
+                    <span
+                      className={`ml-2 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${
+                        u.role === 'admin'
+                          ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200'
+                          : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
+                      }`}
+                    >
+                      {u.role}
+                    </span>
+                    {u.mustChangePassword ? (
+                      <span className="ml-2 text-[10px] font-semibold text-amber-700 dark:text-amber-400">
+                        Must change password
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
-                <div className="w-full max-w-sm flex-[1_1_100%]">
-                  <label className="text-[10px] font-semibold text-slate-600 dark:text-slate-400">
-                    Slack Chat URL (optional)
-                  </label>
-                  <input
-                    className={`${field} mt-0.5 max-w-full font-mono text-[11px]`}
-                    defaultValue={u.slackChatUrl ?? ''}
-                    key={`${u.id}-slack-${u.slackChatUrl ?? ''}`}
-                    placeholder="Example: https://adobe.enterprise.slack.com/archives/D03LAMQPDEW"
-                    onBlur={(e) => {
-                      const r = setUserSlackChatUrl(teamId, u.id, e.target.value)
-                      if (!r.ok) setUserMsg(r.error)
-                    }}
-                  />
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    className="rounded border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
-                    onClick={() => {
-                      const pw = prompt(`New password for @${u.username} (min 8 chars):`)
-                      if (pw !== null && pw.trim()) {
-                        const r = adminSetUserPassword(
-                          teamId,
-                          u.id,
-                          pw.trim(),
-                          false,
-                        )
-                        if (!r.ok) alert(r.error)
+                {expanded ? (
+                  <div className="space-y-3 border-t border-slate-100 px-3 pb-3 pt-2 dark:border-slate-800">
+                    <MemberIdentityEditor
+                      u={u}
+                      teamId={teamId}
+                      fieldClass={field}
+                      adminUpdateTeamMemberIdentity={
+                        adminUpdateTeamMemberIdentity
                       }
-                    }}
-                  >
-                    Set password
-                  </button>
-                  {u.role === 'member' ? (
-                    <button
-                      type="button"
-                      className="rounded border border-indigo-200 px-2 py-1 text-xs font-semibold text-indigo-800 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-200 dark:hover:bg-indigo-950/60"
-                      onClick={() => setUserRole(teamId, u.id, 'admin')}
-                    >
-                      Make admin
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      className="rounded border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40"
-                      disabled={adminCount <= 1}
-                      onClick={() => setUserRole(teamId, u.id, 'member')}
-                    >
-                      Remove admin
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    className="rounded border border-rose-200 px-2 py-1 text-xs font-semibold text-rose-800 hover:bg-rose-50 disabled:opacity-40 dark:border-rose-900 dark:text-rose-300 dark:hover:bg-rose-950/50"
-                    disabled={u.role === 'admin' && adminCount <= 1}
-                    onClick={() => {
-                      if (
-                        confirm(
-                          `Delete login for @${u.username}? They can no longer sign in.`,
-                        )
-                      )
-                        removeUser(teamId, u.id)
-                    }}
-                  >
-                    Delete account
-                  </button>
-                </div>
+                      onMessage={setUserMsg}
+                    />
+                    <div className="w-full max-w-lg">
+                      <label className="text-[10px] font-semibold text-slate-600 dark:text-slate-400">
+                        Slack Chat URL (optional)
+                      </label>
+                      <input
+                        className={`${field} mt-0.5 max-w-full font-mono text-[11px]`}
+                        defaultValue={u.slackChatUrl ?? ''}
+                        key={`${u.id}-slack-${u.slackChatUrl ?? ''}`}
+                        placeholder="Example: https://adobe.enterprise.slack.com/archives/D03LAMQPDEW"
+                        onBlur={(e) => {
+                          const r = setUserSlackChatUrl(
+                            teamId,
+                            u.id,
+                            e.target.value,
+                          )
+                          if (!r.ok) setUserMsg(r.error)
+                        }}
+                      />
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        className="rounded border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+                        onClick={() => {
+                          if (
+                            !confirm(
+                              `Issue a one-time temporary password for @${u.username}? Share it securely offline; they must choose a new password at sign-in.`,
+                            )
+                          ) {
+                            return
+                          }
+                          const r = adminIssueTemporaryPassword(teamId, u.id)
+                          if (!r.ok) {
+                            setUserMsg(r.error)
+                            return
+                          }
+                          setUserMsg(null)
+                          window.alert(
+                            `Temporary password for @${u.username} (${u.displayName}):\n\n${r.temporaryPassword}\n\nShare this offline only. It stops working after they set a new password.`,
+                          )
+                        }}
+                      >
+                        Issue temp password
+                      </button>
+                      {u.role === 'member' ? (
+                        <button
+                          type="button"
+                          className="rounded border border-indigo-200 px-2 py-1 text-xs font-semibold text-indigo-800 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-200 dark:hover:bg-indigo-950/60"
+                          onClick={() => setUserRole(teamId, u.id, 'admin')}
+                        >
+                          Make admin
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="rounded border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+                          disabled={adminCount <= 1}
+                          onClick={() => setUserRole(teamId, u.id, 'member')}
+                        >
+                          Remove admin
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="rounded border border-rose-200 px-2 py-1 text-xs font-semibold text-rose-800 hover:bg-rose-50 disabled:opacity-40 dark:border-rose-900 dark:text-rose-300 dark:hover:bg-rose-950/50"
+                        disabled={u.role === 'admin' && adminCount <= 1}
+                        onClick={() => {
+                          if (
+                            confirm(
+                              `Delete login for @${u.username}? They can no longer sign in.`,
+                            )
+                          )
+                            removeUser(teamId, u.id)
+                        }}
+                      >
+                        Delete account
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
               </li>
             )
           })}

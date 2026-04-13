@@ -5,9 +5,9 @@ Phase 1 is a **static single-page app**. All teams, sprints, work items, and use
 ## Teams and auth
 
 - **Multiple teams**: Each team has its own sprints, items, roster, and JIRA base URL. Users belong to exactly one `teamId` and only ever load that team’s data after sign-in.
-- **New team**: Use **Create a new team (admin)** on the sign-in page (`/register`). That creates a workspace and an admin account (LDAP-style username + password you choose). The password is also visible later under **Settings** for that admin.
-- **Seed sample team** (“Color & Graphics”): Admin **`chakraba`** / **`12345678`** (display name Saikat Chakrabarty). Members get an auto-generated **8-character master password** (`mustChangePassword: true`); the admin sees it when creating the account and in Settings. On first sign-in, members must enter the master password and set a new password (≥ 8 characters).
-- **Change password anytime:** signed-in users can open **Change password** in the header. They can use their **current password**, or the **master password** (same value the admin sees in Settings) if they forgot their login password.
+- **New team**: Use **Create a new team (admin)** on the sign-in page (`/register`). That creates a workspace and an admin account (LDAP-style username + password you choose). That admin password is only what you set at registration (it is not displayed again in the UI).
+- **Seed sample team** (“Color & Graphics”): Admin **`chakraba`** / **`12345678`** (display name Saikat Chakrabarty). New members get an auto-generated **8-character temporary password** (`mustChangePassword: true`); the admin can issue a new temporary password from **Admin settings** (one-time use until the member sets their own password). On first sign-in, members enter that temporary password and set a new password (≥ 8 characters).
+- **Change password anytime:** signed-in users can open **Change password** in the header. They can use their **current password**, or a **temporary password** an admin issues in **Admin settings** and shares out of band if they forgot their login password.
 - **Sprints** are created automatically when the current sprint is within 10 days of ending. **Non-done** work on a sprint whose end date has passed is **rolled forward** to the next sprint in order. There is no separate Sprints admin page.
 - **Roster** is driven by **login accounts** (display names). The old “Team roster” section was removed.
 

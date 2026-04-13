@@ -412,6 +412,17 @@ export interface TrackerState {
     mustChangePassword: boolean,
   ) => { ok: true } | { ok: false; error: string }
 
+  /**
+   * Admin: issue a one-time temporary password (`mustChangePassword` true).
+   * User must set their own password at sign-in; share the temp value offline only.
+   */
+  adminIssueTemporaryPassword: (
+    teamId: string,
+    userId: string,
+  ) =>
+    | { ok: true; temporaryPassword: string }
+    | { ok: false; error: string }
+
   /** Admin: change login username and/or roster display name (updates assignees, chat, Slack map). */
   adminUpdateTeamMemberIdentity: (
     teamId: string,
@@ -830,6 +841,25 @@ export const useTrackerStore = create<TrackerState>()(
           ),
         })
         return { ok: true }
+      },
+
+      adminIssueTemporaryPassword: (teamId, userId) => {
+        const s = get()
+        const u = s.users.find((x) => x.id === userId && x.teamId === teamId)
+        if (!u) return { ok: false, error: 'User not found.' }
+        const temporaryPassword = generateMasterPassword8()
+        set({
+          users: s.users.map((x) =>
+            x.id === userId && x.teamId === teamId
+              ? {
+                  ...x,
+                  password: temporaryPassword,
+                  mustChangePassword: true,
+                }
+              : x,
+          ),
+        })
+        return { ok: true, temporaryPassword }
       },
 
       adminUpdateTeamMemberIdentity: (teamId, userId, input) => {
