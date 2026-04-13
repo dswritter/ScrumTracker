@@ -92,24 +92,26 @@ export function WorkItemTitleLink({
   const panel =
     showCommentHover && open ? (
       <div
-        className="fixed z-[100] w-[min(20rem,calc(100vw-1rem))] rounded-lg border border-slate-200 bg-white p-2 text-left shadow-lg"
+        className="fixed z-[100] w-[min(20rem,calc(100vw-1rem))] rounded-lg border border-slate-200 bg-white p-2 text-left shadow-lg dark:border-slate-600 dark:bg-slate-900"
         style={{ top: pos.top, left: pos.left }}
         role="tooltip"
         onMouseEnter={onEnterPanel}
         onMouseLeave={scheduleHide}
       >
         {sortedComments.length === 0 ? (
-          <p className="text-[11px] text-slate-500">No comments yet.</p>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400">
+            No comments yet.
+          </p>
         ) : (
           <>
-            <ul className="max-h-48 space-y-2 overflow-y-auto text-[11px] text-slate-800">
+            <ul className="max-h-48 space-y-2 overflow-y-auto text-[11px] text-slate-800 dark:text-slate-100">
               {sortedComments.map((c) => (
                 <li
                   key={c.id}
-                  className="border-b border-slate-100 pb-2 last:border-b-0 last:pb-0"
+                  className="border-b border-slate-100 pb-2 last:border-b-0 last:pb-0 dark:border-slate-700"
                 >
                   <span className="block font-medium leading-snug">{c.body}</span>
-                  <span className="mt-0.5 block text-[10px] text-slate-500">
+                  <span className="mt-0.5 block text-[10px] text-slate-500 dark:text-slate-400">
                     {c.authorName} · {formatIsoDateTime(c.createdAt)}
                   </span>
                 </li>

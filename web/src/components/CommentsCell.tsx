@@ -42,7 +42,7 @@ export function CommentsCell({
     <div className="group relative w-44">
       <button
         type="button"
-        className="w-full rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-left text-[11px] text-slate-700 hover:bg-slate-100"
+        className="w-full rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-left text-[11px] text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-200 dark:hover:bg-slate-800"
         onClick={() => setOpen(true)}
       >
         <span className="font-semibold text-slate-800">
@@ -63,14 +63,19 @@ export function CommentsCell({
         )}
       </button>
       {comments.length > 0 ? (
-        <div className="pointer-events-none absolute left-0 top-full z-30 mt-1 hidden w-72 max-w-[85vw] rounded-lg border border-slate-200 bg-white p-2 text-[10px] text-slate-700 shadow-lg group-hover:block">
+        <div className="pointer-events-none absolute left-0 top-full z-30 mt-1 hidden w-72 max-w-[85vw] rounded-lg border border-slate-200 bg-white p-2 text-[10px] text-slate-700 shadow-lg group-hover:block dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">
           <p className="mb-1 font-bold uppercase tracking-wide text-slate-500">
             Recent
           </p>
           <ul className="max-h-28 space-y-1.5 overflow-y-auto">
             {comments.slice(-5).map((c) => (
-              <li key={c.id} className="list-inside list-disc marker:text-indigo-500">
-                <span className="font-medium text-slate-900">{c.body}</span>
+              <li
+                key={c.id}
+                className="list-inside list-disc marker:text-indigo-500 dark:marker:text-sky-300"
+              >
+                <span className="font-medium text-slate-900 dark:text-slate-100">
+                  {c.body}
+                </span>
                 <span className="mt-0.5 block pl-3 text-slate-500">
                   {c.authorName} · {formatDate(c.createdAt)}
                 </span>
@@ -91,12 +96,14 @@ export function CommentsCell({
           }}
         >
           <div
-            className="max-h-[min(85vh,560px)] w-full max-w-lg overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl"
+            className="max-h-[min(85vh,560px)] w-full max-w-lg overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl dark:border-slate-600 dark:bg-slate-900"
             onMouseDown={(e) => e.stopPropagation()}
           >
-            <div className="border-b border-slate-100 px-4 py-3">
-              <h3 className="text-sm font-bold text-slate-900">Comments</h3>
-              <p className="text-xs text-slate-500">
+            <div className="border-b border-slate-100 px-4 py-3 dark:border-slate-700">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                Comments
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 {canDeleteComment
                   ? 'Admins can remove individual comments. Add updates below.'
                   : 'Add updates below.'}
@@ -106,9 +113,11 @@ export function CommentsCell({
               {comments.map((c) => (
                 <li
                   key={c.id}
-                  className="group relative list-inside list-disc pr-7 text-slate-800 marker:text-indigo-500"
+                  className="group relative list-inside list-disc pr-7 text-slate-800 marker:text-indigo-500 dark:text-slate-100 dark:marker:text-sky-300"
                 >
-                  <span className="font-medium text-slate-900">{c.body}</span>
+                  <span className="font-medium text-slate-900 dark:text-slate-100">
+                    {c.body}
+                  </span>
                   <span className="mt-0.5 block text-xs text-slate-500">
                     {c.authorName} · {formatDate(c.createdAt)}
                   </span>

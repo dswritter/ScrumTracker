@@ -34,12 +34,14 @@ export function PersonProgressBar({
   const nameEl = to ? (
     <Link
       to={to}
-      className="min-w-0 truncate font-semibold text-slate-900 hover:text-[#007a3d] hover:underline"
+           className="min-w-0 truncate font-semibold text-slate-900 hover:text-[#007a3d] hover:underline dark:text-slate-100 dark:hover:text-emerald-300"
     >
       {name}
     </Link>
   ) : (
-    <span className="min-w-0 truncate font-semibold text-slate-900">{name}</span>
+    <span className="min-w-0 truncate font-semibold text-slate-900 dark:text-slate-100">
+      {name}
+    </span>
   )
 
   return (

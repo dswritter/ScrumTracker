@@ -220,7 +220,7 @@ export function ChangePassword() {
       <p className="text-center text-sm">
         <Link
           to={home}
-          className="font-medium text-indigo-700 hover:underline dark:text-indigo-400"
+          className="font-medium text-indigo-700 hover:underline dark:text-slate-100 dark:hover:text-white"
         >
           Cancel
         </Link>

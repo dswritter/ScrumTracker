@@ -71,7 +71,10 @@ export function ItemDetail() {
       <div className="space-y-4">
         <p className="text-slate-600">
           No work item found for this link.{' '}
-          <Link to="/items" className="font-semibold text-indigo-700 underline">
+          <Link
+            to="/items"
+            className="font-semibold text-indigo-700 underline dark:text-slate-100 dark:hover:text-white"
+          >
             Back to work items
           </Link>
         </p>
@@ -94,7 +97,7 @@ export function ItemDetail() {
       <div className="flex flex-wrap items-center gap-3">
         <Link
           to="/items"
-          className="text-sm font-semibold text-indigo-700 hover:text-indigo-900"
+          className="text-sm font-semibold text-indigo-700 hover:text-indigo-900 dark:text-slate-100 dark:hover:text-white"
         >
           ← Work items
         </Link>
@@ -108,7 +111,7 @@ export function ItemDetail() {
       ) : null}
 
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
           {item.title || '(untitled)'}
         </h1>
         <div className="mt-3 flex flex-wrap items-center gap-2 gap-y-2">
@@ -139,7 +142,7 @@ export function ItemDetail() {
             <h2 className="text-xs font-bold uppercase tracking-wide text-slate-500">
               Assignees
             </h2>
-            <p className="mt-2 text-sm text-slate-900">
+            <p className="mt-2 text-sm text-slate-900 dark:text-slate-100">
               {item.assignees.length
                 ? item.assignees.join(', ')
                 : '—'}
@@ -150,7 +153,7 @@ export function ItemDetail() {
           <h2 className="text-xs font-bold uppercase tracking-wide text-slate-500">
             Sprints
           </h2>
-          <p className="mt-2 text-sm text-slate-900">
+          <p className="mt-2 text-sm text-slate-900 dark:text-slate-100">
             {item.sprintIds.length
               ? item.sprintIds.map((id) => sprintLabel(sprints, id)).join(', ')
               : '—'}
@@ -173,12 +176,14 @@ export function ItemDetail() {
                     href={jiraHref(jiraBaseUrl, k)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex rounded-md bg-indigo-50 px-2 py-1 text-sm font-semibold text-indigo-900 ring-1 ring-indigo-100 hover:underline"
+                    className="inline-flex rounded-md bg-indigo-50 px-2 py-1 text-sm font-semibold text-indigo-900 ring-1 ring-indigo-100 hover:underline dark:bg-slate-800 dark:text-sky-100 dark:ring-slate-600"
                   >
                     {k}
                   </a>
                 ) : (
-                  <span className="text-sm font-medium text-slate-800">{k}</span>
+                  <span className="text-sm font-medium text-slate-800 dark:text-slate-100">
+                    {k}
+                  </span>
                 )}
               </li>
             ))}
@@ -199,7 +204,9 @@ export function ItemDetail() {
                 key={c.id}
                 className="group relative text-sm pr-8"
               >
-                <p className="font-medium text-slate-900">{c.body}</p>
+                <p className="font-medium text-slate-900 dark:text-slate-100">
+                  {c.body}
+                </p>
                 <p className="mt-1 text-xs text-slate-500">
                   {c.authorName} · {formatIsoDateTime(c.createdAt)}
                 </p>
@@ -259,7 +266,7 @@ export function ItemDetail() {
 
       {!readOnly && otherItems.length > 0 ? (
         <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800/50">
-          <h2 className="text-sm font-bold text-slate-900">
+          <h2 className="text-sm font-bold text-slate-900 dark:text-slate-50">
             Other items (shared assignees)
           </h2>
           <p className="mt-1 text-xs text-slate-600">
@@ -275,7 +282,7 @@ export function ItemDetail() {
                 <WorkItemTitleLink
                   item={w}
                   showCommentHover={isAdmin(user)}
-                  className="min-w-0 flex-1 font-medium text-indigo-700 hover:text-indigo-900"
+                  className="min-w-0 flex-1 font-medium text-indigo-700 hover:text-indigo-900 dark:text-slate-100 dark:hover:text-white"
                 />
                 <StatusBadge status={w.status} />
               </li>

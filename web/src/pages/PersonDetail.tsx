@@ -55,7 +55,10 @@ export function PersonDetail() {
     return (
       <p className="text-slate-600">
         Missing person.{' '}
-        <Link to="/people" className="text-indigo-700 underline">
+        <Link
+          to="/people"
+          className="text-indigo-700 underline dark:text-slate-100 dark:hover:text-white"
+        >
           Back
         </Link>
       </p>
@@ -92,7 +95,7 @@ export function PersonDetail() {
                 ? '/me'
                 : '/'
           }
-          className="text-sm font-semibold text-indigo-700 hover:text-indigo-900"
+          className="text-sm font-semibold text-indigo-700 hover:text-indigo-900 dark:text-slate-100 dark:hover:text-white"
         >
           {isAdmin(viewer)
             ? '← People'
@@ -103,7 +106,7 @@ export function PersonDetail() {
         {dashboardQs ? (
           <Link
             to={`/?${dashboardQs}`}
-            className="text-sm font-semibold text-indigo-700 hover:text-indigo-900"
+            className="text-sm font-semibold text-indigo-700 hover:text-indigo-900 dark:text-slate-100 dark:hover:text-white"
           >
             Dashboard (this scope)
           </Link>
@@ -112,7 +115,7 @@ export function PersonDetail() {
 
       <div>
         <div className="flex flex-wrap items-center gap-3">
-          <h2 className="text-2xl font-bold tracking-tight text-slate-900">
+          <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
             {name}
           </h2>
           {slackUrl ? (
@@ -136,13 +139,13 @@ export function PersonDetail() {
         {scope.type !== 'all' ? (
           <p className="mt-2 text-sm text-slate-600">
             Scoped to{' '}
-            <span className="font-semibold text-slate-800">
+            <span className="font-semibold text-slate-800 dark:text-slate-100">
               {scopeShortLabel(scope, ctx.sprints)}
             </span>
             .
             <Link
               to={`/people/${encodeURIComponent(name)}`}
-              className="ml-2 font-medium text-indigo-700 underline"
+              className="ml-2 font-medium text-indigo-700 underline dark:text-slate-100 dark:hover:text-white"
             >
               Show all time
             </Link>
@@ -170,13 +173,13 @@ export function PersonDetail() {
               <WorkItemTitleLink
                 item={w}
                 showCommentHover={viewingSelf && isAdmin(viewer)}
-                className="min-w-0 flex-1 font-medium text-indigo-700 hover:text-indigo-900"
+                className="min-w-0 flex-1 font-medium text-indigo-700 hover:text-indigo-900 dark:text-slate-100 dark:hover:text-white"
               />
               <StatusBadge status={w.status} />
               {viewingSelf ? (
                 <Link
                   to={buildItemsHref(scope)}
-                  className="text-xs font-semibold text-indigo-700 hover:underline"
+                  className="text-xs font-semibold text-indigo-700 hover:underline dark:text-slate-100 dark:hover:text-white"
                 >
                   Edit in table
                 </Link>

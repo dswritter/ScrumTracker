@@ -63,7 +63,7 @@ export function People() {
                       <WorkItemTitleLink
                         item={w}
                         showCommentHover
-                        className="min-w-0 flex-1 font-medium text-indigo-700 hover:text-indigo-900"
+                        className="min-w-0 flex-1 font-medium text-indigo-700 hover:text-indigo-900 dark:text-slate-100 dark:hover:text-white"
                       />
                       <StatusBadge status={w.status} />
                     </li>
@@ -94,7 +94,7 @@ export function People() {
               <li key={name}>
                 <Link
                   to={`/people/${encodeURIComponent(name)}`}
-                  className="inline-block rounded-full border border-slate-200 bg-white px-3 py-1 text-sm font-medium text-slate-800 shadow-sm hover:border-indigo-200 hover:text-indigo-800 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:border-indigo-500 dark:hover:text-indigo-300"
+                  className="inline-block rounded-full border border-slate-200 bg-white px-3 py-1 text-sm font-medium text-slate-800 shadow-sm hover:border-indigo-200 hover:text-indigo-800 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:border-slate-400 dark:hover:text-white"
                 >
                   {name}
                 </Link>

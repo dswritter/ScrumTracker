@@ -126,7 +126,7 @@ export function Login() {
         <p className="mt-4 text-center text-sm text-slate-600 dark:text-slate-400">
           <Link
             to="/register"
-            className="font-semibold text-indigo-700 underline hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300"
+            className="font-semibold text-indigo-700 underline hover:text-indigo-900 dark:text-slate-100 dark:hover:text-white"
           >
             Create a new team (admin)
           </Link>

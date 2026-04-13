@@ -378,14 +378,14 @@ export function Items() {
       ) : null}
 
       {hasQuery ? (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-indigo-100 bg-indigo-50/80 px-3 py-2 text-sm text-indigo-950 dark:border-indigo-900/50 dark:bg-indigo-950/40 dark:text-indigo-100">
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-indigo-100 bg-indigo-50/80 px-3 py-2 text-sm text-indigo-950 dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-100">
           <span>
             <span className="font-semibold">Filtered:</span> {filterSummary}
           </span>
           <span className="flex flex-wrap gap-3">
             <button
               type="button"
-              className="font-medium text-indigo-800 underline hover:text-indigo-950 dark:text-indigo-300 dark:hover:text-indigo-200"
+              className="font-medium text-indigo-800 underline hover:text-indigo-950 dark:text-slate-100 dark:hover:text-white"
               onClick={() => {
                 setTableFilterSection('')
                 setTableFilterComponent('')
@@ -396,7 +396,7 @@ export function Items() {
             </button>
             <Link
               to="/items"
-              className="font-medium text-indigo-800 underline hover:text-indigo-950 dark:text-indigo-300 dark:hover:text-indigo-200"
+              className="font-medium text-indigo-800 underline hover:text-indigo-950 dark:text-slate-100 dark:hover:text-white"
             >
               Clear all
             </Link>
@@ -506,7 +506,7 @@ export function Items() {
                 No items match this filter.{' '}
                 <Link
                   to="/items"
-                  className="font-medium text-indigo-700 underline"
+                  className="font-medium text-indigo-700 underline dark:text-slate-100 dark:hover:text-white"
                 >
                   Show all
                 </Link>

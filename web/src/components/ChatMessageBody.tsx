@@ -69,7 +69,7 @@ export function ChatMessageBody({
           className={
             isSent
               ? 'font-semibold text-[#0d5c2e] hover:text-[#094a26] hover:underline dark:text-emerald-200 dark:hover:text-emerald-100'
-              : 'font-semibold text-[#007a3d] hover:text-[#0d5c2e] hover:underline'
+              : 'font-semibold text-[#007a3d] hover:text-[#0d5c2e] hover:underline dark:text-sky-200 dark:hover:text-white'
           }
         >
           @{matched}

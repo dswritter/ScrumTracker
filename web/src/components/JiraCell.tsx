@@ -45,14 +45,14 @@ export function JiraCell({
         {item.jiraKeys.map((k) => (
           <span
             key={k}
-            className="group relative z-10 inline-flex items-center rounded-md bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold text-indigo-900 ring-1 ring-indigo-100"
+            className="group relative z-10 inline-flex items-center rounded-md bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold text-indigo-900 ring-1 ring-indigo-100 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-600"
           >
             {jiraBaseUrl.trim() ? (
               <a
                 href={jiraHref(jiraBaseUrl, k)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="hover:underline"
+                className="hover:underline dark:text-sky-100"
               >
                 {k}
               </a>

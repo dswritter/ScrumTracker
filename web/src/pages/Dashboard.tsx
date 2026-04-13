@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
   MetabuildAssigneeBars,
@@ -6,6 +6,7 @@ import {
   MetabuildStatusPie,
 } from '../components/MetabuildCharts'
 import { PersonProgressBar } from '../components/PersonProgressBar'
+import { WeeklyProgressPanel } from '../components/WeeklyProgressPanel'
 import { WorkItemTitleLink } from '../components/WorkItemTitleLink'
 import { StatCard } from '../components/StatCard'
 import { StatusBadge } from '../components/StatusBadge'
@@ -32,6 +33,14 @@ import {
 } from '../lib/stats'
 import { resolveSlackDmUrl } from '../lib/slackDm'
 import { getCurrentSprint, sprintDayProgress } from '../lib/sdates'
+import {
+  buildWeeklyProgressCards,
+  eligibleMemberDisplayNames,
+  formatWeekRangeLabel,
+  mondayDateKey,
+  parseMondayKey,
+  weekMondayOffsets,
+} from '../lib/weeklyProgress'
 import type { WorkItem } from '../types'
 
 function displayInitials(name: string): string {
@@ -70,6 +79,19 @@ export function Dashboard() {
   }, [sortedSprints])
 
   const [searchParams, setSearchParams] = useSearchParams()
+  const weeklyOpen = searchParams.get('weekly') === '1'
+  const [weeklyWeekKey, setWeeklyWeekKey] = useState(() =>
+    mondayDateKey(weekMondayOffsets(12)[0]),
+  )
+
+  const weekChoices = useMemo(
+    () =>
+      weekMondayOffsets(12).map((d) => ({
+        key: mondayDateKey(d),
+        label: formatWeekRangeLabel(d),
+      })),
+    [],
+  )
 
   const scope = useMemo(
     () =>
@@ -121,12 +143,14 @@ export function Dashboard() {
         sortedSprints.length - 1,
         Math.max(0, sprintIndex + delta),
       )
-      setSearchParams({
+      const sp = new URLSearchParams({
         scope: 'sprint',
         sprint: sortedSprints[next].id,
       })
+      if (weeklyOpen) sp.set('weekly', '1')
+      setSearchParams(sp)
     },
-    [sortedSprints, sprintIndex, setSearchParams],
+    [sortedSprints, sprintIndex, setSearchParams, weeklyOpen],
   )
 
   const scopedItems = useMemo(
@@ -243,31 +267,66 @@ export function Dashboard() {
       sortedSprints,
       defaultSprintId,
     )
-    setSearchParams(scopeToParams(next))
+    const sp = new URLSearchParams(scopeToParams(next))
+    if (weeklyOpen) sp.set('weekly', '1')
+    setSearchParams(sp)
+  }
+
+  const eligibleMembers = useMemo(
+    () => eligibleMemberDisplayNames(ctx?.teamUsers ?? [], ctx?.teamMembers ?? []),
+    [ctx?.teamUsers, ctx?.teamMembers],
+  )
+
+  const weeklyCards = useMemo(() => {
+    if (!weeklyOpen || !ctx) return []
+    const mon = parseMondayKey(weeklyWeekKey)
+    return buildWeeklyProgressCards(
+      scopedItems,
+      eligibleMembers,
+      mon,
+      ctx.jiraBaseUrl,
+    )
+  }, [
+    weeklyOpen,
+    weeklyWeekKey,
+    scopedItems,
+    eligibleMembers,
+    ctx,
+  ])
+
+  const toggleWeekly = () => {
+    const sp = new URLSearchParams(searchParams)
+    if (weeklyOpen) {
+      sp.delete('weekly')
+    } else {
+      sp.set('weekly', '1')
+      setWeeklyWeekKey(mondayDateKey(weekMondayOffsets(12)[0]))
+    }
+    setSearchParams(sp)
   }
 
   if (!user || !ctx) return null
 
   const titleLinkCls =
-    'font-medium text-indigo-700 hover:text-indigo-900 hover:underline dark:text-indigo-400 dark:hover:text-indigo-300'
+    'font-medium text-indigo-700 hover:text-indigo-900 hover:underline dark:text-slate-100 dark:hover:text-white'
 
   const chartAside = (
     <aside className="order-2 w-full max-w-full space-y-3 xl:sticky xl:top-4 xl:order-1 xl:max-h-[min(calc(100vh-5rem),56rem)] xl:max-w-[20rem] xl:justify-self-start xl:overflow-y-auto xl:overscroll-contain xl:pr-1">
       <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
-        <h3 className="mb-0.5 text-center text-[10px] font-bold uppercase tracking-wide text-[#007a3d]">
+        <h3 className="mb-0.5 text-center text-[10px] font-bold uppercase tracking-wide text-[#007a3d] dark:text-emerald-300">
           Team progress
         </h3>
         <MetabuildStatusPie data={pieData} compact />
       </div>
       <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
-        <h3 className="mb-0.5 text-center text-[10px] font-bold uppercase tracking-wide text-[#007a3d]">
+        <h3 className="mb-0.5 text-center text-[10px] font-bold uppercase tracking-wide text-[#007a3d] dark:text-emerald-300">
           Section (done %)
         </h3>
         <MetabuildSectionBars rows={sectionBarRows} compact />
       </div>
       {isAdmin(user) ? (
         <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
-          <h3 className="mb-0.5 text-center text-[10px] font-bold uppercase tracking-wide text-[#007a3d]">
+          <h3 className="mb-0.5 text-center text-[10px] font-bold uppercase tracking-wide text-[#007a3d] dark:text-emerald-300">
             Done % by person
           </h3>
           <MetabuildAssigneeBars rows={assigneeBarRows} compact />
@@ -275,7 +334,7 @@ export function Dashboard() {
       ) : null}
       {!isAdmin(user) && teammateNames.length > 0 ? (
         <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
-          <h3 className="mb-2 text-center text-[10px] font-bold uppercase tracking-wide text-[#007a3d]">
+          <h3 className="mb-2 text-center text-[10px] font-bold uppercase tracking-wide text-[#007a3d] dark:text-emerald-300">
             Teammates
           </h3>
           <ul className="flex flex-col items-stretch gap-3">
@@ -298,7 +357,7 @@ export function Dashboard() {
                   <div className="flex min-w-0 flex-1 items-center gap-1.5">
                     <Link
                       to={href}
-                      className="truncate text-xs font-medium text-slate-800 hover:text-[#007a3d] hover:underline"
+                      className="truncate text-xs font-medium text-slate-800 hover:text-[#007a3d] hover:underline dark:text-slate-100 dark:hover:text-white"
                     >
                       {name}
                     </Link>
@@ -338,7 +397,7 @@ export function Dashboard() {
           {sortedSprints.length > 0 ? (
             <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
               <div className="flex flex-wrap items-center gap-2 gap-y-2 border-b border-[#00B050]/25 bg-[#00B050]/10 px-3 py-2">
-                <span className="text-[10px] font-bold uppercase tracking-wide text-[#007a3d]">
+                <span className="text-[10px] font-bold uppercase tracking-wide text-[#007a3d] dark:text-emerald-300">
                   Scope
                 </span>
                 <button
@@ -352,7 +411,7 @@ export function Dashboard() {
                 </button>
                 <select
                   aria-label="Dashboard scope"
-                  className="min-w-0 max-w-[min(100%,280px)] flex-1 rounded border border-slate-200/80 bg-white/95 py-1 pl-2 pr-7 text-xs font-semibold text-slate-900 shadow-sm dark:border-slate-600 dark:bg-slate-900/95 dark:text-slate-100 sm:max-w-md"
+                  className="min-w-0 max-w-[min(100%,240px)] flex-1 rounded border border-slate-200/80 bg-white/95 py-1 pl-2 pr-7 text-xs font-semibold text-slate-900 shadow-sm dark:border-slate-600 dark:bg-slate-900/95 dark:text-slate-100 sm:max-w-md"
                   value={scopeSelectValue(scope)}
                   onChange={(e) => onScopeSelectChange(e.target.value)}
                 >
@@ -380,8 +439,20 @@ export function Dashboard() {
                         {y}
                       </option>
                     ))}
-                  </optgroup>
+                                   </optgroup>
                 </select>
+                <button
+                  type="button"
+                  className={`shrink-0 rounded-lg border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide shadow-sm ${
+                    weeklyOpen
+                      ? 'border-[#00B050] bg-[#00B050] text-white dark:border-emerald-500 dark:bg-emerald-600'
+                      : 'border-slate-200/80 bg-white/90 text-[#0d5c2e] hover:bg-white dark:border-slate-600 dark:bg-slate-800/90 dark:text-emerald-200 dark:hover:bg-slate-800'
+                  }`}
+                  title="Card view of teammate comments this week (Jira + tracker)"
+                  onClick={toggleWeekly}
+                >
+                  {weeklyOpen ? 'Exit weekly' : 'Weekly'}
+                </button>
                 <button
                   type="button"
                   aria-label="Next sprint"
@@ -401,7 +472,7 @@ export function Dashboard() {
                   </span>
                   {selectedSprint && sprintProgress ? (
                     <span className="text-[10px] tabular-nums text-slate-500">
-                      <span className="font-bold text-[#007a3d]">
+                      <span className="font-bold text-[#007a3d] dark:text-emerald-300">
                         {Math.round(frac * 100)}%
                       </span>
                       <span>
@@ -462,96 +533,126 @@ export function Dashboard() {
         />
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
-        <div className="border-b border-[#00B050]/30 bg-[#00B050] px-3 py-2">
-          <h3 className="text-sm font-bold text-white">
-            Work items · {scopeShortLabel(scope, sortedSprints)}
-          </h3>
+      {weeklyOpen ? (
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
+          <div className="border-b border-[#00B050]/30 bg-[#00B050] px-3 py-2 dark:bg-[#00B050]/90">
+            <h3 className="text-sm font-bold text-white">
+              Weekly progress · {scopeShortLabel(scope, sortedSprints)}
+            </h3>
+          </div>
+          <div className="p-4">
+            <WeeklyProgressPanel
+              cards={weeklyCards}
+              peopleOptions={eligibleMembers}
+              weekChoices={weekChoices}
+              weekKey={weeklyWeekKey}
+              onWeekKeyChange={setWeeklyWeekKey}
+              scopeLabel={scopeShortLabel(scope, sortedSprints)}
+            />
+          </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[56rem] border-collapse text-left text-xs">
-            <thead>
-              <tr className="border-b border-slate-200 bg-[#00B050]/12 dark:border-slate-700 dark:bg-[#00B050]/18">
-                <th className="px-3 py-2 font-bold text-[#0d5c2e]">Title</th>
-                <th className="px-3 py-2 font-bold text-[#0d5c2e]">Section</th>
-                {isAdmin(user) ? (
-                  <th className="px-3 py-2 font-bold text-[#0d5c2e]">
-                    Assignees
+      ) : (
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
+          <div className="border-b border-[#00B050]/30 bg-[#00B050] px-3 py-2">
+            <h3 className="text-sm font-bold text-white">
+              Work items · {scopeShortLabel(scope, sortedSprints)}
+            </h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[56rem] border-collapse text-left text-xs">
+              <thead>
+                <tr className="border-b border-slate-200 bg-[#00B050]/12 dark:border-slate-700 dark:bg-[#00B050]/18">
+                  <th className="px-3 py-2 font-bold text-[#0d5c2e] dark:text-emerald-300">
+                    Title
                   </th>
-                ) : null}
-                <th className="px-3 py-2 font-bold text-[#0d5c2e]">Status</th>
-                <th className="px-3 py-2 font-bold text-[#0d5c2e]">Jira</th>
-                <th className="min-w-[12rem] px-3 py-2 font-bold text-[#0d5c2e]">
-                  Latest comment
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-              {tableItems.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={isAdmin(user) ? 6 : 5}
-                    className="px-3 py-6 text-center text-slate-500"
-                  >
-                    No items in this scope.
-                  </td>
+                  <th className="px-3 py-2 font-bold text-[#0d5c2e] dark:text-emerald-300">
+                    Section
+                  </th>
+                  {isAdmin(user) ? (
+                    <th className="px-3 py-2 font-bold text-[#0d5c2e] dark:text-emerald-300">
+                      Assignees
+                    </th>
+                  ) : null}
+                  <th className="px-3 py-2 font-bold text-[#0d5c2e] dark:text-emerald-300">
+                    Status
+                  </th>
+                  <th className="px-3 py-2 font-bold text-[#0d5c2e] dark:text-emerald-300">
+                    Jira
+                  </th>
+                  <th className="min-w-[12rem] px-3 py-2 font-bold text-[#0d5c2e] dark:text-emerald-300">
+                    Latest comment
+                  </th>
                 </tr>
-              ) : (
-                tableItems.map((w) => {
-                  const jiraBase = ctx.jiraBaseUrl.trim().replace(/\/$/, '')
-                  return (
-                    <tr
-                      key={w.id}
-                      className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50"
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                {tableItems.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={isAdmin(user) ? 6 : 5}
+                      className="px-3 py-6 text-center text-slate-500 dark:text-slate-400"
                     >
-                      <td className="max-w-[14rem] px-3 py-2 align-top">
-                        <WorkItemTitleLink
-                          item={w}
-                          showCommentHover={false}
-                          className={titleLinkCls}
-                        />
-                      </td>
-                      <td className="px-3 py-2 align-top text-slate-700">
-                        {w.section || '—'}
-                      </td>
-                      {isAdmin(user) ? (
-                        <td className="px-3 py-2 align-top text-slate-700">
-                          {w.assignees.length ? w.assignees.join(', ') : '—'}
+                      No items in this scope.
+                    </td>
+                  </tr>
+                ) : (
+                  tableItems.map((w) => {
+                    const jiraBase = ctx.jiraBaseUrl.trim().replace(/\/$/, '')
+                    return (
+                      <tr
+                        key={w.id}
+                        className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50"
+                      >
+                        <td className="max-w-[14rem] px-3 py-2 align-top">
+                          <WorkItemTitleLink
+                            item={w}
+                            showCommentHover={false}
+                            className={titleLinkCls}
+                          />
                         </td>
-                      ) : null}
-                      <td className="px-3 py-2 align-top text-slate-800">
-                        <StatusBadge status={w.status} />
-                      </td>
-                      <td className="px-3 py-2 align-top">
-                        {w.jiraKeys.length && jiraBase ? (
-                          <div className="flex flex-wrap gap-1">
-                            {w.jiraKeys.map((k) => (
-                              <a
-                                key={k}
-                                href={`${jiraBase}/${k}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="font-mono text-[11px] text-indigo-700 hover:text-indigo-900 hover:underline"
-                              >
-                                {k}
-                              </a>
-                            ))}
-                          </div>
-                        ) : (
-                          <span className="text-slate-400">—</span>
-                        )}
-                      </td>
-                      <td className="max-w-[20rem] px-3 py-2 align-top text-slate-600">
-                        {latestCommentPreview(w)}
-                      </td>
-                    </tr>
-                  )
-                })
-              )}
-            </tbody>
-          </table>
+                        <td className="px-3 py-2 align-top text-slate-700 dark:text-slate-200">
+                          {w.section || '—'}
+                        </td>
+                        {isAdmin(user) ? (
+                          <td className="px-3 py-2 align-top text-slate-700 dark:text-slate-200">
+                            {w.assignees.length ? w.assignees.join(', ') : '—'}
+                          </td>
+                        ) : null}
+                        <td className="px-3 py-2 align-top text-slate-800 dark:text-slate-100">
+                          <StatusBadge status={w.status} />
+                        </td>
+                        <td className="px-3 py-2 align-top">
+                          {w.jiraKeys.length && jiraBase ? (
+                            <div className="flex flex-wrap gap-1">
+                              {w.jiraKeys.map((k) => (
+                                <a
+                                  key={k}
+                                  href={`${jiraBase}/${k}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="font-mono text-[11px] text-indigo-700 hover:text-indigo-900 hover:underline dark:text-sky-100 dark:hover:text-white"
+                                >
+                                  {k}
+                                </a>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-slate-400 dark:text-slate-500">
+                              —
+                            </span>
+                          )}
+                        </td>
+                        <td className="max-w-[20rem] px-3 py-2 align-top text-slate-600 dark:text-slate-300">
+                          {latestCommentPreview(w)}
+                        </td>
+                      </tr>
+                    )
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      )}
 
       {isAdmin(user) ? (
         <div>
