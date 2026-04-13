@@ -15,12 +15,16 @@ export function ChatMessageBody({
   body,
   mentionNames,
   messageId,
+  tone = 'received',
 }: {
   body: string
   /** Roster names (e.g. teamMembers); longest match wins for multi-word names. */
   mentionNames: string[]
   messageId: string
+  /** Sent bubbles use higher-contrast text (e.g. green bubble). */
+  tone?: 'sent' | 'received'
 }) {
+  const isSent = tone === 'sent'
   const sorted = [...mentionNames].sort(
     (a, b) => b.trim().length - a.trim().length,
   )
@@ -62,7 +66,11 @@ export function ChatMessageBody({
         <Link
           key={`${messageId}-@${partIdx}-${at}`}
           to={`/chat/${encodeURIComponent(matched)}`}
-          className="font-semibold text-[#007a3d] hover:text-[#0d5c2e] hover:underline"
+          className={
+            isSent
+              ? 'font-semibold text-[#0d5c2e] hover:text-[#094a26] hover:underline dark:text-emerald-200 dark:hover:text-emerald-100'
+              : 'font-semibold text-[#007a3d] hover:text-[#0d5c2e] hover:underline'
+          }
         >
           @{matched}
         </Link>,
@@ -74,7 +82,13 @@ export function ChatMessageBody({
     }
   }
   return (
-    <span className="whitespace-pre-wrap break-words text-slate-800">
+    <span
+      className={`whitespace-pre-wrap break-words ${
+        isSent
+          ? 'text-slate-900 dark:text-emerald-50'
+          : 'text-slate-800 dark:text-slate-200'
+      }`}
+    >
       {parts}
     </span>
   )

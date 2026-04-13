@@ -375,29 +375,56 @@ export function Chat() {
                   <p className="text-center text-xs text-slate-500 dark:text-slate-400">
                     No messages yet — say hello.
                   </p>
-                ) : (
-                  activeMessages.map((m) => (
-                    <div key={m.id} className="flex gap-2">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-200 text-[10px] font-bold text-slate-700 dark:bg-slate-700 dark:text-slate-200">
-                        {initials(m.authorName)}
-                      </div>
-                      <div className="min-w-0 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/80">
-                        <div className="flex flex-wrap items-baseline gap-2">
-                          <span className="text-xs font-semibold text-[#0d5c2e] dark:text-[#86efac]">
-                            {m.authorName}
-                          </span>
-                          <span className="text-[10px] text-slate-500 dark:text-slate-400">
-                            {formatChatListTime(m.createdAt)}
-                          </span>
+                               ) : (
+                  activeMessages.map((m) => {
+                    const isMine =
+                      m.authorName.trim().toLowerCase() === me.trim().toLowerCase()
+                    return (
+                      <div
+                        key={m.id}
+                        className={`flex w-full gap-2 ${
+                          isMine ? 'justify-end' : 'justify-start'
+                        }`}
+                      >
+                        {!isMine ? (
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-200 text-[10px] font-bold text-slate-700 dark:bg-slate-700 dark:text-slate-200">
+                            {initials(m.authorName)}
+                          </div>
+                        ) : null}
+                        <div
+                          className={`min-w-0 max-w-[min(85%,28rem)] px-3 py-2 shadow-sm ${
+                            isMine
+                              ? 'rounded-2xl rounded-br-md bg-[#d9fdd3] dark:bg-emerald-900/55 dark:ring-1 dark:ring-emerald-800/40'
+                              : 'rounded-2xl rounded-bl-md border border-slate-200 bg-white dark:border-slate-600 dark:bg-slate-800/90'
+                          }`}
+                        >
+                          {!isMine ? (
+                            <div className="mb-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-0">
+                              <span className="text-xs font-semibold text-[#0d5c2e] dark:text-[#86efac]">
+                                {m.authorName}
+                              </span>
+                              <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                                {formatChatListTime(m.createdAt)}
+                              </span>
+                            </div>
+                          ) : null}
+                          <ChatMessageBody
+                            body={m.body}
+                            mentionNames={mentionNames}
+                            messageId={m.id}
+                            tone={isMine ? 'sent' : 'received'}
+                          />
+                          {isMine ? (
+                            <div className="mt-1 flex justify-end">
+                              <span className="text-[10px] tabular-nums text-slate-600/90 dark:text-emerald-100/75">
+                                {formatChatListTime(m.createdAt)}
+                              </span>
+                            </div>
+                          ) : null}
                         </div>
-                        <ChatMessageBody
-                          body={m.body}
-                          mentionNames={mentionNames}
-                          messageId={m.id}
-                        />
                       </div>
-                    </div>
-                  ))
+                    )
+                  })
                 )}
               </div>
               <form
