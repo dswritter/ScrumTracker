@@ -451,10 +451,11 @@ export function Dashboard() {
       ) : null}
 
       <div className="relative flex flex-col gap-5 xl:block">
-        <div className="order-1 min-w-0 space-y-6 xl:ml-[21.25rem]">
+        <div className="order-1 min-w-0 space-y-2 xl:ml-[21.25rem]">
           {sortedSprints.length > 0 ? (
-            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
-              <div className="relative overflow-hidden border-b border-[#00B050]/25 bg-[#00B050]/10">
+            <div className="sticky top-28 z-[9] -mx-px bg-white/90 px-px pb-1 backdrop-blur-sm dark:bg-slate-950/90 sm:top-24 xl:top-24">
+              <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm ring-1 ring-slate-200/60 dark:border-slate-700 dark:bg-slate-900/90 dark:ring-slate-600/40">
+                <div className="relative overflow-hidden border-b border-[#00B050]/25 bg-[#00B050]/10">
                 {selectedSprint && sprintProgress ? (
                   <div
                     aria-hidden
@@ -562,6 +563,7 @@ export function Dashboard() {
                       </span>
                     )}
                   </div>
+                </div>
                 </div>
               </div>
             </div>
