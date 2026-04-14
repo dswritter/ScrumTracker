@@ -16,6 +16,39 @@ export type WeeklyProgressCard = {
   source: 'jira' | 'tracker' | 'mixed'
 }
 
+/** One UI card per teammate: nested tasks are merged item+person rows from the week. */
+export type WeeklyProgressPersonBundle = {
+  id: string
+  personName: string
+  /** Latest comment timestamp in this bundle (sort across people). */
+  createdAt: string
+  tasks: WeeklyProgressCard[]
+}
+
+export function bundleWeeklyProgressByPerson(
+  cards: WeeklyProgressCard[],
+): WeeklyProgressPersonBundle[] {
+  const byPerson = new Map<string, WeeklyProgressCard[]>()
+  for (const c of cards) {
+    const list = byPerson.get(c.personName) ?? []
+    list.push(c)
+    byPerson.set(c.personName, list)
+  }
+  const bundles: WeeklyProgressPersonBundle[] = []
+  for (const [personName, tasks] of byPerson) {
+    const sorted = [...tasks].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    const createdAt = sorted[0]?.createdAt ?? ''
+    bundles.push({
+      id: `person:${personName}`,
+      personName,
+      createdAt,
+      tasks: sorted,
+    })
+  }
+  bundles.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+  return bundles
+}
+
 /** Team roster names excluding anyone with an admin login on this team. */
 export function eligibleMemberDisplayNames(
   teamUsers: TrackerUserAccount[],

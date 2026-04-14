@@ -396,7 +396,7 @@ export function Items() {
             </button>
             <Link
               to="/items"
-              className="font-medium text-indigo-800 underline hover:text-indigo-950 dark:text-slate-100 dark:hover:text-white"
+              className="font-medium text-indigo-800 underline hover:text-indigo-950 dark:text-indigo-300 dark:hover:text-indigo-200"
             >
               Clear all
             </Link>
