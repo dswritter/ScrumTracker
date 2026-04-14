@@ -39,7 +39,6 @@ import {
 } from '../lib/sdates'
 import {
   buildWeeklyProgressCards,
-  eligibleMemberDisplayNames,
   formatWeekRangeLabel,
   mondayDateKey,
   parseMondayKey,
@@ -272,25 +271,30 @@ export function Dashboard() {
     setSearchParams(sp)
   }
 
-  const eligibleMembers = useMemo(
-    () => eligibleMemberDisplayNames(ctx?.teamUsers ?? [], ctx?.teamMembers ?? []),
-    [ctx?.teamUsers, ctx?.teamMembers],
+  /** Weekly attribution must use the full roster; excluding “admin” names drops all cards when assignees have admin logins. */
+  const weeklyPersonRoster = useMemo(
+    () =>
+      [...new Set((ctx?.teamMembers ?? []).map((m) => m.trim()).filter(Boolean))].sort(
+        (a, b) => a.localeCompare(b),
+      ),
+    [ctx?.teamMembers],
   )
 
   const weeklyCards = useMemo(() => {
     if (!weeklyOpen || !ctx) return []
     const mon = parseMondayKey(weeklyWeekKey)
+    /** Team sprint scope (not per-user filtered) so weekly shows all teammate comments in the sprint. */
     return buildWeeklyProgressCards(
-      filteredItems,
-      eligibleMembers,
+      scopedItems,
+      weeklyPersonRoster,
       mon,
       ctx.jiraBaseUrl,
     )
   }, [
     weeklyOpen,
     weeklyWeekKey,
-    filteredItems,
-    eligibleMembers,
+    scopedItems,
+    weeklyPersonRoster,
     ctx,
   ])
 
@@ -552,7 +556,7 @@ export function Dashboard() {
           <div className="p-4">
             <WeeklyProgressPanel
               cards={weeklyCards}
-              peopleOptions={eligibleMembers}
+              peopleOptions={weeklyPersonRoster}
               weekChoices={weekChoices}
               weekKey={weeklyWeekKey}
               onWeekKeyChange={setWeeklyWeekKey}

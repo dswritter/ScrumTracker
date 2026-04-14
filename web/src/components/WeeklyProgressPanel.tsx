@@ -90,9 +90,9 @@ export function WeeklyProgressPanel({
           Jira issue comments
         </strong>{' '}
         merged on sync, scoped to <span className="font-semibold">{scopeLabel}</span>.
-        Run <strong>Jira sync</strong> for the newest remote comments. Admins are excluded
-        from the people list; Jira activity on member-assigned items is attributed to the
-        assignee when the commenter is not on the roster.
+        Run <strong>Jira sync</strong> for the newest remote comments. Jira activity on
+        member-assigned items is attributed to the assignee when the commenter is not on
+        the roster.
       </p>
 
       <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-600 dark:bg-slate-900/50 sm:flex-row sm:flex-wrap sm:items-end">

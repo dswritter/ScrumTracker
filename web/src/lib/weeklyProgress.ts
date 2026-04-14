@@ -162,25 +162,26 @@ function jiraHref(base: string, key: string): string {
 
 /**
  * Who this update is attributed to for filters / wiki-style columns.
- * Jira comments from outsiders roll up to an eligible assignee when possible.
+ * Jira comments from outsiders roll up to a roster assignee when possible.
+ * `teamRoster` should list all teammates (including those who also have admin logins).
  */
 export function resolveWeeklyCardPerson(
   commentAuthor: string,
   item: WorkItem,
   _commentId: string,
-  eligible: string[],
+  teamRoster: string[],
 ): string | null {
-  if (inEligible(commentAuthor, eligible)) {
+  if (inEligible(commentAuthor, teamRoster)) {
     const match =
-      eligible.find((e) => normName(e) === normName(commentAuthor)) ??
+      teamRoster.find((e) => normName(e) === normName(commentAuthor)) ??
       commentAuthor.trim()
     return match
   }
-  /** Jira + local ScrumTracker comments: if author is not on the eligible roster, attribute to an eligible assignee (admin / bot / Jira user names). */
-  const assignee = item.assignees.find((a) => inEligible(a, eligible))
+  /** Jira + local ScrumTracker comments: if author is not on the roster, attribute to a roster assignee (bot / Jira user names, etc.). */
+  const assignee = item.assignees.find((a) => inEligible(a, teamRoster))
   if (assignee) {
     return (
-      eligible.find((e) => normName(e) === normName(assignee)) ??
+      teamRoster.find((e) => normName(e) === normName(assignee)) ??
       assignee.trim()
     )
   }
@@ -242,7 +243,8 @@ function mergeWeeklyCardsForItemAndPerson(
 
 export function buildWeeklyProgressCards(
   items: WorkItem[],
-  eligible: string[],
+  /** Full team roster (same names as assignees). Must include members with admin accounts or their items/comments are dropped. */
+  teamRoster: string[],
   weekStart: Date,
   jiraBaseUrl: string,
 ): WeeklyProgressCard[] {
@@ -251,10 +253,10 @@ export function buildWeeklyProgressCards(
   const out: WeeklyProgressCard[] = []
 
   for (const item of items) {
-    const hasEligibleAssignee = item.assignees.some((a) =>
-      inEligible(a, eligible),
+    const hasRosterAssignee = item.assignees.some((a) =>
+      inEligible(a, teamRoster),
     )
-    if (!hasEligibleAssignee) continue
+    if (!hasRosterAssignee) continue
 
     for (const c of item.comments) {
       if (!commentInWeek(c.createdAt, weekStart, weekEnd)) continue
@@ -263,7 +265,7 @@ export function buildWeeklyProgressCards(
         c.authorName,
         item,
         c.id,
-        eligible,
+        teamRoster,
       )
       if (!person) continue
 
