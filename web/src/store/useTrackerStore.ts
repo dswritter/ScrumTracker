@@ -29,6 +29,7 @@ import {
   seedPasswordFromKey,
 } from '../lib/passwords'
 import { generateId } from '../lib/ids'
+import { mergeRemoteSnapshotTeamsAndData } from '../lib/mergeRemoteTrackerSnapshot'
 import { normalizeLoginUsername } from '../lib/username'
 import { mergeBundledSlackDefaults } from '../data/defaultSlackDmUrls'
 import { DEFAULT_NEW_TEAM_JIRA_SPRINT_FIELD_ID } from '../data/jiraDefaults'
@@ -501,6 +502,8 @@ export interface TrackerState {
   }) => { ok: true } | { ok: false; error: string }
 
   importSnapshotJson: (json: string) => { ok: true } | { ok: false; error: string }
+  /** HTTP sync pull: merge remote into local so offline comments/chat are not wiped. */
+  mergeRemoteSnapshotJson: (json: string) => { ok: true } | { ok: false; error: string }
   exportSnapshotJson: () => string
 
   appendTeamChatMessage: (
@@ -1219,6 +1222,42 @@ export const useTrackerStore = create<TrackerState>()(
           }
         } catch {
           return { ok: false as const, error: 'Could not parse JSON.' }
+        }
+      },
+
+      mergeRemoteSnapshotJson: (json) => {
+        try {
+          const data = JSON.parse(json) as unknown
+          if (!isSnapshotV3(data)) {
+            return {
+              ok: false as const,
+              error: 'Remote snapshot must be schema v3.',
+            }
+          }
+          const defaultTid = data.teams[0]?.id ?? SEED_TEAM_ID
+          const sessionId = useAuthStore.getState().currentUserId
+          const prevUsers = get().users
+          let users = data.users.map((u) => normalizeUser(u, defaultTid))
+          users = mergeImportedUsersWithSession(users, sessionId, prevUsers)
+
+          const remoteTeamsData: Record<string, TrackerTeamData> = {}
+          for (const [k, v] of Object.entries(data.teamsData)) {
+            remoteTeamsData[k] = normalizeTeamData(v)
+          }
+          const s = get()
+          const { teams, teamsData } = mergeRemoteSnapshotTeamsAndData({
+            localTeams: s.teams,
+            localTeamsData: s.teamsData,
+            remoteTeams: data.teams as TrackerTeam[],
+            remoteTeamsData: remoteTeamsData,
+          })
+          set({ teams, teamsData, users })
+          return { ok: true as const }
+        } catch {
+          return {
+            ok: false as const,
+            error: 'Could not parse remote snapshot.',
+          }
         }
       },
 

@@ -166,7 +166,11 @@ export function TrackerRemoteSync() {
         writePersistedTrackerServerRev(lastRev)
         if (data.snapshot && data.snapshot.length >= 20) {
           applyingRemote = true
-          useTrackerStore.getState().importSnapshotJson(data.snapshot)
+          const r =
+            useTrackerStore.getState().mergeRemoteSnapshotJson(data.snapshot)
+          if (!r.ok && import.meta.env.DEV) {
+            console.warn('[sync] mergeRemoteSnapshotJson failed', r.error)
+          }
           queueMicrotask(() => {
             applyingRemote = false
           })
