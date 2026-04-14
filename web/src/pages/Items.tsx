@@ -265,14 +265,15 @@ function Row({
       </td>
       <td className="px-2 py-2">
         <div className="flex flex-col gap-0.5">
-          <JiraCell
-            item={item}
-            jiraBaseUrl={jiraBaseUrl}
-            canEdit={canEdit}
-            onChangeKeys={(jiraKeys) =>
-              updateWorkItem(teamId, item.id, { jiraKeys })
-            }
-          />
+        <JiraCell
+          item={item}
+          jiraBaseUrl={jiraBaseUrl}
+          canEdit={canEdit}
+          allowRemoveJiraKey={isAdmin(user)}
+          onChangeKeys={(jiraKeys) =>
+            updateWorkItem(teamId, item.id, { jiraKeys })
+          }
+        />
           <JiraPerItemIssueActions
             item={item}
             user={user}

@@ -34,6 +34,7 @@ export function ItemDetail() {
   const ctx = useTeamContextNullable()
   const addComment = useTrackerStore((s) => s.addComment)
   const deleteComment = useTrackerStore((s) => s.deleteComment)
+  const updateWorkItem = useTrackerStore((s) => s.updateWorkItem)
   const rawParam = useParams<{ itemId: string }>().itemId ?? ''
   const itemId = useMemo(() => {
     try {
@@ -169,26 +170,39 @@ export function ItemDetail() {
               <span className="text-xs text-slate-500">—</span>
             ) : (
               <span className="flex flex-wrap items-center gap-1.5">
-                {item.jiraKeys.map((k) =>
-                  jiraBaseUrl.trim() ? (
-                    <a
-                      key={k}
-                      href={jiraHref(jiraBaseUrl, k)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex rounded-md bg-indigo-50 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-indigo-900 ring-1 ring-indigo-100 hover:underline dark:bg-slate-800 dark:text-sky-100 dark:ring-slate-600"
-                    >
-                      {k}
-                    </a>
-                  ) : (
-                    <span
-                      key={k}
-                      className="font-mono text-[11px] font-medium text-slate-800 dark:text-slate-100"
-                    >
-                      {k}
-                    </span>
-                  ),
-                )}
+                {item.jiraKeys.map((k) => (
+                  <span
+                    key={k}
+                    className="group relative inline-flex items-center rounded-md bg-indigo-50 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-indigo-900 ring-1 ring-indigo-100 dark:bg-slate-800 dark:text-sky-100 dark:ring-slate-600"
+                  >
+                    {jiraBaseUrl.trim() ? (
+                      <a
+                        href={jiraHref(jiraBaseUrl, k)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="hover:underline"
+                      >
+                        {k}
+                      </a>
+                    ) : (
+                      k
+                    )}
+                    {isAdmin(user) ? (
+                      <button
+                        type="button"
+                        title="Remove Jira link (admin)"
+                        className="absolute -right-1 -top-1 z-20 flex h-4 w-4 items-center justify-center rounded-full bg-slate-800 text-[10px] font-bold text-white opacity-0 shadow-sm transition-opacity group-hover:opacity-100 hover:bg-rose-600"
+                        onClick={() =>
+                          updateWorkItem(teamId, item.id, {
+                            jiraKeys: item.jiraKeys.filter((x) => x !== k),
+                          })
+                        }
+                      >
+                        ×
+                      </button>
+                    ) : null}
+                  </span>
+                ))}
               </span>
             )}
             {!readOnly && canEditWorkItem(user, item) ? (

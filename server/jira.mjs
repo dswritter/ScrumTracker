@@ -1172,19 +1172,35 @@ export function registerJiraRoutes(app, opts) {
       return
     }
     try {
+      /** Prefer GET /project/{key} — some Jira builds route /issue/createmeta as /issue/{issueId} ("Issue Does Not Exist"). */
+      const projPath = `/rest/api/2/project/${encodeURIComponent(projectKey)}`
+      const projRes = await jiraGet(conn.jiraBase, conn.pat, projPath)
+      if (projRes.ok) {
+        const projData = await projRes.json()
+        const types = Array.isArray(projData.issueTypes) ? projData.issueTypes : []
+        const issueTypes = types
+          .filter((t) => t && typeof t.name === 'string' && !t.subtask)
+          .map((t) => ({
+            id: String(t.id ?? ''),
+            name: String(t.name),
+          }))
+          .filter((t) => t.name)
+          .sort((a, b) => a.name.localeCompare(b.name))
+        if (issueTypes.length > 0) {
+          res.json({ issueTypes })
+          return
+        }
+      }
       const q = new URLSearchParams({
         projectKeys: projectKey,
         expand: 'projects.issuetypes',
       })
-      const jiraRes = await jiraGet(
-        conn.jiraBase,
-        conn.pat,
-        `/rest/api/2/issue/createmeta?${q}`,
-      )
+      const metaPath = `/rest/api/2/issue/createmeta?${q}`
+      const jiraRes = await jiraGet(conn.jiraBase, conn.pat, metaPath)
       if (!jiraRes.ok) {
         const t = await jiraRes.text()
         res.status(502).json({
-          error: `Jira createmeta failed ${jiraRes.status}: ${t.slice(0, 400)}`,
+          error: `Jira issue types failed ${jiraRes.status}: ${t.slice(0, 400)}`,
         })
         return
       }
@@ -1204,6 +1220,78 @@ export function registerJiraRoutes(app, opts) {
     } catch (e) {
       res.status(502).json({
         error: e instanceof Error ? e.message : 'Jira meta failed',
+      })
+    }
+  })
+
+  app.get('/api/jira/issue-suggest', requireJiraSecret, async (req, res) => {
+    const teamId = typeof req.query.teamId === 'string' ? req.query.teamId.trim() : ''
+    const qRaw = typeof req.query.q === 'string' ? req.query.q.trim() : ''
+    const syncMode =
+      req.query.syncMode === 'individual' ? 'individual' : 'admin'
+    const trackerUsername = normalizeTrackerUsername(req.query.trackerUsername)
+    if (qRaw.length < 2) {
+      res.json({ issues: [] })
+      return
+    }
+    const safe = qRaw.replace(/[^a-zA-Z0-9\-_\s]/g, '').slice(0, 80)
+    if (safe.length < 2) {
+      res.json({ issues: [] })
+      return
+    }
+    const conn = await resolvePatAndJiraBase(teamId, syncMode, trackerUsername)
+    if (!conn.ok) {
+      res.status(conn.status).json({ error: conn.error })
+      return
+    }
+    const esc = safe.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+    let jql
+    if (/^[A-Z][A-Z0-9]+-\d+$/i.test(safe)) {
+      jql = `key = "${safe.toUpperCase()}"`
+    } else {
+      jql = `summary ~ "${esc}*" OR key ~ "${esc}*"`
+    }
+    try {
+      const sp = new URLSearchParams({
+        jql,
+        maxResults: '15',
+        fields: 'key,summary',
+      })
+      let jiraRes = await jiraGet(
+        conn.jiraBase,
+        conn.pat,
+        `/rest/api/2/search?${sp}`,
+      )
+      if (!jiraRes.ok && jql.includes('key ~')) {
+        const sp2 = new URLSearchParams({
+          jql: `summary ~ "${esc}*"`,
+          maxResults: '15',
+          fields: 'key,summary',
+        })
+        jiraRes = await jiraGet(conn.jiraBase, conn.pat, `/rest/api/2/search?${sp2}`)
+      }
+      if (!jiraRes.ok) {
+        const t = await jiraRes.text()
+        res.status(502).json({
+          error: `Jira search failed ${jiraRes.status}: ${t.slice(0, 400)}`,
+        })
+        return
+      }
+      const data = await jiraRes.json()
+      const issues = Array.isArray(data.issues) ? data.issues : []
+      const out = issues
+        .filter((iss) => iss && typeof iss.key === 'string')
+        .map((iss) => ({
+          key: iss.key,
+          summary:
+            iss.fields && typeof iss.fields.summary === 'string'
+              ? iss.fields.summary
+              : '',
+        }))
+      res.json({ issues: out })
+    } catch (e) {
+      res.status(502).json({
+        error: e instanceof Error ? e.message : 'Jira search failed',
       })
     }
   })

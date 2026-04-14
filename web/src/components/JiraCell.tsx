@@ -13,11 +13,14 @@ export function JiraCell({
   item,
   jiraBaseUrl,
   canEdit,
+  allowRemoveJiraKey,
   onChangeKeys,
 }: {
   item: WorkItem
   jiraBaseUrl: string
   canEdit: boolean
+  /** Admins only: show remove control on each linked key. */
+  allowRemoveJiraKey: boolean
   onChangeKeys: (keys: string[]) => void
 }) {
   const [draft, setDraft] = useState('')
@@ -67,10 +70,10 @@ export function JiraCell({
             ) : (
               k
             )}
-            {canEdit ? (
+            {allowRemoveJiraKey ? (
               <button
                 type="button"
-                title="Remove"
+                title="Remove Jira link (admin)"
                 className="absolute -right-1 -top-1 z-20 flex h-4 w-4 items-center justify-center rounded-full bg-slate-800 text-[10px] font-bold text-white opacity-0 shadow-sm transition-opacity group-hover:opacity-100 hover:bg-rose-600"
                 onClick={() => removeKey(k)}
               >

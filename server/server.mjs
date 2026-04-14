@@ -137,6 +137,6 @@ server.listen(PORT, HOST, () => {
   console.log(`  PUT  /api/tracker  — push full snapshot (JSON string body.snapshot)`)
   console.log(`  WS   /ws/tracker — push { type: 'tracker_rev', rev } when snapshot changes`)
   console.log(
-    `  JIRA: …/sync, …/create-issue, GET …/meta/projects, GET …/meta/issue-types, GET …/lookup-issue`,
+    `  JIRA: …/sync, …/create-issue, GET …/meta/*, …/lookup-issue, …/issue-suggest`,
   )
 })

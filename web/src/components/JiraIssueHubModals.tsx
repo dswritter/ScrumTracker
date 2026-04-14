@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useDismissOnEscape } from '../hooks/useDismissOnEscape'
 import { getCurrentSprint, sprintsSortedNewestFirst } from '../lib/sdates'
 import {
+  fetchJiraIssueSuggest,
   fetchJiraIssueTypesForProject,
   fetchJiraLookupIssue,
   fetchJiraProjectsForTeam,
@@ -431,11 +432,22 @@ export function LinkJiraIssueModal({
   const [keyDraft, setKeyDraft] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const [suggestions, setSuggestions] = useState<
+    { key: string; summary: string }[]
+  >([])
+  const [suggestLoading, setSuggestLoading] = useState(false)
+  const suggestTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const suggestSeqRef = useRef(0)
+  const keyWrapRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (!open) return
+    if (!open) {
+      suggestSeqRef.current += 1
+      return
+    }
     setErr(null)
     setKeyDraft('')
+    setSuggestions([])
     if (
       contextItemId &&
       editableItems.some((w) => w.id === contextItemId)
@@ -445,6 +457,60 @@ export function LinkJiraIssueModal({
       setItemId(editableItems[0]?.id ?? '')
     }
   }, [open, contextItemId, editableItems])
+
+  useEffect(() => {
+    if (!open) return
+    const q = keyDraft.trim()
+    if (suggestTimerRef.current) {
+      clearTimeout(suggestTimerRef.current)
+      suggestTimerRef.current = null
+    }
+    if (q.length < 2) {
+      setSuggestions([])
+      setSuggestLoading(false)
+      return
+    }
+    setSuggestLoading(true)
+    const seq = ++suggestSeqRef.current
+    suggestTimerRef.current = setTimeout(() => {
+      suggestTimerRef.current = null
+      void (async () => {
+        const r = await fetchJiraIssueSuggest({
+          teamId: syncCtx.teamId,
+          q,
+          syncMode: syncCtx.syncMode,
+          trackerUsername: syncCtx.trackerUsername,
+        })
+        if (seq !== suggestSeqRef.current) return
+        setSuggestLoading(false)
+        if (!r.ok) {
+          setSuggestions([])
+          return
+        }
+        setSuggestions(r.issues)
+      })()
+    }, 320)
+    return () => {
+      if (suggestTimerRef.current) {
+        clearTimeout(suggestTimerRef.current)
+        suggestTimerRef.current = null
+      }
+    }
+  }, [keyDraft, open, syncCtx.teamId, syncCtx.syncMode, syncCtx.trackerUsername])
+
+  useEffect(() => {
+    if (!open || suggestions.length === 0) return
+    const fn = (e: MouseEvent) => {
+      if (
+        keyWrapRef.current &&
+        !keyWrapRef.current.contains(e.target as Node)
+      ) {
+        setSuggestions([])
+      }
+    }
+    document.addEventListener('mousedown', fn)
+    return () => document.removeEventListener('mousedown', fn)
+  }, [open, suggestions.length])
 
   const submit = async () => {
     const raw = keyDraft.trim().toUpperCase()
@@ -529,16 +595,50 @@ export function LinkJiraIssueModal({
               ))}
             </select>
           </div>
-          <div>
+          <div ref={keyWrapRef} className="relative">
             <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">
-              Jira key
+              Jira key or search
             </label>
             <input
               className={field}
               value={keyDraft}
+              autoComplete="off"
               onChange={(e) => setKeyDraft(e.target.value)}
-              placeholder="e.g. PROJ-123"
+              placeholder="Type key or words from summary"
             />
+            {suggestLoading ? (
+              <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">
+                Searching Jira…
+              </p>
+            ) : null}
+            {suggestions.length > 0 ? (
+              <ul
+                className="absolute left-0 right-0 top-full z-20 mt-0.5 max-h-48 overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 text-left shadow-lg dark:border-slate-600 dark:bg-slate-900"
+                role="listbox"
+                aria-label="Matching Jira issues"
+              >
+                {suggestions.map((s) => (
+                  <li key={s.key}>
+                    <button
+                      type="button"
+                      role="option"
+                      className="w-full px-2 py-1.5 text-left text-xs hover:bg-slate-100 dark:hover:bg-slate-800"
+                      onClick={() => {
+                        setKeyDraft(s.key)
+                        setSuggestions([])
+                      }}
+                    >
+                      <span className="font-mono font-semibold text-[#0052CC]">
+                        {s.key}
+                      </span>
+                      <span className="mt-0.5 block truncate text-slate-600 dark:text-slate-300">
+                        {s.summary || '—'}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <button

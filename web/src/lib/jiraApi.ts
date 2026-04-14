@@ -180,6 +180,44 @@ export async function fetchJiraIssueTypesForProject(q: {
   }
 }
 
+export type JiraIssueSuggestRow = { key: string; summary: string }
+
+export async function fetchJiraIssueSuggest(q: {
+  teamId: string
+  q: string
+  syncMode: 'admin' | 'individual'
+  trackerUsername?: string
+}): Promise<
+  | { ok: true; issues: JiraIssueSuggestRow[] }
+  | { ok: false; message: string }
+> {
+  const term = q.q.trim()
+  if (term.length < 2) {
+    return { ok: true, issues: [] }
+  }
+  const params = jiraMetaQuery(q.teamId, q.syncMode, q.trackerUsername, {
+    q: term,
+  })
+  try {
+    const res = await syncFetch(`/api/jira/issue-suggest?${params}`, {
+      headers: jiraHeaders(),
+    })
+    if (!res.ok) {
+      return { ok: false, message: await res.text() }
+    }
+    const data = (await res.json()) as { issues?: JiraIssueSuggestRow[] }
+    return {
+      ok: true,
+      issues: Array.isArray(data.issues) ? data.issues : [],
+    }
+  } catch (e) {
+    return {
+      ok: false,
+      message: e instanceof Error ? e.message : 'Request failed',
+    }
+  }
+}
+
 export type JiraLookupResult =
   | { status: 'found'; key: string; summary: string }
   | { status: 'notfound'; error: string }
