@@ -362,8 +362,171 @@ export function Dashboard() {
       ? { start: selectedSprint.start, end: selectedSprint.end }
       : null
 
+  function renderScopeCard(layout: 'sidebar' | 'toolbar') {
+    const sidebar = layout === 'sidebar'
+    const selectCls = sidebar
+      ? 'min-w-0 flex-1 rounded border border-slate-200/80 bg-white/95 py-1 pl-2 pr-6 text-xs font-semibold text-slate-900 shadow-sm dark:border-slate-600 dark:bg-slate-900/95 dark:text-slate-100'
+      : 'min-w-0 max-w-[7.5rem] shrink-0 flex-1 rounded border border-slate-200/80 bg-white/95 py-1 pl-2 pr-6 text-xs font-semibold text-slate-900 shadow-sm dark:border-slate-600 dark:bg-slate-900/95 dark:text-slate-100 sm:max-w-[11rem]'
+
+    const olderBtn = (
+      <button
+        type="button"
+        aria-label="Older sprint"
+        disabled={
+          scope.type !== 'sprint' ||
+          sprintIndex < 0 ||
+          sprintIndex >= sortedSprints.length - 1
+        }
+        className="rounded border border-slate-200/80 bg-white/90 px-2 py-0.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-white disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-200 dark:hover:bg-slate-800"
+        onClick={() => goSprint(1)}
+      >
+        ←
+      </button>
+    )
+    const scopeSelect = (
+      <select
+        aria-label="Dashboard scope"
+        className={selectCls}
+        value={scopeSelectValue(scope)}
+        onChange={(e) => onScopeSelectChange(e.target.value)}
+      >
+        <optgroup
+          label="Sprints"
+          className="dark:text-slate-200 [&>option]:dark:text-slate-100"
+        >
+          {sortedSprints.map((s) => (
+            <option key={s.id} value={`sprint:${s.id}`}>
+              {sprintSelectOptionLabel(s)}
+            </option>
+          ))}
+        </optgroup>
+        <option value="all">All sprints to date</option>
+        <optgroup
+          label="By month"
+          className="dark:text-slate-200 [&>option]:dark:text-slate-100"
+        >
+          {monthOpts.map((m) => (
+            <option
+              key={`${m.year}-${m.month}`}
+              value={`month:${m.year}:${m.month}`}
+            >
+              {m.label}
+            </option>
+          ))}
+        </optgroup>
+        <optgroup
+          label="By year"
+          className="dark:text-slate-200 [&>option]:dark:text-slate-100"
+        >
+          {yearOpts.map((y) => (
+            <option key={y} value={`year:${y}`}>
+              {y}
+            </option>
+          ))}
+        </optgroup>
+      </select>
+    )
+    const weeklyBtn = (
+      <button
+        type="button"
+        className={`rounded-lg border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide shadow-sm ${
+          sidebar ? 'w-full py-1.5' : 'shrink-0'
+        } ${
+          weeklyOpen
+            ? 'border-[#00B050] bg-[#00B050] text-white dark:border-emerald-500 dark:bg-emerald-600'
+            : 'border-slate-200/80 bg-white/90 text-[#0d5c2e] hover:bg-white dark:border-slate-600 dark:bg-slate-800/90 dark:text-emerald-200 dark:hover:bg-slate-800'
+        }`}
+        title="Card view of teammate comments this week (Jira + tracker)"
+        onClick={toggleWeekly}
+      >
+        {weeklyOpen ? 'Exit weekly' : 'Weekly'}
+      </button>
+    )
+    const newerBtn = (
+      <button
+        type="button"
+        aria-label="Newer sprint"
+        disabled={scope.type !== 'sprint' || sprintIndex <= 0}
+        className="rounded border border-slate-200/80 bg-white/90 px-2 py-0.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-white disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-200 dark:hover:bg-slate-800"
+        onClick={() => goSprint(-1)}
+      >
+        →
+      </button>
+    )
+    const progressBlock = (
+      <div
+        className={
+          sidebar
+            ? 'text-center text-[10px] tabular-nums text-slate-700 dark:text-slate-200'
+            : 'ml-auto flex shrink-0 flex-col items-end gap-0.5 text-right text-[10px] tabular-nums text-slate-700 dark:text-slate-200'
+        }
+      >
+        {selectedSprint && sprintProgress ? (
+          <span
+            role="status"
+            aria-label={`Sprint calendar progress ${Math.round(frac * 100)} percent, day ${sprintProgress.current} of ${sprintProgress.total}`}
+          >
+            <span className="font-bold text-[#007a3d] dark:text-emerald-300">
+              {Math.round(frac * 100)}%
+            </span>
+            <span>
+              {' '}
+              · day {sprintProgress.current}/{sprintProgress.total}
+            </span>
+          </span>
+        ) : (
+          <span className="font-semibold text-slate-600 dark:text-slate-300">
+            {scopeShortLabel(scope, sortedSprints)}
+          </span>
+        )}
+      </div>
+    )
+
+    return (
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
+        <div className="relative overflow-hidden border-b border-[#00B050]/25 bg-[#00B050]/10">
+          {selectedSprint && sprintProgress ? (
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-y-0 left-0 bg-gradient-to-r from-[#00B050]/45 to-[#00B050]/20 transition-[width] duration-300 ease-out dark:from-[#00B050]/35 dark:to-[#00B050]/15"
+              style={{ width: `${Math.round(frac * 100)}%` }}
+            />
+          ) : null}
+          {sidebar ? (
+            <div className="relative z-10 flex flex-col gap-2 px-2.5 py-2.5">
+              <span className="text-[10px] font-bold uppercase tracking-wide text-[#007a3d] dark:text-emerald-300">
+                Scope
+              </span>
+              <div className="flex w-full min-w-0 items-stretch gap-1">
+                {olderBtn}
+                {scopeSelect}
+                {newerBtn}
+              </div>
+              {weeklyBtn}
+              {progressBlock}
+            </div>
+          ) : (
+            <div className="relative z-10 flex flex-wrap items-center gap-2 gap-y-2 px-3 py-2">
+              <span className="text-[10px] font-bold uppercase tracking-wide text-[#007a3d] dark:text-emerald-300">
+                Scope
+              </span>
+              {olderBtn}
+              {scopeSelect}
+              {weeklyBtn}
+              {newerBtn}
+              {progressBlock}
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
   const chartAside = (
     <aside className="order-2 w-full max-w-full space-y-3 xl:fixed xl:bottom-8 xl:left-8 xl:top-24 xl:z-20 xl:w-[min(20rem,calc(100vw-4rem))] xl:max-w-[20rem] xl:overflow-y-auto xl:overscroll-contain xl:pr-1">
+      {sortedSprints.length > 0 ? (
+        <div className="hidden xl:block">{renderScopeCard('sidebar')}</div>
+      ) : null}
       <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
         <h3 className="mb-0.5 text-center text-[10px] font-bold uppercase tracking-wide text-[#007a3d] dark:text-emerald-300">
           Team progress
@@ -446,132 +609,20 @@ export function Dashboard() {
     <div className="space-y-6">
       {!isAdmin(user) ? (
         <p className="text-sm text-slate-600">
-          Showing your assignments for the selected scope above.
+          Showing your assignments for the selected scope.
         </p>
+      ) : null}
+      {sortedSprints.length > 0 ? (
+        <div className="xl:hidden">{renderScopeCard('toolbar')}</div>
       ) : null}
 
       <div className="relative flex flex-col gap-5 xl:block">
         <div className="order-1 min-w-0 space-y-2 xl:ml-[21.25rem]">
-          {sortedSprints.length > 0 ? (
-            <div className="sticky top-28 z-[9] -mx-px bg-white/90 px-px pb-1 backdrop-blur-sm dark:bg-slate-950/90 sm:top-24 xl:top-24">
-              <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm ring-1 ring-slate-200/60 dark:border-slate-700 dark:bg-slate-900/90 dark:ring-slate-600/40">
-                <div className="relative overflow-hidden border-b border-[#00B050]/25 bg-[#00B050]/10">
-                {selectedSprint && sprintProgress ? (
-                  <div
-                    aria-hidden
-                    className="pointer-events-none absolute inset-y-0 left-0 bg-gradient-to-r from-[#00B050]/45 to-[#00B050]/20 transition-[width] duration-300 ease-out dark:from-[#00B050]/35 dark:to-[#00B050]/15"
-                    style={{ width: `${Math.round(frac * 100)}%` }}
-                  />
-                ) : null}
-                <div className="relative z-10 flex flex-wrap items-center gap-2 gap-y-2 px-3 py-2">
-                  <span className="text-[10px] font-bold uppercase tracking-wide text-[#007a3d] dark:text-emerald-300">
-                    Scope
-                  </span>
-                  <button
-                    type="button"
-                    aria-label="Older sprint"
-                    disabled={
-                      scope.type !== 'sprint' ||
-                      sprintIndex < 0 ||
-                      sprintIndex >= sortedSprints.length - 1
-                    }
-                    className="rounded border border-slate-200/80 bg-white/90 px-2 py-0.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-white disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-200 dark:hover:bg-slate-800"
-                    onClick={() => goSprint(1)}
-                  >
-                    ←
-                  </button>
-                  <select
-                    aria-label="Dashboard scope"
-                    className="min-w-0 max-w-[7.5rem] shrink-0 rounded border border-slate-200/80 bg-white/95 py-1 pl-2 pr-6 text-xs font-semibold text-slate-900 shadow-sm dark:border-slate-600 dark:bg-slate-900/95 dark:text-slate-100 sm:max-w-[11rem]"
-                    value={scopeSelectValue(scope)}
-                    onChange={(e) => onScopeSelectChange(e.target.value)}
-                  >
-                    <optgroup
-                      label="Sprints"
-                      className="dark:text-slate-200 [&>option]:dark:text-slate-100"
-                    >
-                      {sortedSprints.map((s) => (
-                        <option key={s.id} value={`sprint:${s.id}`}>
-                          {sprintSelectOptionLabel(s)}
-                        </option>
-                      ))}
-                    </optgroup>
-                    <option value="all">All sprints to date</option>
-                    <optgroup
-                      label="By month"
-                      className="dark:text-slate-200 [&>option]:dark:text-slate-100"
-                    >
-                      {monthOpts.map((m) => (
-                        <option
-                          key={`${m.year}-${m.month}`}
-                          value={`month:${m.year}:${m.month}`}
-                        >
-                          {m.label}
-                        </option>
-                      ))}
-                    </optgroup>
-                    <optgroup
-                      label="By year"
-                      className="dark:text-slate-200 [&>option]:dark:text-slate-100"
-                    >
-                      {yearOpts.map((y) => (
-                        <option key={y} value={`year:${y}`}>
-                          {y}
-                        </option>
-                      ))}
-                    </optgroup>
-                  </select>
-                  <button
-                    type="button"
-                    className={`shrink-0 rounded-lg border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide shadow-sm ${
-                      weeklyOpen
-                        ? 'border-[#00B050] bg-[#00B050] text-white dark:border-emerald-500 dark:bg-emerald-600'
-                        : 'border-slate-200/80 bg-white/90 text-[#0d5c2e] hover:bg-white dark:border-slate-600 dark:bg-slate-800/90 dark:text-emerald-200 dark:hover:bg-slate-800'
-                    }`}
-                    title="Card view of teammate comments this week (Jira + tracker)"
-                    onClick={toggleWeekly}
-                  >
-                    {weeklyOpen ? 'Exit weekly' : 'Weekly'}
-                  </button>
-                  <button
-                    type="button"
-                    aria-label="Newer sprint"
-                    disabled={scope.type !== 'sprint' || sprintIndex <= 0}
-                    className="rounded border border-slate-200/80 bg-white/90 px-2 py-0.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-white disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-200 dark:hover:bg-slate-800"
-                    onClick={() => goSprint(-1)}
-                  >
-                    →
-                  </button>
-                  <div className="ml-auto flex shrink-0 flex-col items-end gap-0.5 text-right">
-                    {selectedSprint && sprintProgress ? (
-                      <span
-                        className="text-[10px] tabular-nums text-slate-700 dark:text-slate-200"
-                        role="status"
-                        aria-label={`Sprint calendar progress ${Math.round(frac * 100)} percent, day ${sprintProgress.current} of ${sprintProgress.total}`}
-                      >
-                        <span className="font-bold text-[#007a3d] dark:text-emerald-300">
-                          {Math.round(frac * 100)}%
-                        </span>
-                        <span>
-                          {' '}
-                          · day {sprintProgress.current}/{sprintProgress.total}
-                        </span>
-                      </span>
-                    ) : (
-                      <span className="text-[10px] font-semibold text-slate-600 dark:text-slate-300">
-                        {scopeShortLabel(scope, sortedSprints)}
-                      </span>
-                    )}
-                  </div>
-                </div>
-                </div>
-              </div>
-            </div>
-          ) : (
+          {sortedSprints.length === 0 ? (
             <p className="text-sm text-slate-600">
               Sprints will appear here once seeded or imported.
             </p>
-          )}
+          ) : null}
 
       {weeklyOpen ? (
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
