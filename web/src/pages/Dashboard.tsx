@@ -343,7 +343,7 @@ export function Dashboard() {
     'font-medium text-indigo-700 hover:text-indigo-900 hover:underline dark:text-slate-100 dark:hover:text-white'
 
   const chartAside = (
-    <aside className="order-2 w-full max-w-full space-y-3 xl:sticky xl:top-4 xl:order-1 xl:max-h-[min(calc(100vh-5rem),56rem)] xl:max-w-[20rem] xl:justify-self-start xl:overflow-y-auto xl:overscroll-contain xl:pr-1">
+    <aside className="order-2 w-full max-w-full space-y-3 xl:fixed xl:bottom-8 xl:left-8 xl:top-24 xl:z-20 xl:w-[min(20rem,calc(100vw-4rem))] xl:max-w-[20rem] xl:overflow-y-auto xl:overscroll-contain xl:pr-1">
       <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
         <h3 className="mb-0.5 text-center text-[10px] font-bold uppercase tracking-wide text-[#007a3d] dark:text-emerald-300">
           Team progress
@@ -430,8 +430,8 @@ export function Dashboard() {
         </p>
       ) : null}
 
-      <div className="flex flex-col gap-5 xl:grid xl:grid-cols-[minmax(16.5rem,20rem)_minmax(0,1fr)] xl:items-start xl:gap-5">
-        <div className="order-1 min-w-0 space-y-6 xl:order-2">
+      <div className="relative flex flex-col gap-5 xl:block">
+        <div className="order-1 min-w-0 space-y-6 xl:ml-[21.25rem]">
           {sortedSprints.length > 0 ? (
             <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
               <div className="flex flex-wrap items-center gap-2 gap-y-2 border-b border-[#00B050]/25 bg-[#00B050]/10 px-3 py-2">

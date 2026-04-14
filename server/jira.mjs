@@ -434,6 +434,24 @@ async function fetchAgileIssueFields(jiraBase, pat, issueKey, sprintFieldId) {
   }
 }
 
+async function createJiraIssueRest(jiraBase, pat, fields) {
+  const base = jiraBase.replace(/\/$/, '')
+  const res = await fetch(`${base}/rest/api/2/issue`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${pat}`,
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ fields }),
+  })
+  if (!res.ok) {
+    const t = await res.text()
+    throw new Error(`Jira create issue failed ${res.status}: ${t.slice(0, 500)}`)
+  }
+  return res.json()
+}
+
 async function fetchAllIssues(jiraBase, pat, jql, fieldList) {
   const base = jiraBase.replace(/\/$/, '')
   const out = []
@@ -521,10 +539,18 @@ async function fetchCommentsForIssues(jiraBase, pat, issueKeys, concurrency = 8)
 
 /**
  * @param {import('express').Express} app
- * @param {{ dataDir: string, jiraBaseUrl?: string }} opts
+ * @param {{
+ *   dataDir: string
+ *   jiraBaseUrl?: string
+ *   readTrackerSnapshot?: () => { snapshot: string | null }
+ * }} opts
  */
 export function registerJiraRoutes(app, opts) {
   const dataDir = opts.dataDir
+  const readTrackerSnapshot =
+    typeof opts.readTrackerSnapshot === 'function'
+      ? opts.readTrackerSnapshot
+      : () => ({ snapshot: null })
   const tokenFile = path.join(dataDir, 'jira-tokens.json')
   const userTokenFile = path.join(dataDir, 'jira-user-tokens.json')
   const defaultJiraBase =
@@ -957,6 +983,118 @@ export function registerJiraRoutes(app, opts) {
     } catch (e) {
       res.status(502).json({
         error: e instanceof Error ? e.message : 'Jira sync failed',
+      })
+    }
+  })
+
+  app.post('/api/jira/create-issue', requireJiraSecret, async (req, res) => {
+    const teamId = typeof req.body?.teamId === 'string' ? req.body.teamId.trim() : ''
+    const projectKey =
+      typeof req.body?.projectKey === 'string' ? req.body.projectKey.trim().toUpperCase() : ''
+    const issueType =
+      typeof req.body?.issueType === 'string' ? req.body.issueType.trim() : ''
+    const summary = typeof req.body?.summary === 'string' ? req.body.summary.trim() : ''
+    const description =
+      typeof req.body?.description === 'string' ? req.body.description.trim() : ''
+    const syncMode =
+      req.body?.syncMode === 'individual' ? 'individual' : 'admin'
+    const trackerUsername = normalizeTrackerUsername(req.body?.trackerUsername)
+
+    if (!teamId || !projectKey || !issueType || !summary) {
+      res.status(400).json({
+        error:
+          'Body must include { teamId, projectKey, issueType, summary } (optional description)',
+      })
+      return
+    }
+
+    if (syncMode === 'individual' && !trackerUsername) {
+      res.status(400).json({
+        error: 'individual create requires { trackerUsername: string }',
+      })
+      return
+    }
+
+    let pat = null
+    if (syncMode === 'individual') {
+      const ust = userTokenStatusPayload(trackerUsername)
+      if (ust.status === 'expired' || ust.status === 'none') {
+        res.status(400).json({
+          error:
+            ust.status === 'none'
+              ? 'Save your Jira PAT first (POST /api/jira/user-token)'
+              : 'Your Jira token expired; save a new one',
+        })
+        return
+      }
+      pat = getActiveUserToken(trackerUsername)?.token ?? null
+    } else {
+      const status = tokenStatusPayload()
+      if (status.status === 'expired' || status.status === 'none') {
+        res.status(400).json({
+          error:
+            status.status === 'none'
+              ? 'Configure a JIRA PAT first (POST /api/jira/token)'
+              : 'JIRA token expired; add a new token',
+        })
+        return
+      }
+      pat = getActiveToken()?.token ?? null
+    }
+
+    if (!pat) {
+      res.status(400).json({ error: 'No active token' })
+      return
+    }
+
+    const { snapshot: snapStr } = readTrackerSnapshot()
+    if (!snapStr || typeof snapStr !== 'string') {
+      res.status(400).json({
+        error: 'Server has no tracker snapshot; open the app with sync enabled once',
+      })
+      return
+    }
+
+    let snap
+    try {
+      snap = JSON.parse(snapStr)
+    } catch {
+      res.status(400).json({ error: 'Invalid server snapshot' })
+      return
+    }
+
+    const teamData = snap.teamsData?.[teamId]
+    if (!teamData) {
+      res.status(404).json({ error: 'Unknown teamId in server snapshot' })
+      return
+    }
+
+    const jiraBase =
+      typeof teamData.jiraBaseUrl === 'string' && teamData.jiraBaseUrl.includes('browse')
+        ? teamData.jiraBaseUrl.split('/browse')[0].replace(/\/$/, '') || defaultJiraBase
+        : defaultJiraBase
+
+    /** @type {Record<string, unknown>} */
+    const fields = {
+      project: { key: projectKey },
+      summary,
+      issuetype: { name: issueType },
+    }
+    if (description) {
+      fields.description = description
+    }
+
+    try {
+      const created = await createJiraIssueRest(jiraBase, pat, fields)
+      res.json({
+        ok: true,
+        key: created.key,
+        id: created.id,
+        self: created.self,
+      })
+    } catch (e) {
+      res.status(502).json({
+        error: e instanceof Error ? e.message : 'Jira create failed',
       })
     }
   })

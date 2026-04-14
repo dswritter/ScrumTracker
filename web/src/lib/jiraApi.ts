@@ -88,3 +88,19 @@ export async function postJiraSync(body: {
     body: JSON.stringify(body),
   })
 }
+
+export async function postJiraCreateIssue(body: {
+  teamId: string
+  projectKey: string
+  issueType: string
+  summary: string
+  description?: string
+  syncMode?: 'admin' | 'individual'
+  trackerUsername?: string
+}) {
+  return syncFetch('/api/jira/create-issue', {
+    method: 'POST',
+    headers: jiraHeaders(),
+    body: JSON.stringify(body),
+  })
+}

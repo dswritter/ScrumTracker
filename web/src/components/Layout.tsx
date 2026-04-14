@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
+import { JiraDailyAutoSync } from './JiraDailyAutoSync'
 import { JiraHeaderSyncButton } from './JiraHeaderSyncButton'
 import { UserMenu } from './UserMenu'
 import { useChatUnreadTotal } from '../hooks/useChatUnreadTotal'
@@ -49,6 +50,7 @@ export function Layout() {
 
   return (
     <div className="flex min-h-svh flex-col">
+      <JiraDailyAutoSync />
       <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/90 shadow-sm backdrop-blur-md dark:border-slate-700 dark:bg-slate-900/90">
         <div className="mx-auto flex w-full max-w-none flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
           <div className="text-left">
