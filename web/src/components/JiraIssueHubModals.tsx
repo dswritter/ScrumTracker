@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useDismissOnEscape } from '../hooks/useDismissOnEscape'
 import { getCurrentSprint, sprintsSortedNewestFirst } from '../lib/sdates'
 import {
@@ -224,9 +225,9 @@ export function JiraCreateIssueModal({
 
   if (!open) return null
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-[60] overflow-y-auto overscroll-contain bg-slate-900/40"
+      className="fixed inset-0 z-[300] overflow-y-auto overscroll-contain bg-slate-900/40"
       role="dialog"
       aria-modal="true"
       aria-label="Create Jira issue"
@@ -395,7 +396,8 @@ export function JiraCreateIssueModal({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 
@@ -544,9 +546,9 @@ export function LinkJiraIssueModal({
 
   if (!open) return null
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-[60] overflow-y-auto overscroll-contain bg-slate-900/40"
+      className="fixed inset-0 z-[300] overflow-y-auto overscroll-contain bg-slate-900/40"
       role="dialog"
       aria-modal="true"
       aria-label="Link Jira issue"
@@ -660,6 +662,7 @@ export function LinkJiraIssueModal({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

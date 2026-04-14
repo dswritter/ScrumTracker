@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useDismissOnEscape } from '../hooks/useDismissOnEscape'
 import { postJiraUserToken } from '../lib/jiraApi'
 
@@ -26,9 +27,9 @@ export function JiraUserPatModal({
   const field =
     'mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 shadow-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100'
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 p-4 dark:bg-black/50"
+      className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/40 p-4 dark:bg-black/50"
       role="dialog"
       aria-modal="true"
       aria-label="Save Jira personal access token"
@@ -120,6 +121,7 @@ export function JiraUserPatModal({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
