@@ -20,7 +20,7 @@ export function mergeJiraKeysList(existing: string[], add: string): string[] {
   return [...existing, u]
 }
 
-type SyncCtx = {
+export type JiraHubSyncContext = {
   teamId: string
   syncMode: 'admin' | 'individual'
   trackerUsername?: string
@@ -35,15 +35,18 @@ export function JiraCreateIssueModal({
   sprints,
   onApplyNewItem,
   onApplyLink,
+  contextItemId = null,
 }: {
   open: boolean
   onClose: () => void
-  syncCtx: SyncCtx
+  syncCtx: JiraHubSyncContext
   user: TrackerUserAccount
   workItems: WorkItem[]
   sprints: Sprint[]
   onApplyNewItem: (partial: Partial<WorkItem>) => void
   onApplyLink: (itemId: string, jiraKey: string) => void
+  /** When set, defaults to linking the new issue to this work item. */
+  contextItemId?: string | null
 }) {
   const close = useCallback(() => onClose(), [onClose])
   useDismissOnEscape(open, close)
@@ -109,8 +112,17 @@ export function JiraCreateIssueModal({
 
   useEffect(() => {
     if (!open) return
-    setExistingId(editableItems[0]?.id ?? '')
-  }, [open, editableItems])
+    if (
+      contextItemId &&
+      editableItems.some((w) => w.id === contextItemId)
+    ) {
+      setTarget('existing')
+      setExistingId(contextItemId)
+    } else {
+      setTarget(canNew ? 'new' : 'existing')
+      setExistingId(editableItems[0]?.id ?? '')
+    }
+  }, [open, contextItemId, editableItems, canNew])
 
   useEffect(() => {
     if (!open || !projectKey) {
@@ -389,13 +401,16 @@ export function LinkJiraIssueModal({
   user,
   workItems,
   onApplyLink,
+  contextItemId = null,
 }: {
   open: boolean
   onClose: () => void
-  syncCtx: SyncCtx
+  syncCtx: JiraHubSyncContext
   user: TrackerUserAccount
   workItems: WorkItem[]
   onApplyLink: (itemId: string, jiraKey: string) => void
+  /** When set, pre-selects this work item in the list. */
+  contextItemId?: string | null
 }) {
   const close = useCallback(() => onClose(), [onClose])
   useDismissOnEscape(open, close)
@@ -417,8 +432,15 @@ export function LinkJiraIssueModal({
     if (!open) return
     setErr(null)
     setKeyDraft('')
-    setItemId(editableItems[0]?.id ?? '')
-  }, [open, editableItems])
+    if (
+      contextItemId &&
+      editableItems.some((w) => w.id === contextItemId)
+    ) {
+      setItemId(contextItemId)
+    } else {
+      setItemId(editableItems[0]?.id ?? '')
+    }
+  }, [open, contextItemId, editableItems])
 
   const submit = async () => {
     const raw = keyDraft.trim().toUpperCase()

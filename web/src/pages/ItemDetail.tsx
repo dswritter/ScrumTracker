@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
+import { JiraPerItemIssueActions } from '../components/JiraPerItemIssueActions'
 import { StatusBadge } from '../components/StatusBadge'
 import { WorkItemTitleLink } from '../components/WorkItemTitleLink'
 import { useCurrentUser } from '../hooks/useCurrentUser'
@@ -190,6 +191,15 @@ export function ItemDetail() {
                 )}
               </span>
             )}
+            {!readOnly && canEditWorkItem(user, item) ? (
+              <JiraPerItemIssueActions
+                item={item}
+                user={user}
+                teamId={teamId}
+                workItems={ctx.workItems}
+                sprints={sprints}
+              />
+            ) : null}
           </div>
         </div>
       </div>

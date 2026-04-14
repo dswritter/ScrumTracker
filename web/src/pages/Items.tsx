@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { AddWorkItemModal } from '../components/AddWorkItemModal'
 import { CommentsCell } from '../components/CommentsCell'
 import { JiraCell } from '../components/JiraCell'
+import { JiraPerItemIssueActions } from '../components/JiraPerItemIssueActions'
 import { SprintPickerCell } from '../components/SprintPickerCell'
 import { useCurrentUser } from '../hooks/useCurrentUser'
 import { useTeamContextNullable } from '../hooks/useTeamContext'
@@ -139,6 +140,7 @@ function Row({
   teamMembers,
   jiraBaseUrl,
   showAssigneesColumn,
+  allWorkItems,
 }: {
   item: WorkItem
   user: TrackerUserAccount
@@ -147,6 +149,7 @@ function Row({
   teamMembers: string[]
   jiraBaseUrl: string
   showAssigneesColumn: boolean
+  allWorkItems: WorkItem[]
 }) {
   const updateWorkItem = useTrackerStore((s) => s.updateWorkItem)
   const deleteWorkItem = useTrackerStore((s) => s.deleteWorkItem)
@@ -261,14 +264,23 @@ function Row({
         />
       </td>
       <td className="px-2 py-2">
-        <JiraCell
-          item={item}
-          jiraBaseUrl={jiraBaseUrl}
-          canEdit={canEdit}
-          onChangeKeys={(jiraKeys) =>
-            updateWorkItem(teamId, item.id, { jiraKeys })
-          }
-        />
+        <div className="flex flex-col gap-0.5">
+          <JiraCell
+            item={item}
+            jiraBaseUrl={jiraBaseUrl}
+            canEdit={canEdit}
+            onChangeKeys={(jiraKeys) =>
+              updateWorkItem(teamId, item.id, { jiraKeys })
+            }
+          />
+          <JiraPerItemIssueActions
+            item={item}
+            user={user}
+            teamId={teamId}
+            workItems={allWorkItems}
+            sprints={sprints}
+          />
+        </div>
       </td>
       <td className="px-2 py-2">
         <CommentsCell
@@ -579,6 +591,7 @@ export function Items() {
                 teamMembers={teamMembers}
                 jiraBaseUrl={jiraBaseUrl}
                 showAssigneesColumn={showAssigneesColumn}
+                allWorkItems={workItems}
               />
             ))}
           </tbody>
