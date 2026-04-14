@@ -560,7 +560,6 @@ export function Dashboard() {
               weekChoices={weekChoices}
               weekKey={weeklyWeekKey}
               onWeekKeyChange={setWeeklyWeekKey}
-              scopeLabel={scopeShortLabel(scope, sortedSprints)}
             />
           </div>
         </div>

@@ -4,6 +4,7 @@ import { itemDetailPath } from '../lib/workItemRoutes'
 import {
   bundleWeeklyProgressByPerson,
   type WeeklyProgressCard,
+  type WeeklyProgressPersonBundle,
 } from '../lib/weeklyProgress'
 
 const CARD_SHELLS = [
@@ -43,23 +44,45 @@ function useWeeklyCardColumnCount(): number {
   return n
 }
 
+/** Rough pixel-ish score so the next card goes into the shortest column (denser layout). */
+function estimateBundleHeight(b: WeeklyProgressPersonBundle): number {
+  let h = 72
+  for (const t of b.tasks) {
+    h += 44
+    h += t.bullets.length * 26
+    h += Math.min(120, Math.ceil(t.itemTitle.length / 48) * 18)
+    h += t.jiraLinks.length * 22
+  }
+  return Math.max(h, 100)
+}
+
 /**
- * Round-robin into columns so each column stacks by content height (no shared row
- * height like CSS Grid). Preserves original indices for stable card shell colors.
+ * Greedy “shortest column” packing: each new person card goes under the column with
+ * the smallest running estimated height so short columns fill before a tall stack grows.
+ * Preserves original indices for stable card shell colors.
  */
-function splitBundlesIntoColumns<T>(
-  items: T[],
+function splitBundlesIntoShortestColumns(
+  items: WeeklyProgressPersonBundle[],
   columnCount: number,
-): { item: T; index: number }[][] {
+): { item: WeeklyProgressPersonBundle; index: number }[][] {
   if (columnCount <= 1) {
     return [items.map((item, i) => ({ item, index: i }))]
   }
-  const cols: { item: T; index: number }[][] = Array.from(
-    { length: columnCount },
-    () => [],
-  )
+  const cols: { item: WeeklyProgressPersonBundle; index: number }[][] =
+    Array.from({ length: columnCount }, () => [])
+  const heights = new Array(columnCount).fill(0)
   items.forEach((item, i) => {
-    cols[i % columnCount]!.push({ item, index: i })
+    let bestCol = 0
+    let bestH = heights[0]!
+    for (let c = 1; c < columnCount; c++) {
+      const hc = heights[c]!
+      if (hc < bestH) {
+        bestH = hc
+        bestCol = c
+      }
+    }
+    cols[bestCol]!.push({ item, index: i })
+    heights[bestCol] += estimateBundleHeight(item)
   })
   return cols
 }
@@ -80,14 +103,12 @@ export function WeeklyProgressPanel({
   weekChoices,
   weekKey,
   onWeekKeyChange,
-  scopeLabel,
 }: {
   cards: WeeklyProgressCard[]
   peopleOptions: string[]
   weekChoices: { key: string; label: string }[]
   weekKey: string
   onWeekKeyChange: (key: string) => void
-  scopeLabel: string
 }) {
   const [person, setPerson] = useState('')
   const [project, setProject] = useState('')
@@ -125,28 +146,12 @@ export function WeeklyProgressPanel({
 
   const columnCount = useWeeklyCardColumnCount()
   const bundleColumns = useMemo(
-    () => splitBundlesIntoColumns(bundles, columnCount),
+    () => splitBundlesIntoShortestColumns(bundles, columnCount),
     [bundles, columnCount],
   )
 
   return (
     <div className="space-y-4">
-      <p className="text-xs text-slate-600 dark:text-slate-300">
-        One compact card per teammate; tasks for the week are listed inside (all comments
-        per task merged). Includes{' '}
-        <strong className="text-slate-800 dark:text-slate-100">
-          ScrumTracker comments
-        </strong>{' '}
-        and{' '}
-        <strong className="text-slate-800 dark:text-slate-100">
-          Jira issue comments
-        </strong>{' '}
-        merged on sync, scoped to <span className="font-semibold">{scopeLabel}</span>.
-        Run <strong>Jira sync</strong> for the newest remote comments. Jira activity on
-        member-assigned items is attributed to the assignee when the commenter is not on
-        the roster.
-      </p>
-
       <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-600 dark:bg-slate-900/50 sm:flex-row sm:flex-wrap sm:items-end">
         <label className="flex min-w-[10rem] flex-1 flex-col gap-1 text-[11px] font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
           Person
