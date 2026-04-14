@@ -1,5 +1,16 @@
 import type { TrackerUserAccount, WorkItem } from '../types'
 
+/** One line in a comment body (nested bullets use `depth` > 0). */
+export type CommentBulletLine =
+  | { depth: number; text: string }
+  | { separator: true }
+
+export function isCommentSeparator(
+  line: CommentBulletLine,
+): line is { separator: true } {
+  return 'separator' in line && line.separator === true
+}
+
 export type WeeklyProgressCard = {
   id: string
   /** Person this row is grouped under (roster display name when possible). */
@@ -8,7 +19,7 @@ export type WeeklyProgressCard = {
   dateKey: string
   dateLabel: string
   createdAt: string
-  bullets: string[]
+  bulletLines: CommentBulletLine[]
   section: string
   itemTitle: string
   itemId: string
@@ -135,13 +146,67 @@ function commentInWeek(iso: string, weekStart: Date, weekEnd: Date): boolean {
   return t >= weekStart.getTime() && t <= weekEnd.getTime()
 }
 
-function bulletsFromBody(body: string): string[] {
-  const lines = body
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter(Boolean)
-  if (lines.length === 0) return ['(empty)']
-  return lines
+export type BulletTreeNode = { text: string; children: BulletTreeNode[] }
+
+/**
+ * Turn flat depth lines (from Jira ADF export or wiki-style `*` / indented `•`) into a tree for nested <ul> rendering.
+ */
+export function buildBulletTree(
+  lines: Array<{ depth: number; text: string }>,
+): BulletTreeNode[] {
+  const roots: BulletTreeNode[] = []
+  const parents: BulletTreeNode[] = []
+  for (const { depth, text } of lines) {
+    const node: BulletTreeNode = { text, children: [] }
+    if (depth === 0) {
+      roots.push(node)
+    } else {
+      const p = parents[depth - 1]
+      if (p) p.children.push(node)
+      else roots.push(node)
+    }
+    parents[depth] = node
+    parents.length = depth + 1
+  }
+  return roots
+}
+
+/**
+ * Parse comment body into lines with nesting depth (Jira-style lists).
+ * Supports:
+ * - Indented `•`, `-`, `*`, or `1.` bullets (2 spaces per level, from server ADF export)
+ * - Jira wiki lines: `* top`, `** nested`
+ * - Plain lines → depth 0
+ * - `—` alone → section separator (horizontal rule in UI)
+ */
+export function bulletLinesFromBody(body: string): CommentBulletLine[] {
+  const raw = body.split(/\r?\n/)
+  const out: CommentBulletLine[] = []
+  for (const line of raw) {
+    const trimmedEnd = line.trimEnd()
+    const t = trimmedEnd.trim()
+    if (!t) continue
+    if (t === '—' || t === '---') {
+      out.push({ separator: true })
+      continue
+    }
+    const wiki = t.match(/^(\*+)\s+(.*)$/)
+    if (wiki && wiki[1] && wiki[2] !== undefined) {
+      const depth = Math.max(0, wiki[1].length - 1)
+      out.push({ depth, text: wiki[2].trim() })
+      continue
+    }
+    const m = trimmedEnd.match(/^(\s*)([•]|[*\-]|\d+\.)\s+(.*)$/)
+    if (m && m[3] !== undefined) {
+      const indent = (m[1] || '').replace(/\t/g, '  ')
+      const depth = Math.min(12, Math.floor(indent.length / 2))
+      out.push({ depth, text: m[3].trim() })
+      continue
+    }
+    out.push({ depth: 0, text: t })
+  }
+  if (out.length === 0) return [{ depth: 0, text: '(empty)' }]
+  return out
 }
 
 function jiraKeysInBody(body: string, itemKeys: string[]): string[] {
@@ -214,7 +279,7 @@ function mergeWeeklyCardsForItemAndPerson(
       map.set(key, { ...c })
       continue
     }
-    const mergedBullets = [...ex.bullets, ...c.bullets]
+    const mergedBulletLines = [...ex.bulletLines, ...c.bulletLines]
     const jiraSeen = new Set(ex.jiraLinks.map((j) => j.key))
     const mergedLinks = [...ex.jiraLinks]
     for (const j of c.jiraLinks) {
@@ -230,7 +295,7 @@ function mergeWeeklyCardsForItemAndPerson(
       ...ex,
       id: `${c.itemId}:${c.personName}:week`,
       authorRaw: mergeWeeklyCardAuthors(ex.authorRaw, c.authorRaw),
-      bullets: mergedBullets,
+      bulletLines: mergedBulletLines,
       createdAt: latest.createdAt,
       dateKey: latest.dateKey,
       dateLabel: latest.dateLabel,
@@ -294,7 +359,7 @@ export function buildWeeklyProgressCards(
         dateKey,
         dateLabel,
         createdAt: c.createdAt,
-        bullets: bulletsFromBody(c.body),
+        bulletLines: bulletLinesFromBody(c.body),
         section: item.section.trim() || 'General',
         itemTitle: item.title.trim() || '(untitled)',
         itemId: item.id,

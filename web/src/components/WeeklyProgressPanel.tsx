@@ -1,10 +1,13 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { itemDetailPath } from '../lib/workItemRoutes'
 import {
+  buildBulletTree,
   bundleWeeklyProgressByPerson,
+  isCommentSeparator,
   type WeeklyProgressCard,
   type WeeklyProgressPersonBundle,
+  type BulletTreeNode,
 } from '../lib/weeklyProgress'
 
 const CARD_SHELLS = [
@@ -49,7 +52,7 @@ function estimateBundleHeight(b: WeeklyProgressPersonBundle): number {
   let h = 72
   for (const t of b.tasks) {
     h += 44
-    h += t.bullets.length * 26
+    h += t.bulletLines.length * 26
     h += Math.min(120, Math.ceil(t.itemTitle.length / 48) * 18)
     h += t.jiraLinks.length * 22
   }
@@ -88,6 +91,67 @@ function splitBundlesIntoShortestColumns(
 }
 
 /** Show “Comment by …” when authors are not only the attributed person. */
+function CommentBulletTreeView({
+  nodes,
+  nestLevel = 0,
+}: {
+  nodes: BulletTreeNode[]
+  /**0 = top-level (filled disc); odd = hollow circle; even>0 = disc again (Jira-style alternation). */
+  nestLevel?: number
+}) {
+  if (nodes.length === 0) return null
+  const useCircle = nestLevel % 2 === 1
+  const ulCls =
+    nestLevel === 0
+      ? 'm-0 list-disc list-outside space-y-1.5 pl-5 text-sm leading-relaxed text-slate-800 marker:text-slate-700 dark:text-slate-100 dark:marker:text-slate-300'
+      : useCircle
+        ? 'mb-0 mt-1.5 list-[circle] list-outside space-y-1 pl-5 text-[13px] leading-relaxed text-slate-800 marker:text-slate-600 dark:text-slate-100 dark:marker:text-slate-400'
+        : 'mb-0 mt-1.5 list-disc list-outside space-y-1 pl-5 text-[13px] leading-relaxed text-slate-800 marker:text-slate-600 dark:text-slate-100 dark:marker:text-slate-400'
+  return (
+    <ul className={ulCls}>
+      {nodes.map((n, i) => (
+        <li key={i} className="pl-0.5">
+          <span className="whitespace-pre-wrap break-words">{n.text}</span>
+          {n.children.length > 0 ? (
+            <CommentBulletTreeView nodes={n.children} nestLevel={nestLevel + 1} />
+          ) : null}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+/** Splits separators; renders each segment as a nested Jira-like bullet list (disc → circle → disc…). */
+function WeeklyCommentBody({ lines }: { lines: WeeklyProgressCard['bulletLines'] }) {
+  const segments: Array<Array<{ depth: number; text: string }>> = []
+  let cur: Array<{ depth: number; text: string }> = []
+  for (const L of lines) {
+    if (isCommentSeparator(L)) {
+      if (cur.length) segments.push(cur)
+      cur = []
+    } else {
+      cur.push(L)
+    }
+  }
+  if (cur.length) segments.push(cur)
+
+  return (
+    <div className="space-y-2">
+      {segments.map((seg, si) => {
+        const tree = buildBulletTree(seg)
+        return (
+          <Fragment key={si}>
+            {si > 0 ? (
+              <hr className="my-2 border-slate-200/80 dark:border-slate-600/60" />
+            ) : null}
+            <CommentBulletTreeView nodes={tree} />
+          </Fragment>
+        )
+      })}
+    </div>
+  )
+}
+
 function authorLineVisible(authorRaw: string, personName: string): boolean {
   const chunks = authorRaw
     .split('·')
@@ -130,7 +194,9 @@ export function WeeklyProgressPanel({
         c.personName,
         c.authorRaw,
         c.itemTitle,
-        ...c.bullets,
+        ...c.bulletLines.map((bl) =>
+          isCommentSeparator(bl) ? '' : bl.text,
+        ),
         ...c.jiraLinks.map((j) => j.key),
       ]
         .join('\n')
@@ -303,27 +369,9 @@ export function WeeklyProgressPanel({
                             {c.itemTitle}
                           </Link>
                         </p>
-                        <ul className="mt-2 space-y-1">
-                          {c.bullets.map((line, i) =>
-                            line === '—' ? (
-                              <li
-                                key={`${c.id}-b-${i}`}
-                                className="my-0.5 list-none border-t border-slate-200/70 pt-1 dark:border-slate-600/50"
-                                aria-hidden
-                              />
-                            ) : (
-                              <li
-                                key={`${c.id}-b-${i}`}
-                                className="flex gap-2 text-sm leading-snug text-slate-800 dark:text-slate-100"
-                              >
-                                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#00B050] dark:bg-emerald-400" />
-                                <span className="min-w-0 whitespace-pre-wrap break-words">
-                                  {line}
-                                </span>
-                              </li>
-                            ),
-                          )}
-                        </ul>
+                        <div className="mt-2">
+                          <WeeklyCommentBody lines={c.bulletLines} />
+                        </div>
                         {c.jiraLinks.length > 0 ? (
                           <div className="mt-3 flex flex-wrap gap-1 border-t border-slate-200/70 pt-2 dark:border-slate-600/60">
                             {c.jiraLinks.map((j) =>

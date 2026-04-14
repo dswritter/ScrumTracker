@@ -67,23 +67,147 @@ function ymdFromJiraDate(d) {
 function bodyToPlainText(body) {
   if (body == null) return ''
   if (typeof body === 'string') return body
-  if (typeof body === 'object' && Array.isArray(body.content)) {
-    return walkAdfContent(body.content).trim()
+  if (typeof body === 'object') {
+    const blocks =
+      body.type === 'doc' && Array.isArray(body.content)
+        ? body.content
+        : Array.isArray(body.content)
+          ? body.content
+          : null
+    if (blocks) return adfBlocksToPlainText(blocks).trim()
   }
   return ''
 }
 
-function walkAdfContent(nodes) {
+/** Plain text from inline nodes (paragraph contents, etc.). */
+function adfInlineToText(nodes) {
   if (!Array.isArray(nodes)) return ''
   let s = ''
   for (const n of nodes) {
     if (!n || typeof n !== 'object') continue
     if (n.type === 'text' && typeof n.text === 'string') s += n.text
-    if (Array.isArray(n.content)) s += walkAdfContent(n.content)
     if (n.type === 'hardBreak') s += '\n'
-    if (n.type === 'paragraph' || n.type === 'heading') {
-      if (Array.isArray(n.content)) s += walkAdfContent(n.content)
-      s += '\n'
+    if (n.type === 'mention') {
+      const t = n.attrs && (n.attrs.text || n.attrs.id)
+      if (typeof t === 'string' && t) s += `@${t}`
+    }
+    if (n.type === 'emoji' && n.attrs && typeof n.attrs.shortName === 'string')
+      s += `:${n.attrs.shortName}:`
+    if (Array.isArray(n.content)) s += adfInlineToText(n.content)
+  }
+  return s
+}
+
+function adfParagraphToText(p) {
+  if (!p || typeof p !== 'object') return ''
+  const t = adfInlineToText(p.content || []).replace(/\n/g, ' ').trim()
+  return t
+}
+
+function adfListItemToLines(item, depth, bulletPrefix) {
+  if (!item || item.type !== 'listItem') return ''
+  const parts = item.content || []
+  let main = ''
+  let nested = ''
+  for (const p of parts) {
+    if (!p || typeof p !== 'object') continue
+    if (p.type === 'paragraph' || p.type === 'heading') {
+      const t = adfParagraphToText(p)
+      if (t) main = main ? `${main} ${t}` : t
+    } else if (p.type === 'bulletList') {
+      nested += adfBulletListToLines(p, depth + 1)
+    } else if (p.type === 'orderedList') {
+      nested += adfOrderedListToLines(p, depth + 1)
+    } else if (p.type === 'codeBlock') {
+      const lines = (p.content || [])
+        .filter((x) => x && x.type === 'text' && x.text)
+        .map((x) => x.text)
+        .join('')
+      if (lines.trim()) {
+        const indent = '  '.repeat(depth + 1)
+        nested += `${indent}• ${lines.trim()}\n`
+      }
+    } else if (Array.isArray(p.content)) {
+      const t = adfInlineToText(p.content).replace(/\n/g, ' ').trim()
+      if (t) main = main ? `${main} ${t}` : t
+    }
+  }
+  const indent = '  '.repeat(depth)
+  const line = (main || '').trim()
+  if (!line && nested) return nested
+  return `${indent}${bulletPrefix}${line || '(empty)'}\n${nested}`
+}
+
+function adfBulletListToLines(list, depth) {
+  if (!list || list.type !== 'bulletList') return ''
+  let s = ''
+  for (const item of list.content || []) {
+    if (item && item.type === 'listItem') {
+      s += adfListItemToLines(item, depth, '• ')
+    }
+  }
+  return s
+}
+
+function adfOrderedListToLines(list, depth) {
+  if (!list || list.type !== 'orderedList') return ''
+  let s = ''
+  let ord = 1
+  for (const item of list.content || []) {
+    if (item && item.type === 'listItem') {
+      s += adfListItemToLines(item, depth, `${ord++}. `)
+    }
+  }
+  return s
+}
+
+/** Top-level ADF block nodes → plain text with 2-space indent + • / n. per list level (matches dashboard parser). */
+function adfBlocksToPlainText(nodes) {
+  if (!Array.isArray(nodes)) return ''
+  let s = ''
+  for (const n of nodes) {
+    if (!n || typeof n !== 'object') continue
+    switch (n.type) {
+      case 'bulletList':
+        s += adfBulletListToLines(n, 0)
+        break
+      case 'orderedList':
+        s += adfOrderedListToLines(n, 0)
+        break
+      case 'paragraph': {
+        const t = adfParagraphToText(n)
+        if (t) s += `${t}\n`
+        break
+      }
+      case 'heading': {
+        const t = adfParagraphToText(n)
+        if (t) s += `${t}\n`
+        break
+      }
+      case 'blockquote':
+        s += adfBlocksToPlainText(n.content || [])
+        break
+      case 'codeBlock': {
+        const lines = (n.content || [])
+          .filter((x) => x && x.type === 'text' && x.text)
+          .map((x) => x.text)
+          .join('')
+        if (lines.trim()) s += `${lines.trim()}\n`
+        break
+      }
+      case 'rule':
+        s += '—\n'
+        break
+      case 'mediaSingle':
+      case 'mediaGroup':
+      case 'table':
+      case 'panel':
+      case 'expand': {
+        if (Array.isArray(n.content)) s += adfBlocksToPlainText(n.content)
+        break
+      }
+      default:
+        if (Array.isArray(n.content)) s += adfBlocksToPlainText(n.content)
     }
   }
   return s
