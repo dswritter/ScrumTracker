@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { itemDetailPath } from '../lib/workItemRoutes'
 import {
@@ -16,6 +16,52 @@ const CARD_SHELLS = [
 
 function shellClass(i: number): string {
   return CARD_SHELLS[i % CARD_SHELLS.length] ?? CARD_SHELLS[0]
+}
+
+/** Match Tailwind `sm` / `xl` so card columns follow the old grid breakpoints. */
+function weeklyColumnCountFromViewport(): number {
+  if (typeof window === 'undefined') return 1
+  if (window.matchMedia('(min-width: 1280px)').matches) return 3
+  if (window.matchMedia('(min-width: 640px)').matches) return 2
+  return 1
+}
+
+function useWeeklyCardColumnCount(): number {
+  const [n, setN] = useState(weeklyColumnCountFromViewport)
+  useEffect(() => {
+    const apply = () => setN(weeklyColumnCountFromViewport())
+    apply()
+    const m2 = window.matchMedia('(min-width: 640px)')
+    const m3 = window.matchMedia('(min-width: 1280px)')
+    m2.addEventListener('change', apply)
+    m3.addEventListener('change', apply)
+    return () => {
+      m2.removeEventListener('change', apply)
+      m3.removeEventListener('change', apply)
+    }
+  }, [])
+  return n
+}
+
+/**
+ * Round-robin into columns so each column stacks by content height (no shared row
+ * height like CSS Grid). Preserves original indices for stable card shell colors.
+ */
+function splitBundlesIntoColumns<T>(
+  items: T[],
+  columnCount: number,
+): { item: T; index: number }[][] {
+  if (columnCount <= 1) {
+    return [items.map((item, i) => ({ item, index: i }))]
+  }
+  const cols: { item: T; index: number }[][] = Array.from(
+    { length: columnCount },
+    () => [],
+  )
+  items.forEach((item, i) => {
+    cols[i % columnCount]!.push({ item, index: i })
+  })
+  return cols
 }
 
 /** Show “Comment by …” when authors are not only the attributed person. */
@@ -75,6 +121,12 @@ export function WeeklyProgressPanel({
   const bundles = useMemo(
     () => bundleWeeklyProgressByPerson(filteredCards),
     [filteredCards],
+  )
+
+  const columnCount = useWeeklyCardColumnCount()
+  const bundleColumns = useMemo(
+    () => splitBundlesIntoColumns(bundles, columnCount),
+    [bundles, columnCount],
   )
 
   return (
@@ -157,141 +209,148 @@ export function WeeklyProgressPanel({
           No updates match these filters for this week.
         </div>
       ) : (
-        <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {bundles.map((b, idx) => (
-            <li
-              key={b.id}
-              className={`flex flex-col rounded-2xl border p-4 shadow-sm ${shellClass(idx)}`}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-3">
+          {bundleColumns.map((col, colIdx) => (
+            <ul
+              key={`col-${colIdx}`}
+              className="m-0 flex min-w-0 flex-1 list-none flex-col gap-3 p-0"
             >
-              <div className="flex items-start justify-between gap-2 border-b border-slate-200/70 pb-2 dark:border-slate-600/60">
-                <p className="min-w-0 truncate text-sm font-bold text-slate-900 dark:text-slate-50">
-                  {b.personName}
-                </p>
-                {b.tasks.length === 1 ? (
-                  <time
-                    className="shrink-0 text-[10px] tabular-nums text-slate-600 dark:text-slate-300"
-                    dateTime={b.tasks[0]!.dateKey}
-                  >
-                    {b.tasks[0]!.dateLabel}
-                  </time>
-                ) : (
-                  <span className="shrink-0 text-[10px] tabular-nums text-slate-500 dark:text-slate-400">
-                    {b.tasks.length} tasks
-                  </span>
-                )}
-              </div>
-              <div className="mt-3 space-y-4">
-                {b.tasks.map((c, taskIdx) => (
-                  <div
-                    key={c.id}
-                    className={
-                      taskIdx > 0
-                        ? 'border-t border-slate-200/60 pt-4 dark:border-slate-600/50'
-                        : ''
-                    }
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        {b.tasks.length > 1 ? (
-                          <time
-                            className="mb-1 block text-[10px] tabular-nums text-slate-600 dark:text-slate-300"
-                            dateTime={c.dateKey}
-                          >
-                            {c.dateLabel}
-                          </time>
-                        ) : null}
-                        {authorLineVisible(c.authorRaw, c.personName) ? (
-                          <p className="mb-1 truncate text-[10px] text-slate-600 dark:text-slate-300">
-                            Comment by {c.authorRaw}
-                          </p>
-                        ) : null}
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-semibold text-slate-700 ring-1 ring-slate-200/80 dark:bg-slate-800/90 dark:text-slate-100 dark:ring-slate-600">
-                        {c.section}
-                      </span>
-                      {c.source === 'mixed' ? (
-                        <>
-                          <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-900 dark:bg-slate-700 dark:text-slate-100">
-                            Jira
-                          </span>
-                          <span className="rounded-full bg-[#00B050]/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#0d5c2e] dark:bg-emerald-950/60 dark:text-emerald-200">
-                            Tracker
-                          </span>
-                        </>
-                      ) : (
-                        <span
-                          className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
-                            c.source === 'jira'
-                              ? 'bg-blue-100 text-blue-900 dark:bg-slate-700 dark:text-slate-100'
-                              : 'bg-[#00B050]/15 text-[#0d5c2e] dark:bg-emerald-950/60 dark:text-emerald-200'
-                          }`}
-                        >
-                          {c.source === 'jira' ? 'Jira' : 'Tracker'}
-                        </span>
-                      )}
-                    </div>
-                    <p className="mt-2 text-[11px] text-slate-600 dark:text-slate-300">
-                      Task:{' '}
-                      <Link
-                        to={itemDetailPath(c.itemId)}
-                        className="font-semibold text-indigo-700 hover:underline dark:text-slate-100 dark:hover:text-white"
-                      >
-                        {c.itemTitle}
-                      </Link>
+              {col.map(({ item: b, index: idx }) => (
+                <li
+                  key={b.id}
+                  className={`flex flex-col rounded-2xl border p-4 shadow-sm ${shellClass(idx)}`}
+                >
+                  <div className="flex items-start justify-between gap-2 border-b border-slate-200/70 pb-2 dark:border-slate-600/60">
+                    <p className="min-w-0 truncate text-sm font-bold text-slate-900 dark:text-slate-50">
+                      {b.personName}
                     </p>
-                    <ul className="mt-2 space-y-1">
-                      {c.bullets.map((line, i) =>
-                        line === '—' ? (
-                          <li
-                            key={`${c.id}-b-${i}`}
-                            className="my-0.5 list-none border-t border-slate-200/70 pt-1 dark:border-slate-600/50"
-                            aria-hidden
-                          />
-                        ) : (
-                          <li
-                            key={`${c.id}-b-${i}`}
-                            className="flex gap-2 text-sm leading-snug text-slate-800 dark:text-slate-100"
-                          >
-                            <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#00B050] dark:bg-emerald-400" />
-                            <span className="min-w-0 whitespace-pre-wrap break-words">
-                              {line}
-                            </span>
-                          </li>
-                        ),
-                      )}
-                    </ul>
-                    {c.jiraLinks.length > 0 ? (
-                      <div className="mt-3 flex flex-wrap gap-1 border-t border-slate-200/70 pt-2 dark:border-slate-600/60">
-                        {c.jiraLinks.map((j) =>
-                          j.href !== '#' ? (
-                            <a
-                              key={j.key}
-                              href={j.href}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="rounded-md bg-white/90 px-2 py-0.5 font-mono text-[10px] font-semibold text-indigo-800 ring-1 ring-slate-200/80 hover:underline dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-600"
-                            >
-                              {j.key}
-                            </a>
+                    {b.tasks.length === 1 ? (
+                      <time
+                        className="shrink-0 text-[10px] tabular-nums text-slate-600 dark:text-slate-300"
+                        dateTime={b.tasks[0]!.dateKey}
+                      >
+                        {b.tasks[0]!.dateLabel}
+                      </time>
+                    ) : (
+                      <span className="shrink-0 text-[10px] tabular-nums text-slate-500 dark:text-slate-400">
+                        {b.tasks.length} tasks
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-3 space-y-4">
+                    {b.tasks.map((c, taskIdx) => (
+                      <div
+                        key={c.id}
+                        className={
+                          taskIdx > 0
+                            ? 'border-t border-slate-200/60 pt-4 dark:border-slate-600/50'
+                            : ''
+                        }
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            {b.tasks.length > 1 ? (
+                              <time
+                                className="mb-1 block text-[10px] tabular-nums text-slate-600 dark:text-slate-300"
+                                dateTime={c.dateKey}
+                              >
+                                {c.dateLabel}
+                              </time>
+                            ) : null}
+                            {authorLineVisible(c.authorRaw, c.personName) ? (
+                              <p className="mb-1 truncate text-[10px] text-slate-600 dark:text-slate-300">
+                                Comment by {c.authorRaw}
+                              </p>
+                            ) : null}
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-semibold text-slate-700 ring-1 ring-slate-200/80 dark:bg-slate-800/90 dark:text-slate-100 dark:ring-slate-600">
+                            {c.section}
+                          </span>
+                          {c.source === 'mixed' ? (
+                            <>
+                              <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-900 dark:bg-slate-700 dark:text-slate-100">
+                                Jira
+                              </span>
+                              <span className="rounded-full bg-[#00B050]/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#0d5c2e] dark:bg-emerald-950/60 dark:text-emerald-200">
+                                Tracker
+                              </span>
+                            </>
                           ) : (
                             <span
-                              key={j.key}
-                              className="rounded-md bg-white/90 px-2 py-0.5 font-mono text-[10px] text-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                              className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                                c.source === 'jira'
+                                  ? 'bg-blue-100 text-blue-900 dark:bg-slate-700 dark:text-slate-100'
+                                  : 'bg-[#00B050]/15 text-[#0d5c2e] dark:bg-emerald-950/60 dark:text-emerald-200'
+                              }`}
                             >
-                              {j.key}
+                              {c.source === 'jira' ? 'Jira' : 'Tracker'}
                             </span>
-                          ),
-                        )}
+                          )}
+                        </div>
+                        <p className="mt-2 text-[11px] text-slate-600 dark:text-slate-300">
+                          Task:{' '}
+                          <Link
+                            to={itemDetailPath(c.itemId)}
+                            className="font-semibold text-indigo-700 hover:underline dark:text-slate-100 dark:hover:text-white"
+                          >
+                            {c.itemTitle}
+                          </Link>
+                        </p>
+                        <ul className="mt-2 space-y-1">
+                          {c.bullets.map((line, i) =>
+                            line === '—' ? (
+                              <li
+                                key={`${c.id}-b-${i}`}
+                                className="my-0.5 list-none border-t border-slate-200/70 pt-1 dark:border-slate-600/50"
+                                aria-hidden
+                              />
+                            ) : (
+                              <li
+                                key={`${c.id}-b-${i}`}
+                                className="flex gap-2 text-sm leading-snug text-slate-800 dark:text-slate-100"
+                              >
+                                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#00B050] dark:bg-emerald-400" />
+                                <span className="min-w-0 whitespace-pre-wrap break-words">
+                                  {line}
+                                </span>
+                              </li>
+                            ),
+                          )}
+                        </ul>
+                        {c.jiraLinks.length > 0 ? (
+                          <div className="mt-3 flex flex-wrap gap-1 border-t border-slate-200/70 pt-2 dark:border-slate-600/60">
+                            {c.jiraLinks.map((j) =>
+                              j.href !== '#' ? (
+                                <a
+                                  key={j.key}
+                                  href={j.href}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="rounded-md bg-white/90 px-2 py-0.5 font-mono text-[10px] font-semibold text-indigo-800 ring-1 ring-slate-200/80 hover:underline dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-600"
+                                >
+                                  {j.key}
+                                </a>
+                              ) : (
+                                <span
+                                  key={j.key}
+                                  className="rounded-md bg-white/90 px-2 py-0.5 font-mono text-[10px] text-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                                >
+                                  {j.key}
+                                </span>
+                              ),
+                            )}
+                          </div>
+                        ) : null}
                       </div>
-                    ) : null}
+                    ))}
                   </div>
-                ))}
-              </div>
-            </li>
+                </li>
+              ))}
+            </ul>
           ))}
-        </ul>
+        </div>
       )}
     </div>
   )
