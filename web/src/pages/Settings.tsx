@@ -605,7 +605,11 @@ export function Settings() {
           <code className="rounded bg-slate-100 px-1 dark:bg-slate-800">
             docs/JIRA Integration Architecture.md
           </code>
-          .
+          . Team members run <strong>Jira sync</strong> from the header with their
+          own PAT (stored in <span className="font-mono">jira-user-tokens.json</span>
+          ); the same team JQL applies, plus their issues reported in the current
+          sprint window. Items missing a matching Jira sprint show{' '}
+          <strong>Needs Jira sprint</strong> for admins.
         </p>
         {!hasSyncServer ? (
           <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100">

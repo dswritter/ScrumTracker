@@ -240,6 +240,64 @@ function upsertSprintsFromJiraObjects(sprints, jiraSprintObjs) {
   return { sprints: out, sprintIds }
 }
 
+function normalizeTrackerUsername(raw) {
+  return String(raw ?? '')
+    .trim()
+    .replace(/^@+/i, '')
+    .toLowerCase()
+}
+
+/** @param {unknown[]} sprints */
+function currentSprintDateBoundsForJql(sprints) {
+  const today = new Date().toISOString().slice(0, 10)
+  const list = Array.isArray(sprints) ? sprints : []
+  const hits = list.filter(
+    (s) =>
+      s &&
+      typeof s.start === 'string' &&
+      typeof s.end === 'string' &&
+      s.start <= today &&
+      s.end >= today,
+  )
+  if (hits.length === 0) return null
+  let minStart = hits[0].start
+  let maxEnd = hits[0].end
+  for (const h of hits) {
+    if (h.start < minStart) minStart = h.start
+    if (h.end > maxEnd) maxEnd = h.end
+  }
+  const jqlStart = String(minStart).replace(/-/g, '/')
+  const jqlEnd = String(maxEnd).replace(/-/g, '/')
+  return { start: minStart, end: maxEnd, jqlStart, jqlEnd }
+}
+
+/** Sprint ids like jira-sprint-123 active on today's calendar. */
+function activeJiraSprintIdSetFromTracker(sprints, todayYmd) {
+  const set = new Set()
+  for (const s of Array.isArray(sprints) ? sprints : []) {
+    if (!s || typeof s.id !== 'string') continue
+    if (
+      typeof s.start === 'string' &&
+      typeof s.end === 'string' &&
+      s.start <= todayYmd &&
+      s.end >= todayYmd &&
+      s.id.startsWith('jira-sprint-')
+    ) {
+      const m = s.id.match(/^jira-sprint-(.+)$/)
+      if (m) set.add(m[1])
+    }
+  }
+  return set
+}
+
+function jiraWorkItemSprintIdsIntersectActive(jiraSprintIds, activeIdSet) {
+  for (const sid of Array.isArray(jiraSprintIds) ? jiraSprintIds : []) {
+    const m = String(sid).match(/^jira-sprint-(.+)$/)
+    if (m && activeIdSet.has(m[1])) return true
+  }
+  return false
+}
+
 function extractJiraSprintFieldValue(issue, sprintFieldId) {
   if (!issue?.fields) return null
   let raw = sprintFieldId ? issue.fields[sprintFieldId] : null
@@ -285,6 +343,7 @@ function upsertWorkItemFromIssue(
   jiraComments,
   jiraSprintIds,
   syncSprintsFromJira,
+  jiraNeedsSprintLabel,
 ) {
   const key = issue.key
   const fields = issue.fields || {}
@@ -313,6 +372,7 @@ function upsertWorkItemFromIssue(
       assignees: assignees.length > 0 ? assignees : w.assignees,
       comments,
       sprintIds,
+      jiraNeedsSprintLabel,
     }
     return workItems.map((x, i) => (i === idx ? next : x))
   }
@@ -329,6 +389,7 @@ function upsertWorkItemFromIssue(
     sprintIds: syncSprintsFromJira ? [...jiraSprintIds] : [],
     jiraKeys: [key],
     comments: mergeJiraCommentsIntoWorkItem([], jiraComments),
+    jiraNeedsSprintLabel,
   }
   return [created, ...workItems]
 }
@@ -465,6 +526,7 @@ async function fetchCommentsForIssues(jiraBase, pat, issueKeys, concurrency = 8)
 export function registerJiraRoutes(app, opts) {
   const dataDir = opts.dataDir
   const tokenFile = path.join(dataDir, 'jira-tokens.json')
+  const userTokenFile = path.join(dataDir, 'jira-user-tokens.json')
   const defaultJiraBase =
     (opts.jiraBaseUrl || process.env.JIRA_BASE_URL || '').trim() ||
     'https://jira.corp.adobe.com'
@@ -488,8 +550,7 @@ export function registerJiraRoutes(app, opts) {
     return active[0] || null
   }
 
-  function tokenStatusPayload() {
-    const t = getActiveToken()
+  function tokenRowStatusPayload(t) {
     if (!t || !t.token) {
       return { status: 'none', daysRemaining: null, message: 'No token configured' }
     }
@@ -510,6 +571,37 @@ export function registerJiraRoutes(app, opts) {
       }
     }
     return { status: 'valid', daysRemaining, message: 'Token valid' }
+  }
+
+  function tokenStatusPayload() {
+    return tokenRowStatusPayload(getActiveToken())
+  }
+
+  function readUserTokenStore() {
+    const o = readJsonFile(userTokenFile, { users: {} })
+    const users = o.users && typeof o.users === 'object' ? o.users : {}
+    return { users }
+  }
+
+  function writeUserTokenStore(store) {
+    writeJsonFile(userTokenFile, store)
+  }
+
+  function getActiveUserToken(username) {
+    const u = normalizeTrackerUsername(username)
+    if (!u) return null
+    const { users } = readUserTokenStore()
+    const row = users[u]
+    if (!row || !row.isActive || !row.token) return null
+    return row
+  }
+
+  function userTokenStatusPayload(username) {
+    const u = normalizeTrackerUsername(username)
+    if (!u) {
+      return { status: 'none', daysRemaining: null, message: 'No user' }
+    }
+    return tokenRowStatusPayload(getActiveUserToken(u))
   }
 
   function requireJiraSecret(req, res, next) {
@@ -550,29 +642,88 @@ export function registerJiraRoutes(app, opts) {
     res.json(tokenStatusPayload())
   })
 
+  app.post('/api/jira/user-token', requireJiraSecret, (req, res) => {
+    const username = normalizeTrackerUsername(req.body?.username)
+    const token = typeof req.body?.token === 'string' ? req.body.token.trim() : ''
+    const expiresAt =
+      typeof req.body?.expiresAt === 'string' ? req.body.expiresAt.trim() : null
+    if (!username) {
+      res.status(400).json({ error: 'Body must include { username: string }' })
+      return
+    }
+    if (!token) {
+      res.status(400).json({ error: 'Body must include { token: string }' })
+      return
+    }
+    const store = readUserTokenStore()
+    const createdAt = new Date().toISOString()
+    store.users[username] = {
+      token,
+      createdAt,
+      expiresAt,
+      isActive: true,
+    }
+    writeUserTokenStore(store)
+    res.json({ ok: true })
+  })
+
+  app.get('/api/jira/user-token-status', requireJiraSecret, (req, res) => {
+    const username = normalizeTrackerUsername(req.query?.username)
+    if (!username) {
+      res.status(400).json({ error: 'Query username is required' })
+      return
+    }
+    res.json(userTokenStatusPayload(username))
+  })
+
   app.post('/api/jira/sync', requireJiraSecret, async (req, res) => {
     const snapshotStr = req.body?.snapshot
     const teamId = typeof req.body?.teamId === 'string' ? req.body.teamId.trim() : ''
     const jqlOverride =
       typeof req.body?.jql === 'string' ? req.body.jql.trim() : ''
+    const syncMode =
+      req.body?.syncMode === 'individual' ? 'individual' : 'admin'
+    const trackerUsername = normalizeTrackerUsername(req.body?.trackerUsername)
     if (typeof snapshotStr !== 'string' || !snapshotStr) {
       res.status(400).json({ error: 'Body must include { snapshot: string }' })
       return
     }
 
-    const status = tokenStatusPayload()
-    if (status.status === 'expired' || status.status === 'none') {
+    if (syncMode === 'individual' && !trackerUsername) {
       res.status(400).json({
-        error:
-          status.status === 'none'
-            ? 'Configure a JIRA PAT first (POST /api/jira/token)'
-            : 'JIRA token expired; add a new token',
+        error: 'individual sync requires { trackerUsername: string }',
       })
       return
     }
 
-    const tok = getActiveToken()
-    if (!tok?.token) {
+    let pat = null
+    if (syncMode === 'individual') {
+      const ust = userTokenStatusPayload(trackerUsername)
+      if (ust.status === 'expired' || ust.status === 'none') {
+        res.status(400).json({
+          error:
+            ust.status === 'none'
+              ? 'Save your Jira PAT first (POST /api/jira/user-token)'
+              : 'Your Jira token expired; save a new one',
+        })
+        return
+      }
+      pat = getActiveUserToken(trackerUsername)?.token ?? null
+    } else {
+      const status = tokenStatusPayload()
+      if (status.status === 'expired' || status.status === 'none') {
+        res.status(400).json({
+          error:
+            status.status === 'none'
+              ? 'Configure a JIRA PAT first (POST /api/jira/token)'
+              : 'JIRA token expired; add a new token',
+        })
+        return
+      }
+      pat = getActiveToken()?.token ?? null
+    }
+
+    if (!pat) {
       res.status(400).json({ error: 'No active token' })
       return
     }
@@ -627,12 +778,46 @@ export function registerJiraRoutes(app, opts) {
         : defaultJiraBase
 
     try {
-      const searchFields = ['key', 'summary', 'assignee', 'status']
+      const searchFields = ['key', 'summary', 'assignee', 'status', 'reporter', 'created']
       if (sprintFieldRaw) searchFields.push(sprintFieldRaw)
 
-      const issues = await fetchAllIssues(jiraBase, tok.token, jql, searchFields)
+      const todayYmd = new Date().toISOString().slice(0, 10)
+      const activeJiraSprintIds = activeJiraSprintIdSetFromTracker(
+        teamData.sprints,
+        todayYmd,
+      )
+
+      const primaryIssues = await fetchAllIssues(jiraBase, pat, jql, searchFields)
+      let secondaryIssues = []
+      const secondaryKeySet = new Set()
+      if (syncMode === 'individual') {
+        const bounds = currentSprintDateBoundsForJql(teamData.sprints)
+        if (bounds) {
+          const jqlReporter = `reporter = currentUser() AND created >= "${bounds.jqlStart}" AND created <= "${bounds.jqlEnd}"`
+          secondaryIssues = await fetchAllIssues(
+            jiraBase,
+            pat,
+            jqlReporter,
+            searchFields,
+          )
+          for (const i of secondaryIssues) {
+            if (i?.key) secondaryKeySet.add(i.key)
+          }
+        }
+      }
+
+      const mergedByKey = new Map()
+      for (const issue of primaryIssues) {
+        if (issue?.key) mergedByKey.set(issue.key, issue)
+      }
+      for (const issue of secondaryIssues) {
+        if (issue?.key && !mergedByKey.has(issue.key))
+          mergedByKey.set(issue.key, issue)
+      }
+      const issues = [...mergedByKey.values()]
+
       const keys = issues.map((i) => i.key).filter(Boolean)
-      const commentMap = await fetchCommentsForIssues(jiraBase, tok.token, keys)
+      const commentMap = await fetchCommentsForIssues(jiraBase, pat, keys)
 
       let workItems = Array.isArray(teamData.workItems) ? [...teamData.workItems] : []
       let sprints = Array.isArray(teamData.sprints) ? [...teamData.sprints] : []
@@ -651,7 +836,7 @@ export function registerJiraRoutes(app, opts) {
           try {
             const one = await fetchIssueFields(
               jiraBase,
-              tok.token,
+              pat,
               issue.key,
               sprintFieldRaw,
             )
@@ -676,7 +861,7 @@ export function registerJiraRoutes(app, opts) {
         if (missing && sprintFieldRaw) {
           const agile = await fetchAgileIssueFields(
             jiraBase,
-            tok.token,
+            pat,
             issue.key,
             sprintFieldRaw,
           )
@@ -699,7 +884,7 @@ export function registerJiraRoutes(app, opts) {
           try {
             const wide = await fetchIssueFields(
               jiraBase,
-              tok.token,
+              pat,
               issue.key,
               '*navigable*',
             )
@@ -746,12 +931,23 @@ export function registerJiraRoutes(app, opts) {
           jiraSprintIds = sprintIds
         }
 
+        const onActiveBoardSprint = jiraWorkItemSprintIdsIntersectActive(
+          jiraSprintIds,
+          activeJiraSprintIds,
+        )
+        const jiraNeedsSprintLabel =
+          syncMode === 'individual' &&
+          activeJiraSprintIds.size > 0 &&
+          secondaryKeySet.has(issue.key) &&
+          !onActiveBoardSprint
+
         workItems = upsertWorkItemFromIssue(
           workItems,
           issueForSync,
           jiraComments,
           jiraSprintIds,
           syncSprintsFromJira,
+          syncMode === 'individual' ? jiraNeedsSprintLabel : false,
         )
       }
 

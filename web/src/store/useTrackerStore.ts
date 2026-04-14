@@ -78,6 +78,7 @@ function normalizeWorkItem(raw: unknown): WorkItem {
     jiraKeys: Array.isArray(o.jiraKeys)
       ? (o.jiraKeys as string[]).map(String)
       : [],
+    jiraNeedsSprintLabel: o.jiraNeedsSprintLabel === true,
     comments,
   }
 }

@@ -77,7 +77,7 @@ export function Layout() {
                 <span className="hidden px-2 text-slate-300 dark:text-slate-600 sm:inline">
                   |
                 </span>
-                {isAdmin(user) ? <JiraHeaderSyncButton /> : null}
+                <JiraHeaderSyncButton />
                 <UserMenu />
               </>
             ) : null}

@@ -82,11 +82,13 @@ Behavior:
 
 When sync is enabled (`VITE_SYNC_SAME_ORIGIN` or `VITE_SYNC_API_URL`), the app can **save a Jira Personal Access Token** and run **Sync from Jira** (see `docs/JIRA Integration Architecture.md`).
 
-- **Token file:** `server/data/jira-tokens.json` (created automatically; same folder as `tracker-state.json`, not committed).
+- **Token files:** `server/data/jira-tokens.json` (team admin PAT) and `server/data/jira-user-tokens.json` (per login username for **member** sync), created automatically; same folder as `tracker-state.json`, not committed.
 - **Endpoints:**
-  - `POST /api/jira/token` — body `{ "token": "<PAT>", "expiresAt": "<optional ISO>" }`
+  - `POST /api/jira/token` — body `{ "token": "<PAT>", "expiresAt": "<optional ISO>" }` (team admin)
   - `GET /api/jira/token-status` — `{ status, daysRemaining, message }` (no token in response)
-  - `POST /api/jira/sync` — body `{ "snapshot": "<full export JSON string>", "teamId": "<id>" }` optional `"jql": "..."` overrides team JQL
+  - `POST /api/jira/user-token` — body `{ "username": "<login>", "token": "<PAT>", "expiresAt": "<optional ISO>" }` (individual member; username is normalized like the login field)
+  - `GET /api/jira/user-token-status?username=<login>` — same shape as token-status for that user
+  - `POST /api/jira/sync` — body `{ "snapshot": "<full export JSON string>", "teamId": "<id>" }`; optional `"jql": "..."` overrides team JQL; optional `"syncMode": "admin" | "individual"` and `"trackerUsername": "<login>"` — **admin** uses the team PAT and team JQL only; **individual** uses that user’s PAT, the same team JQL, plus Jira issues where `reporter = currentUser()` and `created` falls in the tracker’s **current calendar sprint** window. Items in that second set that are not on a Jira sprint matching the active tracker sprint get `jiraNeedsSprintLabel` in the returned snapshot for admins.
 
 **Optional server env:**
 

@@ -165,6 +165,14 @@ export function ItemDetail() {
         <h2 className="text-xs font-bold uppercase tracking-wide text-slate-500">
           JIRA
         </h2>
+        {item.jiraNeedsSprintLabel ? (
+          <p
+            className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs font-medium text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100"
+            title="Not on a Jira sprint that matches the active tracker sprint. Ask an admin to set the sprint in Jira, then re-sync."
+          >
+            Needs Jira sprint label — visible to admins for board cleanup.
+          </p>
+        ) : null}
         {item.jiraKeys.length === 0 ? (
           <p className="mt-2 text-sm text-slate-600">—</p>
         ) : (

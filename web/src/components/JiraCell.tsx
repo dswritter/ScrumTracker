@@ -41,6 +41,14 @@ export function JiraCell({
 
   return (
     <div className="isolate max-w-[220px]">
+      {item.jiraNeedsSprintLabel ? (
+        <p
+          className="mb-1 rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-900 dark:border-amber-700 dark:bg-amber-950/50 dark:text-amber-100"
+          title="You reported this in the current sprint window, but it is not on a Jira sprint that matches the active tracker sprint. Ask an admin to set the sprint in Jira, then sync again."
+        >
+          Needs Jira sprint
+        </p>
+      ) : null}
       <div className="flex flex-wrap gap-1">
         {item.jiraKeys.map((k) => (
           <span

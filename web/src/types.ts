@@ -48,6 +48,12 @@ export interface WorkItem {
   status: WorkStatus
   sprintIds: SprintId[]
   jiraKeys: string[]
+  /**
+   * Set by individual Jira sync when this issue was filed by the user in the current
+   * sprint window but is not on a Jira sprint that maps to the tracker’s active sprint.
+   * Admins can add the sprint in Jira, then re-sync.
+   */
+  jiraNeedsSprintLabel?: boolean
   comments: WorkComment[]
   /** Legacy field; migrated into `comments` on load. */
   notes?: string

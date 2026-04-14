@@ -130,5 +130,7 @@ server.listen(PORT, HOST, () => {
   console.log(`  GET  /api/tracker  — fetch shared snapshot + revision (ETag / If-None-Match)`)
   console.log(`  PUT  /api/tracker  — push full snapshot (JSON string body.snapshot)`)
   console.log(`  WS   /ws/tracker — push { type: 'tracker_rev', rev } when snapshot changes`)
-  console.log(`  JIRA: POST /api/jira/token, GET /api/jira/token-status, POST /api/jira/sync`)
+  console.log(
+    `  JIRA: POST /api/jira/token, GET /api/jira/token-status, POST /api/jira/user-token, GET /api/jira/user-token-status, POST /api/jira/sync`,
+  )
 })

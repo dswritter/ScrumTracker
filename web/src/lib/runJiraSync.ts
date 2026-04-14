@@ -1,13 +1,24 @@
 import { postJiraSync } from './jiraApi'
 
+export type JiraSyncMode = 'admin' | 'individual'
+
 export async function runJiraSyncFromStore(
   exportSnapshotJson: () => string,
   importSnapshotJson: (json: string) => { ok: true } | { ok: false; error: string },
   teamId: string,
+  opts?: {
+    syncMode?: JiraSyncMode
+    trackerUsername?: string
+  },
 ): Promise<{ ok: true; message: string } | { ok: false; message: string }> {
   const snap = exportSnapshotJson()
   try {
-    const res = await postJiraSync({ snapshot: snap, teamId })
+    const res = await postJiraSync({
+      snapshot: snap,
+      teamId,
+      syncMode: opts?.syncMode,
+      trackerUsername: opts?.trackerUsername,
+    })
     if (!res.ok) {
       return { ok: false, message: await res.text() }
     }
