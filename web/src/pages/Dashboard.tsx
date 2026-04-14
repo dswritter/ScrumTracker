@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   MetabuildAssigneeBars,
   MetabuildSectionBars,
@@ -8,7 +8,6 @@ import {
 import { PersonProgressBar } from '../components/PersonProgressBar'
 import { WeeklyProgressPanel } from '../components/WeeklyProgressPanel'
 import { WorkItemTitleLink } from '../components/WorkItemTitleLink'
-import { StatCard } from '../components/StatCard'
 import { StatusBadge } from '../components/StatusBadge'
 import { useTeamContextNullable } from '../hooks/useTeamContext'
 import { isAdmin } from '../lib/permissions'
@@ -64,6 +63,7 @@ function latestCommentPreview(w: WorkItem): string {
   return t.length > 120 ? `${t.slice(0, 119)}…` : t
 }
 export function Dashboard() {
+  const navigate = useNavigate()
   const ctx = useTeamContextNullable()
   const user = ctx?.user
 
@@ -176,14 +176,42 @@ export function Dashboard() {
     counts.in_progress + counts.to_test + counts.to_track
   const blockedTodoCount = counts.blocked + counts.todo
 
-  const pieData = useMemo(
+  const teamPieSlices = useMemo(
     () =>
       [
-        { name: 'Done', value: done, fill: '#00B050' },
-        { name: 'In progress', value: inProgressCount, fill: '#3DCC7A' },
-        { name: 'Todo / blocked', value: blockedTodoCount, fill: '#B8E6CC' },
+        {
+          name: 'Done',
+          value: done,
+          variant: 'solid' as const,
+          filter: 'done' as const,
+        },
+        {
+          name: 'In progress',
+          value: inProgressCount,
+          variant: 'striped' as const,
+          filter: 'inProgress' as const,
+        },
+        {
+          name: 'Todo / blocked',
+          value: blockedTodoCount,
+          variant: 'muted' as const,
+          filter: 'blockedTodo' as const,
+        },
       ].filter((r) => r.value > 0),
     [done, inProgressCount, blockedTodoCount],
+  )
+
+  const onPieSliceNavigate = useCallback(
+    (filter: 'done' | 'inProgress' | 'blockedTodo') => {
+      if (filter === 'done') {
+        navigate(buildItemsHref(scope, { status: 'done' }))
+      } else if (filter === 'inProgress') {
+        navigate(buildItemsHref(scope, { group: 'inProgress' }))
+      } else {
+        navigate(buildItemsHref(scope, { group: 'blockedTodo' }))
+      }
+    },
+    [navigate, scope],
   )
 
   const sectionBarRows = useMemo(() => {
@@ -316,12 +344,6 @@ export function Dashboard() {
 
   const chartAside = (
     <aside className="order-2 w-full max-w-full space-y-3 xl:sticky xl:top-4 xl:order-1 xl:max-h-[min(calc(100vh-5rem),56rem)] xl:max-w-[20rem] xl:justify-self-start xl:overflow-y-auto xl:overscroll-contain xl:pr-1">
-      <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
-        <h3 className="mb-0.5 text-center text-[10px] font-bold uppercase tracking-wide text-[#007a3d] dark:text-emerald-300">
-          Team progress
-        </h3>
-        <MetabuildStatusPie data={pieData} compact />
-      </div>
       <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
         <h3 className="mb-0.5 text-center text-[10px] font-bold uppercase tracking-wide text-[#007a3d] dark:text-emerald-300">
           Section (done %)
@@ -520,31 +542,23 @@ export function Dashboard() {
             </p>
           )}
 
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          title="Work items"
-          value={total}
-          to={buildItemsHref(scope)}
-        />
-        <StatCard
-          title="Done"
-          value={done}
-          hint={
-            total ? `${Math.round((done / total) * 100)}% of scoped items` : undefined
-          }
-          to={buildItemsHref(scope, { status: 'done' })}
-        />
-        <StatCard
-          title="In progress"
-          value={inProgressCount}
-          to={buildItemsHref(scope, { group: 'inProgress' })}
-        />
-        <StatCard
-          title="Blocked / todo"
-          value={blockedTodoCount}
-          to={buildItemsHref(scope, { group: 'blockedTodo' })}
-        />
-      </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
+            <div className="mb-1 flex flex-wrap items-end justify-between gap-2">
+              <h3 className="text-[11px] font-bold uppercase tracking-wide text-[#007a3d] dark:text-emerald-300">
+                Team progress
+              </h3>
+              <p className="max-w-[16rem] text-right text-[10px] leading-snug text-slate-500 dark:text-slate-400">
+                Solid green = done · striped = in progress · pale = todo / blocked.
+                Click a slice to filter.
+              </p>
+            </div>
+            <MetabuildStatusPie
+              data={teamPieSlices}
+              totalItems={total}
+              onSliceClick={onPieSliceNavigate}
+              onTotalClick={() => navigate(buildItemsHref(scope))}
+            />
+          </div>
 
       {weeklyOpen ? (
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900/90">

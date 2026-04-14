@@ -94,15 +94,6 @@ export function ItemDetail() {
 
   return (
     <div className="space-y-8 pb-16">
-      <div className="flex flex-wrap items-center gap-3">
-        <Link
-          to="/items"
-          className="text-sm font-semibold text-indigo-700 hover:text-indigo-900 dark:text-slate-100 dark:hover:text-white"
-        >
-          ← Work items
-        </Link>
-      </div>
-
       {readOnly ? (
         <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-200">
           <span className="font-semibold">View only</span> — you can read this
@@ -134,69 +125,73 @@ export function ItemDetail() {
         </div>
       </div>
 
-      <div
-        className={`grid gap-4 ${isAdmin(user) ? 'sm:grid-cols-2' : 'sm:grid-cols-1'}`}
-      >
-        {isAdmin(user) ? (
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
-            <h2 className="text-xs font-bold uppercase tracking-wide text-slate-500">
-              Assignees
-            </h2>
-            <p className="mt-2 text-sm text-slate-900 dark:text-slate-100">
-              {item.assignees.length
-                ? item.assignees.join(', ')
+      <div className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
+        <div className="flex flex-wrap items-baseline gap-x-5 gap-y-2">
+          {isAdmin(user) ? (
+            <div className="flex min-w-0 max-w-[min(100%,15rem)] items-baseline gap-2">
+              <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Assignees
+              </span>
+              <span
+                className="min-w-0 truncate text-xs font-medium text-slate-900 dark:text-slate-100"
+                title={
+                  item.assignees.length ? item.assignees.join(', ') : undefined
+                }
+              >
+                {item.assignees.length ? item.assignees.join(', ') : '—'}
+              </span>
+            </div>
+          ) : null}
+          <div className="flex min-w-0 flex-1 items-baseline gap-2 sm:min-w-[10rem]">
+            <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              Sprints
+            </span>
+            <span className="min-w-0 text-xs font-medium text-slate-900 dark:text-slate-100">
+              {item.sprintIds.length
+                ? item.sprintIds.map((id) => sprintLabel(sprints, id)).join(', ')
                 : '—'}
-            </p>
+            </span>
           </div>
-        ) : null}
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
-          <h2 className="text-xs font-bold uppercase tracking-wide text-slate-500">
-            Sprints
-          </h2>
-          <p className="mt-2 text-sm text-slate-900 dark:text-slate-100">
-            {item.sprintIds.length
-              ? item.sprintIds.map((id) => sprintLabel(sprints, id)).join(', ')
-              : '—'}
-          </p>
-        </div>
-      </div>
-
-      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
-        <h2 className="text-xs font-bold uppercase tracking-wide text-slate-500">
-          JIRA
-        </h2>
-        {item.jiraNeedsSprintLabel ? (
-          <p
-            className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs font-medium text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100"
-            title="Not on a Jira sprint that matches the active tracker sprint. Ask an admin to set the sprint in Jira, then re-sync."
-          >
-            Needs Jira sprint label — visible to admins for board cleanup.
-          </p>
-        ) : null}
-        {item.jiraKeys.length === 0 ? (
-          <p className="mt-2 text-sm text-slate-600">—</p>
-        ) : (
-          <ul className="mt-2 flex flex-wrap gap-2">
-            {item.jiraKeys.map((k) => (
-              <li key={k}>
-                {jiraBaseUrl.trim() ? (
-                  <a
-                    href={jiraHref(jiraBaseUrl, k)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex rounded-md bg-indigo-50 px-2 py-1 text-sm font-semibold text-indigo-900 ring-1 ring-indigo-100 hover:underline dark:bg-slate-800 dark:text-sky-100 dark:ring-slate-600"
-                  >
-                    {k}
-                  </a>
-                ) : (
-                  <span className="text-sm font-medium text-slate-800 dark:text-slate-100">
-                    {k}
-                  </span>
+          <div className="flex min-w-0 flex-[2] flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              Jira
+            </span>
+            {item.jiraNeedsSprintLabel ? (
+              <span
+                className="rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-amber-900 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-100"
+                title="Not on a Jira sprint that matches the active tracker sprint. Ask an admin to set the sprint in Jira, then re-sync."
+              >
+                Needs sprint
+              </span>
+            ) : null}
+            {item.jiraKeys.length === 0 ? (
+              <span className="text-xs text-slate-500">—</span>
+            ) : (
+              <span className="flex flex-wrap items-center gap-1.5">
+                {item.jiraKeys.map((k) =>
+                  jiraBaseUrl.trim() ? (
+                    <a
+                      key={k}
+                      href={jiraHref(jiraBaseUrl, k)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex rounded-md bg-indigo-50 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-indigo-900 ring-1 ring-indigo-100 hover:underline dark:bg-slate-800 dark:text-sky-100 dark:ring-slate-600"
+                    >
+                      {k}
+                    </a>
+                  ) : (
+                    <span
+                      key={k}
+                      className="font-mono text-[11px] font-medium text-slate-800 dark:text-slate-100"
+                    >
+                      {k}
+                    </span>
+                  ),
                 )}
-              </li>
-            ))}
-          </ul>
-        )}
+              </span>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">

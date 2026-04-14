@@ -1,3 +1,4 @@
+import { useId, useMemo } from 'react'
 import type { PieSectorDataItem } from 'recharts/types/polar/Pie'
 import {
   Bar,
@@ -14,6 +15,7 @@ import {
 
 const GREEN = '#00B050'
 const GREEN_MID = '#3DCC7A'
+const MUTED_SLICE = '#B8E6CC'
 
 const tooltipProps = {
   cursor: false as const,
@@ -65,34 +67,86 @@ function pieActiveShape(props: PieSectorDataItem) {
   )
 }
 
-type PieDatum = { name: string; value: number; fill: string }
+export type TeamPieSlice = {
+  name: string
+  value: number
+  /** Done = solid brand green; in-progress = striped green; todo/blocked = soft mint. */
+  variant: 'solid' | 'striped' | 'muted'
+  filter: 'done' | 'inProgress' | 'blockedTodo'
+}
+
+type PieRow = TeamPieSlice & { fill: string }
 
 export function MetabuildStatusPie({
   data,
   compact = false,
+  totalItems,
+  onSliceClick,
+  onTotalClick,
 }: {
-  data: PieDatum[]
+  data: TeamPieSlice[]
   compact?: boolean
+  totalItems?: number
+  onSliceClick?: (filter: 'done' | 'inProgress' | 'blockedTodo') => void
+  onTotalClick?: () => void
 }) {
-  const h = compact ? 168 : 220
-  if (!data.length || data.every((d) => d.value === 0)) {
+  const stripedPatternId = useId().replace(/:/g, '')
+  const chartData: PieRow[] = useMemo(
+    () =>
+      data.map((d) => ({
+        ...d,
+        fill:
+          d.variant === 'solid'
+            ? GREEN
+            : d.variant === 'striped'
+              ? `url(#${stripedPatternId})`
+              : MUTED_SLICE,
+      })),
+    [data, stripedPatternId],
+  )
+
+  const h = compact ? 168 : 232
+  if (!chartData.length || chartData.every((d) => d.value === 0)) {
     return (
       <div
-        className={`flex items-center justify-center text-xs text-slate-500 dark:text-slate-400 ${
-          compact ? 'h-[140px]' : 'h-[200px]'
+        className={`relative flex items-center justify-center text-xs text-slate-500 dark:text-slate-400 ${
+          compact ? 'min-h-[140px]' : 'min-h-[200px]'
         }`}
       >
+        {typeof totalItems === 'number' && onTotalClick ? (
+          <button
+            type="button"
+            className="absolute right-0 top-0 z-10 rounded-md border border-slate-200/90 bg-white/95 px-2 py-1 text-[10px] font-semibold tabular-nums text-slate-600 shadow-sm hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900/95 dark:text-slate-300 dark:hover:bg-slate-800"
+            title="Open all scoped work items"
+            onClick={onTotalClick}
+          >
+            {totalItems} items
+          </button>
+        ) : null}
         No scoped items
       </div>
     )
   }
-  const innerR = compact ? 36 : 48
-  const outerR = compact ? 52 : 68
-  return (
+  const innerR = compact ? 36 : 50
+  const outerR = compact ? 52 : 72
+
+  const chart = (
     <ResponsiveContainer width="100%" height={h}>
       <PieChart margin={{ top: 8, right: 6, bottom: 8, left: 6 }}>
+        <defs>
+          <pattern
+            id={stripedPatternId}
+            width={6}
+            height={6}
+            patternUnits="userSpaceOnUse"
+            patternTransform="rotate(45)"
+          >
+            <rect width={6} height={6} fill="#E8F5EE" />
+            <rect width={2.2} height={6} fill={GREEN} />
+          </pattern>
+        </defs>
         <Pie
-          data={data}
+          data={chartData}
           dataKey="value"
           nameKey="name"
           cx="50%"
@@ -110,7 +164,7 @@ export function MetabuildStatusPie({
             const name = String(props.name ?? '')
             const pct = Number(props.percent ?? 0)
             const RADIAN = Math.PI / 180
-            const r = or + (compact ? 14 : 16)
+            const r = or + (compact ? 14 : 18)
             const x = cx + r * Math.cos(-midAngle * RADIAN)
             const y = cy + r * Math.sin(-midAngle * RADIAN)
             return (
@@ -128,12 +182,17 @@ export function MetabuildStatusPie({
             )
           }}
         >
-          {data.map((entry) => (
+          {chartData.map((entry) => (
             <Cell
               key={entry.name}
               fill={entry.fill}
               stroke="var(--chart-tooltip-bg)"
               strokeWidth={1}
+              style={{
+                cursor: onSliceClick ? 'pointer' : 'default',
+                outline: 'none',
+              }}
+              onClick={() => onSliceClick?.(entry.filter)}
             />
           ))}
         </Pie>
@@ -141,6 +200,24 @@ export function MetabuildStatusPie({
       </PieChart>
     </ResponsiveContainer>
   )
+
+  if (typeof totalItems === 'number' && onTotalClick) {
+    return (
+      <div className="relative w-full">
+        <button
+          type="button"
+          className="absolute right-0 top-0 z-10 rounded-md border border-slate-200/90 bg-white/95 px-2 py-1 text-[10px] font-semibold tabular-nums text-slate-600 shadow-sm hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900/95 dark:text-slate-300 dark:hover:bg-slate-800"
+          title="Open all scoped work items"
+          onClick={onTotalClick}
+        >
+          {totalItems} items
+        </button>
+        {chart}
+      </div>
+    )
+  }
+
+  return chart
 }
 
 export function MetabuildSectionBars({
