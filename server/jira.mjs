@@ -434,6 +434,17 @@ async function fetchAgileIssueFields(jiraBase, pat, issueKey, sprintFieldId) {
   }
 }
 
+async function jiraGet(jiraBase, pat, pathWithLeadingSlash) {
+  const base = jiraBase.replace(/\/$/, '')
+  const res = await fetch(`${base}${pathWithLeadingSlash}`, {
+    headers: {
+      Authorization: `Bearer ${pat}`,
+      Accept: 'application/json',
+    },
+  })
+  return res
+}
+
 async function createJiraIssueRest(jiraBase, pat, fields) {
   const base = jiraBase.replace(/\/$/, '')
   const res = await fetch(`${base}/rest/api/2/issue`, {
@@ -639,6 +650,77 @@ export function registerJiraRoutes(app, opts) {
       return
     }
     next()
+  }
+
+  /**
+   * @returns {Promise<{ ok: true, pat: string, jiraBase: string } | { ok: false, status: number, error: string }>}
+   */
+  async function resolvePatAndJiraBase(teamId, syncMode, trackerUsername) {
+    if (!teamId) {
+      return { ok: false, status: 400, error: 'teamId is required' }
+    }
+    if (syncMode === 'individual' && !trackerUsername) {
+      return {
+        ok: false,
+        status: 400,
+        error: 'individual mode requires trackerUsername',
+      }
+    }
+    let pat = null
+    if (syncMode === 'individual') {
+      const ust = userTokenStatusPayload(trackerUsername)
+      if (ust.status === 'expired' || ust.status === 'none') {
+        return {
+          ok: false,
+          status: 400,
+          error:
+            ust.status === 'none'
+              ? 'Save your Jira PAT first (POST /api/jira/user-token)'
+              : 'Your Jira token expired; save a new one',
+        }
+      }
+      pat = getActiveUserToken(trackerUsername)?.token ?? null
+    } else {
+      const status = tokenStatusPayload()
+      if (status.status === 'expired' || status.status === 'none') {
+        return {
+          ok: false,
+          status: 400,
+          error:
+            status.status === 'none'
+              ? 'Configure a JIRA PAT first (POST /api/jira/token)'
+              : 'JIRA token expired; add a new token',
+        }
+      }
+      pat = getActiveToken()?.token ?? null
+    }
+    if (!pat) {
+      return { ok: false, status: 400, error: 'No active token' }
+    }
+
+    const { snapshot: snapStr } = readTrackerSnapshot()
+    if (!snapStr || typeof snapStr !== 'string') {
+      return {
+        ok: false,
+        status: 400,
+        error: 'Server has no tracker snapshot; open the app with sync enabled once',
+      }
+    }
+    let snap
+    try {
+      snap = JSON.parse(snapStr)
+    } catch {
+      return { ok: false, status: 400, error: 'Invalid server snapshot' }
+    }
+    const teamData = snap.teamsData?.[teamId]
+    if (!teamData) {
+      return { ok: false, status: 404, error: 'Unknown teamId in server snapshot' }
+    }
+    const jiraBase =
+      typeof teamData.jiraBaseUrl === 'string' && teamData.jiraBaseUrl.includes('browse')
+        ? teamData.jiraBaseUrl.split('/browse')[0].replace(/\/$/, '') || defaultJiraBase
+        : defaultJiraBase
+    return { ok: true, pat, jiraBase }
   }
 
   app.post('/api/jira/token', requireJiraSecret, (req, res) => {
@@ -1008,71 +1090,12 @@ export function registerJiraRoutes(app, opts) {
       return
     }
 
-    if (syncMode === 'individual' && !trackerUsername) {
-      res.status(400).json({
-        error: 'individual create requires { trackerUsername: string }',
-      })
+    const conn = await resolvePatAndJiraBase(teamId, syncMode, trackerUsername)
+    if (!conn.ok) {
+      res.status(conn.status).json({ error: conn.error })
       return
     }
-
-    let pat = null
-    if (syncMode === 'individual') {
-      const ust = userTokenStatusPayload(trackerUsername)
-      if (ust.status === 'expired' || ust.status === 'none') {
-        res.status(400).json({
-          error:
-            ust.status === 'none'
-              ? 'Save your Jira PAT first (POST /api/jira/user-token)'
-              : 'Your Jira token expired; save a new one',
-        })
-        return
-      }
-      pat = getActiveUserToken(trackerUsername)?.token ?? null
-    } else {
-      const status = tokenStatusPayload()
-      if (status.status === 'expired' || status.status === 'none') {
-        res.status(400).json({
-          error:
-            status.status === 'none'
-              ? 'Configure a JIRA PAT first (POST /api/jira/token)'
-              : 'JIRA token expired; add a new token',
-        })
-        return
-      }
-      pat = getActiveToken()?.token ?? null
-    }
-
-    if (!pat) {
-      res.status(400).json({ error: 'No active token' })
-      return
-    }
-
-    const { snapshot: snapStr } = readTrackerSnapshot()
-    if (!snapStr || typeof snapStr !== 'string') {
-      res.status(400).json({
-        error: 'Server has no tracker snapshot; open the app with sync enabled once',
-      })
-      return
-    }
-
-    let snap
-    try {
-      snap = JSON.parse(snapStr)
-    } catch {
-      res.status(400).json({ error: 'Invalid server snapshot' })
-      return
-    }
-
-    const teamData = snap.teamsData?.[teamId]
-    if (!teamData) {
-      res.status(404).json({ error: 'Unknown teamId in server snapshot' })
-      return
-    }
-
-    const jiraBase =
-      typeof teamData.jiraBaseUrl === 'string' && teamData.jiraBaseUrl.includes('browse')
-        ? teamData.jiraBaseUrl.split('/browse')[0].replace(/\/$/, '') || defaultJiraBase
-        : defaultJiraBase
+    const { pat, jiraBase } = conn
 
     /** @type {Record<string, unknown>} */
     const fields = {
@@ -1095,6 +1118,137 @@ export function registerJiraRoutes(app, opts) {
     } catch (e) {
       res.status(502).json({
         error: e instanceof Error ? e.message : 'Jira create failed',
+      })
+    }
+  })
+
+  app.get('/api/jira/meta/projects', requireJiraSecret, async (req, res) => {
+    const teamId = typeof req.query.teamId === 'string' ? req.query.teamId.trim() : ''
+    const syncMode =
+      req.query.syncMode === 'individual' ? 'individual' : 'admin'
+    const trackerUsername = normalizeTrackerUsername(req.query.trackerUsername)
+    const conn = await resolvePatAndJiraBase(teamId, syncMode, trackerUsername)
+    if (!conn.ok) {
+      res.status(conn.status).json({ error: conn.error })
+      return
+    }
+    try {
+      const jiraRes = await jiraGet(conn.jiraBase, conn.pat, '/rest/api/2/project')
+      if (!jiraRes.ok) {
+        const t = await jiraRes.text()
+        res.status(502).json({
+          error: `Jira project list failed ${jiraRes.status}: ${t.slice(0, 400)}`,
+        })
+        return
+      }
+      const raw = await jiraRes.json()
+      const arr = Array.isArray(raw) ? raw : []
+      const projects = arr
+        .filter((p) => p && typeof p.key === 'string')
+        .map((p) => ({ key: p.key, name: typeof p.name === 'string' ? p.name : p.key }))
+        .sort((a, b) => a.key.localeCompare(b.key))
+      res.json({ projects })
+    } catch (e) {
+      res.status(502).json({
+        error: e instanceof Error ? e.message : 'Jira meta failed',
+      })
+    }
+  })
+
+  app.get('/api/jira/meta/issue-types', requireJiraSecret, async (req, res) => {
+    const teamId = typeof req.query.teamId === 'string' ? req.query.teamId.trim() : ''
+    const projectKey =
+      typeof req.query.projectKey === 'string' ? req.query.projectKey.trim().toUpperCase() : ''
+    const syncMode =
+      req.query.syncMode === 'individual' ? 'individual' : 'admin'
+    const trackerUsername = normalizeTrackerUsername(req.query.trackerUsername)
+    if (!projectKey) {
+      res.status(400).json({ error: 'Query projectKey is required' })
+      return
+    }
+    const conn = await resolvePatAndJiraBase(teamId, syncMode, trackerUsername)
+    if (!conn.ok) {
+      res.status(conn.status).json({ error: conn.error })
+      return
+    }
+    try {
+      const q = new URLSearchParams({
+        projectKeys: projectKey,
+        expand: 'projects.issuetypes',
+      })
+      const jiraRes = await jiraGet(
+        conn.jiraBase,
+        conn.pat,
+        `/rest/api/2/issue/createmeta?${q}`,
+      )
+      if (!jiraRes.ok) {
+        const t = await jiraRes.text()
+        res.status(502).json({
+          error: `Jira createmeta failed ${jiraRes.status}: ${t.slice(0, 400)}`,
+        })
+        return
+      }
+      const data = await jiraRes.json()
+      const projects = Array.isArray(data.projects) ? data.projects : []
+      const proj = projects.find((p) => p && String(p.key).toUpperCase() === projectKey)
+      const types = Array.isArray(proj?.issuetypes) ? proj.issuetypes : []
+      const issueTypes = types
+        .filter((t) => t && typeof t.name === 'string' && !t.subtask)
+        .map((t) => ({
+          id: String(t.id ?? ''),
+          name: String(t.name),
+        }))
+        .filter((t) => t.name)
+        .sort((a, b) => a.name.localeCompare(b.name))
+      res.json({ issueTypes })
+    } catch (e) {
+      res.status(502).json({
+        error: e instanceof Error ? e.message : 'Jira meta failed',
+      })
+    }
+  })
+
+  app.get('/api/jira/lookup-issue', requireJiraSecret, async (req, res) => {
+    const teamId = typeof req.query.teamId === 'string' ? req.query.teamId.trim() : ''
+    const keyRaw = typeof req.query.key === 'string' ? req.query.key.trim() : ''
+    const key = keyRaw.toUpperCase()
+    const syncMode =
+      req.query.syncMode === 'individual' ? 'individual' : 'admin'
+    const trackerUsername = normalizeTrackerUsername(req.query.trackerUsername)
+    if (!key) {
+      res.status(400).json({ error: 'Query key is required (e.g. PROJ-123)' })
+      return
+    }
+    const conn = await resolvePatAndJiraBase(teamId, syncMode, trackerUsername)
+    if (!conn.ok) {
+      res.status(conn.status).json({ error: conn.error })
+      return
+    }
+    try {
+      const jiraRes = await jiraGet(
+        conn.jiraBase,
+        conn.pat,
+        `/rest/api/2/issue/${encodeURIComponent(key)}?fields=summary,key`,
+      )
+      if (jiraRes.status === 404) {
+        res.json({ ok: false, error: 'Issue not found in Jira' })
+        return
+      }
+      if (!jiraRes.ok) {
+        const t = await jiraRes.text()
+        res.status(502).json({
+          error: `Jira lookup failed ${jiraRes.status}: ${t.slice(0, 400)}`,
+        })
+        return
+      }
+      const data = await jiraRes.json()
+      const k = typeof data.key === 'string' ? data.key : key
+      const summary =
+        data.fields && typeof data.fields.summary === 'string' ? data.fields.summary : ''
+      res.json({ ok: true, key: k, summary })
+    } catch (e) {
+      res.status(502).json({
+        error: e instanceof Error ? e.message : 'Jira lookup failed',
       })
     }
   })
