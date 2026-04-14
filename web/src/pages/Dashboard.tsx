@@ -346,6 +346,18 @@ export function Dashboard() {
     <aside className="order-2 w-full max-w-full space-y-3 xl:sticky xl:top-4 xl:order-1 xl:max-h-[min(calc(100vh-5rem),56rem)] xl:max-w-[20rem] xl:justify-self-start xl:overflow-y-auto xl:overscroll-contain xl:pr-1">
       <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
         <h3 className="mb-0.5 text-center text-[10px] font-bold uppercase tracking-wide text-[#007a3d] dark:text-emerald-300">
+          Team progress
+        </h3>
+        <MetabuildStatusPie
+          data={teamPieSlices}
+          compact
+          totalItems={total}
+          onSliceClick={onPieSliceNavigate}
+          onTotalClick={() => navigate(buildItemsHref(scope))}
+        />
+      </div>
+      <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
+        <h3 className="mb-0.5 text-center text-[10px] font-bold uppercase tracking-wide text-[#007a3d] dark:text-emerald-300">
           Section (done %)
         </h3>
         <MetabuildSectionBars rows={sectionBarRows} compact />
@@ -541,24 +553,6 @@ export function Dashboard() {
               Sprints will appear here once seeded or imported.
             </p>
           )}
-
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
-            <div className="mb-1 flex flex-wrap items-end justify-between gap-2">
-              <h3 className="text-[11px] font-bold uppercase tracking-wide text-[#007a3d] dark:text-emerald-300">
-                Team progress
-              </h3>
-              <p className="max-w-[16rem] text-right text-[10px] leading-snug text-slate-500 dark:text-slate-400">
-                Solid green = done · striped = in progress · pale = todo / blocked.
-                Click a slice to filter.
-              </p>
-            </div>
-            <MetabuildStatusPie
-              data={teamPieSlices}
-              totalItems={total}
-              onSliceClick={onPieSliceNavigate}
-              onTotalClick={() => navigate(buildItemsHref(scope))}
-            />
-          </div>
 
       {weeklyOpen ? (
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900/90">

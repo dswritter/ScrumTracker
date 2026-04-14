@@ -329,12 +329,14 @@ export function Items() {
     statusParam && STATUS_VALUES.has(statusParam)
       ? (statusParam as WorkStatus)
       : null
-  const groupFilter =
+  const groupFilterRaw =
     groupParam === 'inProgress'
       ? ('inProgress' as const)
       : groupParam === 'blockedTodo'
         ? ('blockedTodo' as const)
         : null
+  /** Status filter from the pie/cards wins if both appear in the URL (avoids empty lists). */
+  const groupFilter = statusFilter ? null : groupFilterRaw
 
   const scope = useMemo(
     () => parseDashboardScope(searchParams, ctx?.sprints ?? [], null),

@@ -1,5 +1,4 @@
 import { useId, useMemo } from 'react'
-import type { PieSectorDataItem } from 'recharts/types/polar/Pie'
 import {
   Bar,
   BarChart,
@@ -7,7 +6,6 @@ import {
   Pie,
   PieChart,
   ResponsiveContainer,
-  Sector,
   Tooltip,
   XAxis,
   YAxis,
@@ -35,36 +33,6 @@ const activeBarGlow = {
   stroke: '#00B050',
   strokeWidth: 2,
   filter: 'drop-shadow(0 0 8px rgba(0, 176, 80, 0.65))',
-}
-
-function pieActiveShape(props: PieSectorDataItem) {
-  const {
-    cx = 0,
-    cy = 0,
-    innerRadius = 0,
-    outerRadius = 0,
-    startAngle = 0,
-    endAngle = 0,
-    fill,
-  } = props
-  return (
-    <g>
-      <Sector
-        cx={cx}
-        cy={cy}
-        innerRadius={innerRadius}
-        outerRadius={Number(outerRadius) + 4}
-        startAngle={startAngle}
-        endAngle={endAngle}
-        fill={fill}
-        stroke="#00B050"
-        strokeWidth={2}
-        style={{
-          filter: 'drop-shadow(0 0 10px rgba(0, 176, 80, 0.55))',
-        }}
-      />
-    </g>
-  )
 }
 
 export type TeamPieSlice = {
@@ -131,18 +99,22 @@ export function MetabuildStatusPie({
   const outerR = compact ? 52 : 72
 
   const chart = (
-    <ResponsiveContainer width="100%" height={h}>
+    <ResponsiveContainer
+      width="100%"
+      height={h}
+      className="pie-status-chart [&_.recharts-layer]:outline-none [&_path]:outline-none [&_path:focus]:outline-none"
+    >
       <PieChart margin={{ top: 8, right: 6, bottom: 8, left: 6 }}>
         <defs>
           <pattern
             id={stripedPatternId}
-            width={6}
-            height={6}
+            width={3}
+            height={3}
             patternUnits="userSpaceOnUse"
             patternTransform="rotate(45)"
           >
-            <rect width={6} height={6} fill="#E8F5EE" />
-            <rect width={2.2} height={6} fill={GREEN} />
+            <rect width={3} height={3} fill="#EEF8F2" />
+            <rect width={0.9} height={3} fill={GREEN} />
           </pattern>
         </defs>
         <Pie
@@ -154,7 +126,14 @@ export function MetabuildStatusPie({
           innerRadius={innerR}
           outerRadius={outerR}
           paddingAngle={2}
-          activeShape={pieActiveShape}
+          isAnimationActive={false}
+          onMouseDown={(e) => {
+            e.preventDefault()
+          }}
+          onClick={(slice) => {
+            const row = slice as PieRow
+            if (row?.filter && onSliceClick) onSliceClick(row.filter)
+          }}
           labelLine={{ stroke: 'var(--chart-label)', strokeWidth: 1 }}
           label={(props: Record<string, unknown>) => {
             const cx = Number(props.cx ?? 0)
@@ -192,7 +171,6 @@ export function MetabuildStatusPie({
                 cursor: onSliceClick ? 'pointer' : 'default',
                 outline: 'none',
               }}
-              onClick={() => onSliceClick?.(entry.filter)}
             />
           ))}
         </Pie>
