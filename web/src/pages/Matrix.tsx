@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { useTeamContextNullable } from '../hooks/useTeamContext'
 import { resolveSlackDmUrl } from '../lib/slackDm'
+import { sprintsSortedNewestFirst } from '../lib/sdates'
 import { matrixCellTitles } from '../lib/stats'
 
 export function Matrix() {
@@ -8,7 +9,7 @@ export function Matrix() {
 
   const sortedSprints = useMemo(() => {
     if (!ctx?.sprints.length) return []
-    return [...ctx.sprints].sort((a, b) => a.start.localeCompare(b.start))
+    return sprintsSortedNewestFirst(ctx.sprints)
   }, [ctx])
 
   const people = useMemo(() => {

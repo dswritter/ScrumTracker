@@ -241,16 +241,14 @@ export function WeeklyProgressPanel({
                         {c.itemTitle}
                       </Link>
                     </p>
-                    <ul className="mt-2 space-y-1.5">
+                    <ul className="mt-2 space-y-1">
                       {c.bullets.map((line, i) =>
                         line === '—' ? (
                           <li
                             key={`${c.id}-b-${i}`}
-                            className="list-none py-1 text-center text-xs text-slate-400 dark:text-slate-500"
+                            className="my-0.5 list-none border-t border-slate-200/70 pt-1 dark:border-slate-600/50"
                             aria-hidden
-                          >
-                            ···
-                          </li>
+                          />
                         ) : (
                           <li
                             key={`${c.id}-b-${i}`}

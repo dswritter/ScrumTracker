@@ -65,16 +65,36 @@ function inferYearFromSprintStart(isoStart: string): number {
   return Number.isFinite(y) && y >= 2000 ? y : new Date().getFullYear()
 }
 
+/** Hyphen / en dash / em dash / minus — Jira and labels use mixed Unicode. */
+const DASH = /[\u002D\u2013\u2014\u2212]/
+
+/**
+ * Human sprint label is often `… | M13 | Sprint 1 | 16-23Dec · 2026-04-13 → …`.
+ * Parse only the chunk after the last `|` before `·`/`•` so we do not read ISO dates.
+ */
+function sprintNameHumanRangeChunk(name: string): string {
+  const dotIdx = name.search(/[·•]/)
+  const beforeDot =
+    dotIdx >= 0 ? name.slice(0, dotIdx).trim() : name.trim()
+  const pipe = beforeDot.lastIndexOf('|')
+  const tail = pipe >= 0 ? beforeDot.slice(pipe + 1).trim() : beforeDot
+  return tail
+}
+
 /**
  * Sort key from the human-readable range in the sprint **name** (e.g. `16Oct`,
- * `01-15Apr`), not only `start`/`end` (which may be wrong or identical after Jira sync).
+ * `01-15Apr`, `16-23Dec`), not only `start`/`end` (often identical after Jira sync).
  */
 export function sprintTimelineSortKey(s: Sprint): number {
   const y = inferYearFromSprintStart(s.start)
-  const name = s.name
+  const chunk = sprintNameHumanRangeChunk(s.name)
+  const haystack = chunk.length > 0 ? chunk : s.name
 
-  const rangeOneMonth = name.match(
-    /(\d{1,2})\s*-\s*(\d{1,2})\s*([A-Za-z]{3})\b/i,
+  const rangeOneMonth = haystack.match(
+    new RegExp(
+      `(\\d{1,2})\\s*${DASH.source}\\s*(\\d{1,2})\\s*([A-Za-z]{3})\\b`,
+      'i',
+    ),
   )
   if (rangeOneMonth) {
     const day = parseInt(rangeOneMonth[1], 10)
@@ -84,7 +104,7 @@ export function sprintTimelineSortKey(s: Sprint): number {
     }
   }
 
-  const dayMon = [...name.matchAll(/(\d{1,2})\s*([A-Za-z]{3})\b/gi)]
+  const dayMon = [...haystack.matchAll(/(\d{1,2})\s*([A-Za-z]{3})\b/gi)]
   if (dayMon.length > 0) {
     const first = dayMon[0]
     const day = parseInt(first[1], 10)
@@ -106,7 +126,8 @@ export function compareSprintTimelineDesc(a: Sprint, b: Sprint): number {
   }
   const byStart = b.start.localeCompare(a.start)
   if (byStart !== 0) return byStart
-  return a.id.localeCompare(b.id)
+  /** Same Jira dates: prefer larger id (usually newer) over lexicographic ascending. */
+  return b.id.localeCompare(a.id)
 }
 
 /** @deprecated prefer compareSprintTimelineDesc */

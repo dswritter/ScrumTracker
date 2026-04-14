@@ -213,8 +213,7 @@ function mergeWeeklyCardsForItemAndPerson(
       map.set(key, { ...c })
       continue
     }
-    const sep = ex.bullets.length && c.bullets.length ? (['—'] as string[]) : []
-    const mergedBullets = [...ex.bullets, ...sep, ...c.bullets]
+    const mergedBullets = [...ex.bullets, ...c.bullets]
     const jiraSeen = new Set(ex.jiraLinks.map((j) => j.key))
     const mergedLinks = [...ex.jiraLinks]
     for (const j of c.jiraLinks) {

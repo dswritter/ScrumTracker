@@ -111,6 +111,7 @@ export function Dashboard() {
         sid && sortedSprints.some((s) => s.id === sid) ? sid : current
       sp.set('scope', 'sprint')
       sp.set('sprint', id)
+      if (!sp.has('weekly')) sp.set('weekly', '1')
       setSearchParams(sp, { replace: true })
       return
     }
@@ -280,7 +281,7 @@ export function Dashboard() {
     if (!weeklyOpen || !ctx) return []
     const mon = parseMondayKey(weeklyWeekKey)
     return buildWeeklyProgressCards(
-      scopedItems,
+      filteredItems,
       eligibleMembers,
       mon,
       ctx.jiraBaseUrl,
@@ -288,7 +289,7 @@ export function Dashboard() {
   }, [
     weeklyOpen,
     weeklyWeekKey,
-    scopedItems,
+    filteredItems,
     eligibleMembers,
     ctx,
   ])
