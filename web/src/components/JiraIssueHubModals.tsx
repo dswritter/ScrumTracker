@@ -22,6 +22,21 @@ export function mergeJiraKeysList(existing: string[], add: string): string[] {
   return [...existing, u]
 }
 
+/** Project keys starting with CT (case-insensitive), then the rest; each group A→Z by key. */
+export function sortJiraProjectsCtFirst<T extends { key: string }>(projects: T[]): T[] {
+  const isCt = (key: string) => key.toUpperCase().startsWith('CT')
+  const ct = projects.filter((p) => isCt(p.key))
+  const rest = projects.filter((p) => !isCt(p.key))
+  const byKey = (a: T, b: T) => a.key.localeCompare(b.key)
+  return [...[...ct].sort(byKey), ...[...rest].sort(byKey)]
+}
+
+function pickDefaultJiraIssueTypeName(types: { name: string }[]): string {
+  if (types.length === 0) return ''
+  const task = types.find((t) => t.name.trim().toLowerCase() === 'task')
+  return task ? task.name : types[0].name
+}
+
 export type JiraHubSyncContext = {
   teamId: string
   syncMode: 'admin' | 'individual'
@@ -104,8 +119,9 @@ export function JiraCreateIssueModal({
         setProjects([])
         return
       }
-      setProjects(r.projects)
-      if (r.projects[0]) setProjectKey(r.projects[0].key)
+      const ordered = sortJiraProjectsCtFirst(r.projects)
+      setProjects(ordered)
+      if (ordered[0]) setProjectKey(ordered[0].key)
     })()
     return () => {
       cancelled = true
@@ -151,8 +167,7 @@ export function JiraCreateIssueModal({
         return
       }
       setIssueTypes(r.issueTypes)
-      if (r.issueTypes[0]) setIssueTypeName(r.issueTypes[0].name)
-      else setIssueTypeName('')
+      setIssueTypeName(pickDefaultJiraIssueTypeName(r.issueTypes))
     })()
     return () => {
       cancelled = true
