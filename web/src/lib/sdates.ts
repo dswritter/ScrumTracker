@@ -45,80 +45,52 @@ export function isDateInSprint(isoDay: string, sprint: Sprint): boolean {
   return isoDay >= sprint.start && isoDay <= sprint.end
 }
 
-const MONTH_ABBR: Record<string, number> = {
-  jan: 0,
-  feb: 1,
-  mar: 2,
-  apr: 3,
-  may: 4,
-  jun: 5,
-  jul: 6,
-  aug: 7,
-  sep: 8,
-  oct: 9,
-  nov: 10,
-  dec: 11,
-}
-
-function inferYearFromSprintStart(isoStart: string): number {
-  const y = parseInt(isoStart.slice(0, 4), 10)
-  return Number.isFinite(y) && y >= 2000 ? y : new Date().getFullYear()
-}
-
-/** Hyphen / en dash / em dash / minus — Jira and labels use mixed Unicode. */
-const DASH = /[\u002D\u2013\u2014\u2212]/
-
 /**
- * Human sprint label is often `… | M13 | Sprint 1 | 16-23Dec · 2026-04-13 → …`.
- * Parse only the chunk after the last `|` before `·`/`•` so we do not read ISO dates.
+ * Names like `CG | M13 | Sprint 1 | 16-23Dec · 2026-04-13 → …`: sort by
+ * milestone (M13 → 13) then intra-milestone sprint (Sprint 2 > Sprint 1).
+ * Mid-segment calendar text is ignored (no reliable year).
  */
-function sprintNameHumanRangeChunk(name: string): string {
-  const dotIdx = name.search(/[·•]/)
-  const beforeDot =
-    dotIdx >= 0 ? name.slice(0, dotIdx).trim() : name.trim()
-  const pipe = beforeDot.lastIndexOf('|')
-  const tail = pipe >= 0 ? beforeDot.slice(pipe + 1).trim() : beforeDot
-  return tail
+function milestoneAndSprintFromName(name: string): {
+  milestone: number
+  sprint: number
+} | null {
+  const m = name.match(/\|\s*M(\d+)\s*\|/i)
+  const sp = name.match(/\|\s*Sprint\s*(\d+)\s*\|/i) ?? name.match(/\bSprint\s*(\d+)\b/i)
+  if (!m && !sp) return null
+  const milestone = m ? parseInt(m[1], 10) : 0
+  const sprint = sp ? parseInt(sp[1], 10) : 0
+  if (
+    !Number.isFinite(milestone) ||
+    !Number.isFinite(sprint) ||
+    milestone < 0 ||
+    sprint < 0
+  ) {
+    return null
+  }
+  return { milestone, sprint }
 }
 
-/**
- * Sort key from the human-readable range in the sprint **name** (e.g. `16Oct`,
- * `01-15Apr`, `16-23Dec`), not only `start`/`end` (often identical after Jira sync).
- */
+/** Larger = newer (for descending sort). Falls back to ISO start when name lacks M/Sprint. */
+const SPRINT_NUM_SCALE = 1_000
+
 export function sprintTimelineSortKey(s: Sprint): number {
-  const y = inferYearFromSprintStart(s.start)
-  const chunk = sprintNameHumanRangeChunk(s.name)
-  const haystack = chunk.length > 0 ? chunk : s.name
-
-  const rangeOneMonth = haystack.match(
-    new RegExp(
-      `(\\d{1,2})\\s*${DASH.source}\\s*(\\d{1,2})\\s*([A-Za-z]{3})\\b`,
-      'i',
-    ),
-  )
-  if (rangeOneMonth) {
-    const day = parseInt(rangeOneMonth[1], 10)
-    const mon = MONTH_ABBR[rangeOneMonth[3].toLowerCase()]
-    if (mon !== undefined && day >= 1 && day <= 31) {
-      return new Date(y, mon, day).getTime()
-    }
+  const parsed = milestoneAndSprintFromName(s.name)
+  if (parsed) {
+    return parsed.milestone * SPRINT_NUM_SCALE + parsed.sprint
   }
-
-  const dayMon = [...haystack.matchAll(/(\d{1,2})\s*([A-Za-z]{3})\b/gi)]
-  if (dayMon.length > 0) {
-    const first = dayMon[0]
-    const day = parseInt(first[1], 10)
-    const mon = MONTH_ABBR[first[2].toLowerCase()]
-    if (mon !== undefined && day >= 1 && day <= 31) {
-      return new Date(y, mon, day).getTime()
-    }
-  }
-
   return parseYMD(s.start).getTime()
 }
 
-/** Newest sprint first (label timeline, then ISO start, then id). */
+/** Newest sprint first (M/Sprint from name, then ISO start, then id). */
 export function compareSprintTimelineDesc(a: Sprint, b: Sprint): number {
+  const pa = milestoneAndSprintFromName(a.name)
+  const pb = milestoneAndSprintFromName(b.name)
+  if (pa && pb) {
+    if (pa.milestone !== pb.milestone) return pb.milestone - pa.milestone
+    if (pa.sprint !== pb.sprint) return pb.sprint - pa.sprint
+  } else if (pa && !pb) return -1
+  else if (!pa && pb) return 1
+
   const ta = sprintTimelineSortKey(a)
   const tb = sprintTimelineSortKey(b)
   if (Number.isFinite(ta) && Number.isFinite(tb) && ta !== tb) {
@@ -126,7 +98,6 @@ export function compareSprintTimelineDesc(a: Sprint, b: Sprint): number {
   }
   const byStart = b.start.localeCompare(a.start)
   if (byStart !== 0) return byStart
-  /** Same Jira dates: prefer larger id (usually newer) over lexicographic ascending. */
   return b.id.localeCompare(a.id)
 }
 
@@ -140,8 +111,8 @@ export function sprintsSortedNewestFirst(sprints: Sprint[]): Sprint[] {
 }
 
 /**
- * Prefer the **newest** sprint whose range includes today (by start date, then id).
- * When several ranges overlap (e.g. duplicate Jira dates), the oldest match is not the active sprint.
+ * Prefer the **newest** sprint whose range includes today (M/Sprint in name, then ISO/id).
+ * When several ranges overlap (e.g. duplicate Jira dates), tie-break favors newer label order.
  */
 export function getCurrentSprint(
   sprints: Sprint[],
