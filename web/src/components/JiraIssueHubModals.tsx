@@ -225,29 +225,32 @@ export function JiraCreateIssueModal({
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 p-4"
+      className="fixed inset-0 z-[60] overflow-y-auto overscroll-contain bg-slate-900/40"
       role="dialog"
       aria-modal="true"
       aria-label="Create Jira issue"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) close()
-      }}
     >
       <div
-        className="max-h-[min(90vh,680px)] w-full max-w-lg overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-xl dark:border-slate-600 dark:bg-slate-900"
-        onMouseDown={(e) => e.stopPropagation()}
+        className="flex min-h-full justify-center px-4 py-6 sm:px-6 sm:py-10"
+        onMouseDown={(e) => {
+          if (e.target === e.currentTarget) close()
+        }}
       >
-        <div className="border-b border-slate-100 px-4 py-3 dark:border-slate-700">
-          <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
-            Create Jira issue
-          </h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            New issues use your Jira permissions (same PAT as sync). Choose whether
-            the tracker adds a new row or links the key to an existing item.
-          </p>
-        </div>
+        <div
+          className="my-auto flex w-full max-w-lg max-h-[min(calc(100dvh-3rem),680px)] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl dark:border-slate-600 dark:bg-slate-900"
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <div className="shrink-0 border-b border-slate-100 px-4 py-3 dark:border-slate-700">
+            <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+              Create Jira issue
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              New issues use your Jira permissions (same PAT as sync). Choose whether
+              the tracker adds a new row or links the key to an existing item.
+            </p>
+          </div>
 
-        <div className="space-y-3 px-4 py-3 text-sm">
+          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3 text-sm">
           {metaErr ? (
             <p className="rounded-md border border-rose-200 bg-rose-50 px-2 py-1.5 text-xs text-rose-900 dark:border-rose-900 dark:bg-rose-950/80 dark:text-rose-100">
               {metaErr}
@@ -371,7 +374,7 @@ export function JiraCreateIssueModal({
             />
           </div>
 
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="flex justify-end gap-2 pt-2 pb-1">
             <button
               type="button"
               className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
@@ -387,6 +390,7 @@ export function JiraCreateIssueModal({
             >
               {busy ? 'Creating…' : 'Create in Jira'}
             </button>
+          </div>
           </div>
         </div>
       </div>
@@ -476,27 +480,30 @@ export function LinkJiraIssueModal({
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 p-4"
+      className="fixed inset-0 z-[60] overflow-y-auto overscroll-contain bg-slate-900/40"
       role="dialog"
       aria-modal="true"
       aria-label="Link Jira issue"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) close()
-      }}
     >
       <div
-        className="w-full max-w-md rounded-xl border border-slate-200 bg-white shadow-xl dark:border-slate-600 dark:bg-slate-900"
-        onMouseDown={(e) => e.stopPropagation()}
+        className="flex min-h-full justify-center px-4 py-6 sm:px-6 sm:py-10"
+        onMouseDown={(e) => {
+          if (e.target === e.currentTarget) close()
+        }}
       >
-        <div className="border-b border-slate-100 px-4 py-3 dark:border-slate-700">
-          <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
-            Link existing Jira issue
-          </h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            The key is checked against Jira before it is saved on the work item.
-          </p>
-        </div>
-        <div className="space-y-3 px-4 py-3 text-sm">
+        <div
+          className="my-auto flex w-full max-w-md max-h-[min(calc(100dvh-3rem),520px)] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl dark:border-slate-600 dark:bg-slate-900"
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <div className="shrink-0 border-b border-slate-100 px-4 py-3 dark:border-slate-700">
+            <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+              Link existing Jira issue
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              The key is checked against Jira before it is saved on the work item.
+            </p>
+          </div>
+          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3 text-sm">
           {err ? (
             <p className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs text-amber-950 dark:border-amber-800 dark:bg-amber-950/80 dark:text-amber-100">
               {err}
@@ -549,6 +556,7 @@ export function LinkJiraIssueModal({
             >
               {busy ? 'Checking…' : 'Verify & link'}
             </button>
+          </div>
           </div>
         </div>
       </div>

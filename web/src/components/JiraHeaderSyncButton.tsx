@@ -127,60 +127,65 @@ export function JiraHeaderSyncButton() {
   }, [menuOpen])
 
   return (
-    <div ref={hubRef} className="relative flex items-center gap-0.5">
-      <button
-        type="button"
-        disabled={busy}
-        title={
-          admin
-            ? 'Sync work items from Jira (team JQL and PAT in Settings)'
-            : 'Sync from Jira: team sprint items plus issues you reported in the current sprint window'
-        }
-        className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
-        onClick={async () => {
-          setToast(null)
-          setBusy(true)
-          try {
-            if (admin) {
-              const tokenPayload = await fetchJiraTokenStatusPayload()
-              if (!jiraTokenStatusAllowsSync(tokenPayload)) {
-                navigate('/settings#jira-integration')
-                return
-              }
-            } else {
-              const tokenPayload = await fetchJiraUserTokenStatusPayload(
-                user.username,
-              )
-              if (!jiraTokenStatusAllowsSync(tokenPayload)) {
-                setPatOpen(true)
-                return
-              }
-            }
-            await doSync()
-          } finally {
-            setBusy(false)
+    <div ref={hubRef} className="relative inline-flex items-center">
+      <div className="inline-flex h-9 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-600 dark:bg-slate-900">
+        <button
+          type="button"
+          disabled={busy}
+          title={
+            admin
+              ? 'Sync work items from Jira (team JQL and PAT in Settings)'
+              : 'Sync from Jira: team sprint items plus issues you reported in the current sprint window'
           }
-        }}
-      >
-        <i className="fa-brands fa-jira text-[1.05rem] text-[#0052CC]" aria-hidden />
-        <i
-          className={`fa-solid fa-arrows-rotate text-xs ${busy ? 'animate-spin' : ''}`}
+          aria-label="Sync from Jira"
+          className="inline-flex h-9 items-center gap-1.5 border-0 bg-transparent px-2.5 text-slate-800 hover:bg-slate-50 disabled:opacity-50 dark:text-slate-100 dark:hover:bg-slate-800"
+          onClick={async () => {
+            setToast(null)
+            setBusy(true)
+            try {
+              if (admin) {
+                const tokenPayload = await fetchJiraTokenStatusPayload()
+                if (!jiraTokenStatusAllowsSync(tokenPayload)) {
+                  navigate('/settings#jira-integration')
+                  return
+                }
+              } else {
+                const tokenPayload = await fetchJiraUserTokenStatusPayload(
+                  user.username,
+                )
+                if (!jiraTokenStatusAllowsSync(tokenPayload)) {
+                  setPatOpen(true)
+                  return
+                }
+              }
+              await doSync()
+            } finally {
+              setBusy(false)
+            }
+          }}
+        >
+          <i className="fa-brands fa-jira text-[1.05rem] text-[#0052CC]" aria-hidden />
+          <i
+            className={`fa-solid fa-arrows-rotate text-xs text-slate-700 dark:text-slate-200 ${busy ? 'animate-spin' : ''}`}
+            aria-hidden
+          />
+        </button>
+        <span
+          className="w-px shrink-0 self-stretch bg-slate-200 dark:bg-slate-600"
           aria-hidden
         />
-        <span className="hidden sm:inline">Jira sync</span>
-      </button>
-
-      <button
-        type="button"
-        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-sm font-bold text-[#0052CC] shadow-sm hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:hover:bg-slate-800"
-        title="Create or link a Jira issue"
-        aria-expanded={menuOpen}
-        aria-haspopup="true"
-        onClick={() => setMenuOpen((o) => !o)}
-      >
-        <span className="sr-only">Jira issue actions</span>
-        <i className="fa-solid fa-plus text-xs" aria-hidden />
-      </button>
+        <button
+          type="button"
+          className="inline-flex h-9 w-9 shrink-0 items-center justify-center border-0 bg-transparent text-sm font-bold text-[#0052CC] hover:bg-slate-50 dark:hover:bg-slate-800"
+          title="Create or link a Jira issue"
+          aria-label="Create or link Jira issue"
+          aria-expanded={menuOpen}
+          aria-haspopup="true"
+          onClick={() => setMenuOpen((o) => !o)}
+        >
+          <i className="fa-solid fa-plus text-xs" aria-hidden />
+        </button>
+      </div>
 
       {menuOpen ? (
         <div
