@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { AddWorkItemModal } from '../components/AddWorkItemModal'
 import { CommentsCell } from '../components/CommentsCell'
@@ -28,6 +28,108 @@ import {
 } from '../lib/stats'
 import { useTrackerStore, STATUS_OPTIONS } from '../store/useTrackerStore'
 import type { Sprint, TrackerUserAccount, WorkItem, WorkStatus } from '../types'
+
+function AssigneesEditorCell({
+  item,
+  teamId,
+  teamMembers,
+  updateWorkItem,
+}: {
+  item: WorkItem
+  teamId: string
+  teamMembers: string[]
+  updateWorkItem: (
+    teamId: string,
+    itemId: string,
+    patch: Partial<WorkItem>,
+  ) => void
+}) {
+  const [addOpen, setAddOpen] = useState(false)
+  const wrapRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!addOpen) return
+    const onDoc = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setAddOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [addOpen])
+
+  const assigned = item.assignees
+  const remaining = teamMembers.filter((m) => !assigned.includes(m))
+
+  const chipCls =
+    'inline-flex max-w-full items-center gap-0.5 rounded border border-slate-200 bg-slate-50 pl-1.5 pr-0.5 text-[10px] text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200'
+  const btnIconCls =
+    'flex h-5 w-5 shrink-0 items-center justify-center rounded text-slate-500 hover:bg-slate-200 hover:text-slate-800 dark:hover:bg-slate-700 dark:hover:text-slate-100'
+
+  return (
+    <div
+      ref={wrapRef}
+      className="flex max-w-[220px] flex-wrap items-center gap-1"
+    >
+      {assigned.map((m) => (
+        <span key={m} className={chipCls} title={m}>
+          <span className="max-w-[9rem] truncate">{m}</span>
+          <button
+            type="button"
+            className={btnIconCls}
+            aria-label={`Remove assignee ${m}`}
+            onClick={() =>
+              updateWorkItem(teamId, item.id, {
+                assignees: assigned.filter((a) => a !== m),
+              })
+            }
+          >
+            ×
+          </button>
+        </span>
+      ))}
+      {remaining.length > 0 ? (
+        <div className="relative inline-flex">
+          <button
+            type="button"
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded border border-dashed border-slate-300 text-sm font-semibold leading-none text-slate-600 hover:border-slate-400 hover:bg-slate-100 dark:border-slate-500 dark:text-slate-300 dark:hover:bg-slate-800"
+            aria-label="Add assignee"
+            aria-expanded={addOpen}
+            aria-haspopup="listbox"
+            onClick={() => setAddOpen((o) => !o)}
+          >
+            +
+          </button>
+          {addOpen ? (
+            <ul
+              className="absolute left-0 top-[calc(100%+4px)] z-50 min-w-[11rem] max-h-40 overflow-y-auto rounded-md border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-600 dark:bg-slate-900"
+              role="listbox"
+              aria-label="Teammates to assign"
+            >
+              {remaining.map((m) => (
+                <li key={m}>
+                  <button
+                    type="button"
+                    role="option"
+                    className="w-full px-2 py-1.5 text-left text-[10px] text-slate-800 hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-slate-800"
+                    onClick={() => {
+                      updateWorkItem(teamId, item.id, {
+                        assignees: [...assigned, m],
+                      })
+                      setAddOpen(false)
+                    }}
+                  >
+                    {m}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  )
+}
 
 function Row({
   item,
@@ -97,29 +199,13 @@ function Row({
       {showAssigneesColumn ? (
         <td className="px-2 py-2">
           <div className="flex max-w-[220px] flex-col gap-1">
-            {assigneeAdmin ? (
-              <div className="flex flex-wrap gap-1">
-                {teamMembers.map((m) => (
-                  <label
-                    key={m}
-                    className="flex cursor-pointer items-center gap-1 rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={item.assignees.includes(m)}
-                      onChange={() => {
-                        const has = item.assignees.includes(m)
-                        updateWorkItem(teamId, item.id, {
-                          assignees: has
-                            ? item.assignees.filter((a) => a !== m)
-                            : [...item.assignees, m],
-                        })
-                      }}
-                    />
-                    {m}
-                  </label>
-                ))}
-              </div>
+                       {assigneeAdmin ? (
+              <AssigneesEditorCell
+                item={item}
+                teamId={teamId}
+                teamMembers={teamMembers}
+                updateWorkItem={updateWorkItem}
+              />
             ) : (
               <p className="text-[10px] text-slate-700">
                 {item.assignees.length
