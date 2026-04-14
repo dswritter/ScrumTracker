@@ -132,6 +132,28 @@ function AssigneesEditorCell({
   )
 }
 
+const STATUS_VALUES = new Set<string>([
+  'done',
+  'in_progress',
+  'to_test',
+  'to_track',
+  'blocked',
+  'todo',
+])
+
+const STATUS_SELECT_RING: Record<WorkStatus, string> = {
+  done: 'border-emerald-300/90 focus:border-emerald-500 focus:ring-emerald-200/80 dark:border-emerald-700 dark:focus:border-emerald-500',
+  in_progress:
+    'border-sky-300/90 focus:border-sky-500 focus:ring-sky-200/80 dark:border-sky-700 dark:focus:border-sky-500',
+  to_test:
+    'border-amber-300/90 focus:border-amber-600 focus:ring-amber-200/80 dark:border-amber-700 dark:focus:border-amber-500',
+  to_track:
+    'border-violet-300/90 focus:border-violet-500 focus:ring-violet-200/80 dark:border-violet-700 dark:focus:border-violet-500',
+  blocked:
+    'border-rose-300/90 focus:border-rose-500 focus:ring-rose-200/80 dark:border-rose-700 dark:focus:border-rose-500',
+  todo: 'border-slate-300/90 focus:border-slate-500 focus:ring-slate-200/80 dark:border-slate-600 dark:focus:border-slate-500',
+}
+
 function Row({
   item,
   user,
@@ -165,10 +187,10 @@ function Row({
   const former = formerAssigneesOnItem(item, teamMembers)
 
   const inputCls =
-    'rounded border border-slate-200 bg-white px-2 py-1 text-xs text-slate-900 shadow-sm disabled:bg-slate-100 disabled:text-slate-600 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:disabled:bg-slate-800 dark:disabled:text-slate-400'
+    'rounded border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-900 shadow-sm disabled:bg-slate-100 disabled:text-slate-600 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:disabled:bg-slate-800 dark:disabled:text-slate-400'
 
   return (
-    <tr className="align-top border-b border-slate-100 hover:bg-slate-50/80 dark:border-slate-800 dark:hover:bg-slate-800/40">
+    <tr className="align-top border-b border-slate-100 hover:bg-[#00B050]/6 dark:border-slate-800 dark:hover:bg-slate-800/40">
       <td className="px-2 py-2">
         <input
           className={`w-28 ${inputCls}`}
@@ -191,7 +213,7 @@ function Row({
       </td>
       <td className="px-2 py-2">
         <input
-          className={`min-w-0 w-full max-w-[min(100%,320px)] ${inputCls}`}
+          className={`min-w-0 w-full max-w-[min(100%,320px)] font-semibold text-slate-950 dark:text-slate-50 ${inputCls}`}
           disabled={!canEdit}
           value={item.title}
           onChange={(e) =>
@@ -227,7 +249,7 @@ function Row({
       ) : null}
       <td className="px-2 py-2">
         <select
-          className={`${inputCls} pr-6`}
+          className={`${inputCls} pr-6 ring-1 ring-inset ring-transparent ${STATUS_SELECT_RING[item.status]}`}
           disabled={!canEdit}
           value={item.status}
           onChange={(e) =>
@@ -315,15 +337,6 @@ function Row({
   )
 }
 
-const STATUS_VALUES = new Set<string>([
-  'done',
-  'in_progress',
-  'to_test',
-  'to_track',
-  'blocked',
-  'todo',
-])
-
 export function Items() {
   const user = useCurrentUser()
   const ctx = useTeamContextNullable()
@@ -333,6 +346,7 @@ export function Items() {
   const [addModalKey, setAddModalKey] = useState(0)
   const [tableFilterSection, setTableFilterSection] = useState('')
   const [tableFilterComponent, setTableFilterComponent] = useState('')
+  const [tableFilterAssignee, setTableFilterAssignee] = useState('')
   const [tableFilterStatus, setTableFilterStatus] = useState('')
 
   const statusParam = searchParams.get('status')
@@ -391,6 +405,17 @@ export function Items() {
     return [...set].sort((a, b) => a.localeCompare(b))
   }, [scopedList])
 
+  const assigneeOptions = useMemo(() => {
+    const set = new Set<string>()
+    for (const w of scopedList) {
+      for (const a of w.assignees) {
+        const t = a.trim()
+        if (t) set.add(t)
+      }
+    }
+    return [...set].sort((a, b) => a.localeCompare(b))
+  }, [scopedList])
+
   const visible = useMemo(() => {
     let list = scopedList
     if (tableFilterSection) {
@@ -409,15 +434,29 @@ export function Items() {
         )
       }
     }
+    if (tableFilterAssignee) {
+      list = list.filter((w) =>
+        w.assignees.some((a) => a.trim() === tableFilterAssignee),
+      )
+    }
     if (tableFilterStatus && STATUS_VALUES.has(tableFilterStatus)) {
       list = list.filter((w) => w.status === tableFilterStatus)
     }
     return list
-  }, [scopedList, tableFilterSection, tableFilterComponent, tableFilterStatus])
+  }, [
+    scopedList,
+    tableFilterSection,
+    tableFilterComponent,
+    tableFilterAssignee,
+    tableFilterStatus,
+  ])
 
   const hasScopeParams = Boolean(searchParams.get('scope'))
   const hasColumnFilters = Boolean(
-    tableFilterSection || tableFilterComponent || tableFilterStatus,
+    tableFilterSection ||
+      tableFilterComponent ||
+      tableFilterAssignee ||
+      tableFilterStatus,
   )
   const hasQuery =
     hasScopeParams ||
@@ -441,6 +480,8 @@ export function Items() {
     filterSummary += ` · Section: ${tableFilterSection}`
   if (tableFilterComponent)
     filterSummary += ` · Component: ${tableFilterComponent}`
+  if (tableFilterAssignee)
+    filterSummary += ` · Assignee: ${tableFilterAssignee}`
   if (tableFilterStatus)
     filterSummary += ` · Table status: ${tableFilterStatus.replace('_', ' ')}`
 
@@ -490,6 +531,7 @@ export function Items() {
               onClick={() => {
                 setTableFilterSection('')
                 setTableFilterComponent('')
+                setTableFilterAssignee('')
                 setTableFilterStatus('')
               }}
             >
@@ -508,7 +550,7 @@ export function Items() {
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
         <table className="w-full min-w-0 border-collapse text-left text-xs">
           <thead>
-            <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-400">
+            <tr className="border-b border-slate-200 bg-[#00B050]/12 text-[10px] font-bold uppercase tracking-wide text-[#0d5c2e] dark:border-slate-700 dark:bg-[#00B050]/18 dark:text-emerald-300">
               <th className="px-2 py-2">Section</th>
               <th className="px-2 py-2">Component</th>
               <th className="px-2 py-2">Title</th>
@@ -522,9 +564,9 @@ export function Items() {
               <th className="px-2 py-2">Comments</th>
               <th className="px-2 py-2" />
             </tr>
-            <tr className="border-b border-slate-200 bg-slate-50/90 text-[10px] font-semibold normal-case text-slate-600 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
+            <tr className="border-b border-slate-200 bg-[#00B050]/8 text-[10px] font-semibold normal-case text-slate-700 dark:border-slate-700 dark:bg-[#00B050]/12 dark:text-slate-300">
               <th className="px-2 pb-2 pt-0 align-top">
-                <label className="block font-semibold text-slate-500">
+                <label className="block font-semibold text-[#0d5c2e] dark:text-emerald-300">
                   Filter
                   <select
                     className={filterSelectCls}
@@ -541,7 +583,7 @@ export function Items() {
                 </label>
               </th>
               <th className="px-2 pb-2 pt-0 align-top">
-                <label className="block font-semibold text-slate-500">
+                <label className="block font-semibold text-[#0d5c2e] dark:text-emerald-300">
                   Filter
                   <select
                     className={filterSelectCls}
@@ -559,10 +601,26 @@ export function Items() {
               </th>
               <th className="px-2 pb-2 pt-0" aria-hidden />
               {showAssigneesColumn ? (
-                <th className="px-2 pb-2 pt-0" aria-hidden />
+                <th className="px-2 pb-2 pt-0 align-top">
+                  <label className="block font-semibold text-[#0d5c2e] dark:text-emerald-300">
+                    Filter
+                    <select
+                      className={filterSelectCls}
+                      value={tableFilterAssignee}
+                      onChange={(e) => setTableFilterAssignee(e.target.value)}
+                    >
+                      <option value="">All assignees</option>
+                      {assigneeOptions.map((n) => (
+                        <option key={n} value={n}>
+                          {n}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </th>
               ) : null}
               <th className="px-2 pb-2 pt-0 align-top">
-                <label className="block font-semibold text-slate-500">
+                <label className="block font-semibold text-[#0d5c2e] dark:text-emerald-300">
                   Filter
                   <select
                     className={filterSelectCls}

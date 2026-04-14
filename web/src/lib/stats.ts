@@ -98,18 +98,24 @@ export function itemsInSprint(sprint: Sprint, items: WorkItem[]): WorkItem[] {
   return items.filter((w) => w.sprintIds.includes(sprint.id))
 }
 
+export function matrixCellItems(
+  person: string,
+  sprintId: string,
+  items: WorkItem[],
+): WorkItem[] {
+  return items.filter(
+    (w) =>
+      w.sprintIds.includes(sprintId) &&
+      w.assignees.some((a) => a.trim() === person),
+  )
+}
+
 export function matrixCellTitles(
   person: string,
   sprintId: string,
   items: WorkItem[],
 ): string[] {
-  return items
-    .filter(
-      (w) =>
-        w.sprintIds.includes(sprintId) &&
-        w.assignees.some((a) => a.trim() === person),
-    )
-    .map((w) => w.title)
+  return matrixCellItems(person, sprintId, items).map((w) => w.title)
 }
 
 /** Items tagged with the sprint (excludes items with no link to that sprint). */

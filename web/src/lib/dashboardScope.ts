@@ -131,6 +131,11 @@ const MONTH_NAMES = [
   'December',
 ]
 
+/** Sprint label for selects and compact UI (no trailing ISO date range). */
+export function sprintSelectOptionLabel(s: Sprint): string {
+  return `${s.emoji ?? ''} ${s.name}`.trim()
+}
+
 export function scopeShortLabel(scope: DashboardScope, sprints: Sprint[]): string {
   switch (scope.type) {
     case 'sprint': {

@@ -5,7 +5,6 @@ import {
   MetabuildSectionBars,
   MetabuildStatusPie,
 } from '../components/MetabuildCharts'
-import { PersonProgressBar } from '../components/PersonProgressBar'
 import { WeeklyProgressPanel } from '../components/WeeklyProgressPanel'
 import { WorkItemTitleLink } from '../components/WorkItemTitleLink'
 import { StatusBadge } from '../components/StatusBadge'
@@ -19,6 +18,7 @@ import {
   parseScopeSelectValue,
   personDetailHref,
   scopeSelectValue,
+  sprintSelectOptionLabel,
   scopeShortLabel,
   scopeToParams,
   yearOptionsFromSprints,
@@ -27,7 +27,6 @@ import {
   allAssignees,
   assigneeChartUniqueLabels,
   countByStatus,
-  itemsForAssignee,
   personCompletionPercent,
 } from '../lib/stats'
 import { resolveSlackDmUrl } from '../lib/slackDm'
@@ -236,14 +235,6 @@ export function Dashboard() {
     : null
   const frac = sprintProgress?.fraction ?? 0
 
-  const roster = useMemo(() => {
-    const base = [...(ctx?.teamMembers ?? [])].sort((a, b) =>
-      a.localeCompare(b),
-    )
-    if (!user || isAdmin(user)) return base
-    return base.filter((n) => n === user.displayName)
-  }, [ctx, user])
-
   const rosterForAssigneeChart = useMemo(
     () =>
       allAssignees(ctx?.teamMembers ?? [], ctx?.workItems ?? []).sort((a, b) =>
@@ -278,6 +269,30 @@ export function Dashboard() {
     () => [...filteredItems].sort((a, b) => a.title.localeCompare(b.title)),
     [filteredItems],
   )
+
+  function primaryAssigneeLabel(w: WorkItem): string {
+    const names = [...w.assignees].map((a) => a.trim()).filter(Boolean)
+    if (names.length === 0) return 'Unassigned'
+    names.sort((a, b) => a.localeCompare(b))
+    return names[0]!
+  }
+
+  const tableAssigneeGroups = useMemo(() => {
+    const m = new Map<string, WorkItem[]>()
+    for (const w of tableItems) {
+      const key = primaryAssigneeLabel(w)
+      const cur = m.get(key) ?? []
+      cur.push(w)
+      m.set(key, cur)
+    }
+    const names = [...m.keys()].sort((a, b) => a.localeCompare(b))
+    return names.map((name) => ({
+      name,
+      items: (m.get(name) ?? []).sort((a, b) =>
+        a.title.localeCompare(b.title),
+      ),
+    }))
+  }, [tableItems])
 
   const monthOpts = useMemo(
     () => monthOptionsFromSprints(sortedSprints),
@@ -340,7 +355,12 @@ export function Dashboard() {
   if (!user || !ctx) return null
 
   const titleLinkCls =
-    'font-medium text-indigo-700 hover:text-indigo-900 hover:underline dark:text-slate-100 dark:hover:text-white'
+    'font-semibold text-indigo-800 hover:text-indigo-950 hover:underline dark:text-slate-100 dark:hover:text-white'
+
+  const sprintCommentWindow =
+    selectedSprint && scope.type === 'sprint'
+      ? { start: selectedSprint.start, end: selectedSprint.end }
+      : null
 
   const chartAside = (
     <aside className="order-2 w-full max-w-full space-y-3 xl:fixed xl:bottom-8 xl:left-8 xl:top-24 xl:z-20 xl:w-[min(20rem,calc(100vw-4rem))] xl:max-w-[20rem] xl:overflow-y-auto xl:overscroll-contain xl:pr-1">
@@ -434,119 +454,116 @@ export function Dashboard() {
         <div className="order-1 min-w-0 space-y-6 xl:ml-[21.25rem]">
           {sortedSprints.length > 0 ? (
             <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
-              <div className="flex flex-wrap items-center gap-2 gap-y-2 border-b border-[#00B050]/25 bg-[#00B050]/10 px-3 py-2">
-                <span className="text-[10px] font-bold uppercase tracking-wide text-[#007a3d] dark:text-emerald-300">
-                  Scope
-                </span>
-                <button
-                  type="button"
-                  aria-label="Older sprint"
-                  disabled={
-                    scope.type !== 'sprint' ||
-                    sprintIndex < 0 ||
-                    sprintIndex >= sortedSprints.length - 1
-                  }
-                  className="rounded border border-slate-200/80 bg-white/90 px-2 py-0.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-white disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-200 dark:hover:bg-slate-800"
-                  onClick={() => goSprint(1)}
-                >
-                  ←
-                </button>
-                <select
-                  aria-label="Dashboard scope"
-                  className="min-w-0 max-w-[min(100%,240px)] flex-1 rounded border border-slate-200/80 bg-white/95 py-1 pl-2 pr-7 text-xs font-semibold text-slate-900 shadow-sm dark:border-slate-600 dark:bg-slate-900/95 dark:text-slate-100 sm:max-w-md"
-                  value={scopeSelectValue(scope)}
-                  onChange={(e) => onScopeSelectChange(e.target.value)}
-                >
-                  <optgroup
-                    label="Sprints"
-                    className="dark:text-slate-200 [&>option]:dark:text-slate-100"
-                  >
-                    {sortedSprints.map((s) => (
-                      <option key={s.id} value={`sprint:${s.id}`}>
-                        {s.emoji ?? ''} {s.name} · {s.start} → {s.end}
-                      </option>
-                    ))}
-                  </optgroup>
-                  <option value="all">All sprints to date</option>
-                  <optgroup
-                    label="By month"
-                    className="dark:text-slate-200 [&>option]:dark:text-slate-100"
-                  >
-                    {monthOpts.map((m) => (
-                      <option
-                        key={`${m.year}-${m.month}`}
-                        value={`month:${m.year}:${m.month}`}
-                      >
-                        {m.label}
-                      </option>
-                    ))}
-                  </optgroup>
-                  <optgroup
-                    label="By year"
-                    className="dark:text-slate-200 [&>option]:dark:text-slate-100"
-                  >
-                    {yearOpts.map((y) => (
-                      <option key={y} value={`year:${y}`}>
-                        {y}
-                      </option>
-                    ))}
-                  </optgroup>
-                </select>
-                <button
-                  type="button"
-                  className={`shrink-0 rounded-lg border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide shadow-sm ${
-                    weeklyOpen
-                      ? 'border-[#00B050] bg-[#00B050] text-white dark:border-emerald-500 dark:bg-emerald-600'
-                      : 'border-slate-200/80 bg-white/90 text-[#0d5c2e] hover:bg-white dark:border-slate-600 dark:bg-slate-800/90 dark:text-emerald-200 dark:hover:bg-slate-800'
-                  }`}
-                  title="Card view of teammate comments this week (Jira + tracker)"
-                  onClick={toggleWeekly}
-                >
-                  {weeklyOpen ? 'Exit weekly' : 'Weekly'}
-                </button>
-                <button
-                  type="button"
-                  aria-label="Newer sprint"
-                  disabled={scope.type !== 'sprint' || sprintIndex <= 0}
-                  className="rounded border border-slate-200/80 bg-white/90 px-2 py-0.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-white disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-200 dark:hover:bg-slate-800"
-                  onClick={() => goSprint(-1)}
-                >
-                  →
-                </button>
-                <div className="ml-auto flex shrink-0 flex-col items-end gap-0.5 text-right">
-                  <span className="text-[10px] font-semibold text-slate-700">
-                    {scopeShortLabel(scope, sortedSprints)}
-                  </span>
-                  {selectedSprint && sprintProgress ? (
-                    <span className="text-[10px] tabular-nums text-slate-500">
-                      <span className="font-bold text-[#007a3d] dark:text-emerald-300">
-                        {Math.round(frac * 100)}%
-                      </span>
-                      <span>
-                        {' '}
-                        · day {sprintProgress.current}/{sprintProgress.total}
-                      </span>
-                    </span>
-                  ) : null}
-                </div>
-              </div>
-              {selectedSprint && sprintProgress ? (
-                <div className="px-3 pb-2 pt-1">
+              <div className="relative overflow-hidden border-b border-[#00B050]/25 bg-[#00B050]/10">
+                {selectedSprint && sprintProgress ? (
                   <div
-                    className="h-2 w-full overflow-hidden rounded-full bg-slate-200"
-                    role="progressbar"
-                    aria-valuenow={Math.round(frac * 100)}
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-label="Sprint calendar time elapsed"
+                    aria-hidden
+                    className="pointer-events-none absolute inset-y-0 left-0 bg-gradient-to-r from-[#00B050]/45 to-[#00B050]/20 transition-[width] duration-300 ease-out dark:from-[#00B050]/35 dark:to-[#00B050]/15"
+                    style={{ width: `${Math.round(frac * 100)}%` }}
+                  />
+                ) : null}
+                <div className="relative z-10 flex flex-wrap items-center gap-2 gap-y-2 px-3 py-2">
+                  <span className="text-[10px] font-bold uppercase tracking-wide text-[#007a3d] dark:text-emerald-300">
+                    Scope
+                  </span>
+                  <button
+                    type="button"
+                    aria-label="Older sprint"
+                    disabled={
+                      scope.type !== 'sprint' ||
+                      sprintIndex < 0 ||
+                      sprintIndex >= sortedSprints.length - 1
+                    }
+                    className="rounded border border-slate-200/80 bg-white/90 px-2 py-0.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-white disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-200 dark:hover:bg-slate-800"
+                    onClick={() => goSprint(1)}
                   >
-                    <div
-                      className="h-full rounded-full bg-gradient-to-r from-[#00B050] to-[#009948] transition-[width] duration-300 ease-out"
-                      style={{ width: `${Math.round(frac * 100)}%` }}
-                    />
+                    ←
+                  </button>
+                  <select
+                    aria-label="Dashboard scope"
+                    className="min-w-0 max-w-[7.5rem] shrink-0 rounded border border-slate-200/80 bg-white/95 py-1 pl-2 pr-6 text-xs font-semibold text-slate-900 shadow-sm dark:border-slate-600 dark:bg-slate-900/95 dark:text-slate-100 sm:max-w-[11rem]"
+                    value={scopeSelectValue(scope)}
+                    onChange={(e) => onScopeSelectChange(e.target.value)}
+                  >
+                    <optgroup
+                      label="Sprints"
+                      className="dark:text-slate-200 [&>option]:dark:text-slate-100"
+                    >
+                      {sortedSprints.map((s) => (
+                        <option key={s.id} value={`sprint:${s.id}`}>
+                          {sprintSelectOptionLabel(s)}
+                        </option>
+                      ))}
+                    </optgroup>
+                    <option value="all">All sprints to date</option>
+                    <optgroup
+                      label="By month"
+                      className="dark:text-slate-200 [&>option]:dark:text-slate-100"
+                    >
+                      {monthOpts.map((m) => (
+                        <option
+                          key={`${m.year}-${m.month}`}
+                          value={`month:${m.year}:${m.month}`}
+                        >
+                          {m.label}
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup
+                      label="By year"
+                      className="dark:text-slate-200 [&>option]:dark:text-slate-100"
+                    >
+                      {yearOpts.map((y) => (
+                        <option key={y} value={`year:${y}`}>
+                          {y}
+                        </option>
+                      ))}
+                    </optgroup>
+                  </select>
+                  <button
+                    type="button"
+                    className={`shrink-0 rounded-lg border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide shadow-sm ${
+                      weeklyOpen
+                        ? 'border-[#00B050] bg-[#00B050] text-white dark:border-emerald-500 dark:bg-emerald-600'
+                        : 'border-slate-200/80 bg-white/90 text-[#0d5c2e] hover:bg-white dark:border-slate-600 dark:bg-slate-800/90 dark:text-emerald-200 dark:hover:bg-slate-800'
+                    }`}
+                    title="Card view of teammate comments this week (Jira + tracker)"
+                    onClick={toggleWeekly}
+                  >
+                    {weeklyOpen ? 'Exit weekly' : 'Weekly'}
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Newer sprint"
+                    disabled={scope.type !== 'sprint' || sprintIndex <= 0}
+                    className="rounded border border-slate-200/80 bg-white/90 px-2 py-0.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-white disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-200 dark:hover:bg-slate-800"
+                    onClick={() => goSprint(-1)}
+                  >
+                    →
+                  </button>
+                  <div className="ml-auto flex shrink-0 flex-col items-end gap-0.5 text-right">
+                    {selectedSprint && sprintProgress ? (
+                      <span
+                        className="text-[10px] tabular-nums text-slate-700 dark:text-slate-200"
+                        role="status"
+                        aria-label={`Sprint calendar progress ${Math.round(frac * 100)} percent, day ${sprintProgress.current} of ${sprintProgress.total}`}
+                      >
+                        <span className="font-bold text-[#007a3d] dark:text-emerald-300">
+                          {Math.round(frac * 100)}%
+                        </span>
+                        <span>
+                          {' '}
+                          · day {sprintProgress.current}/{sprintProgress.total}
+                        </span>
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-semibold text-slate-600 dark:text-slate-300">
+                        {scopeShortLabel(scope, sortedSprints)}
+                      </span>
+                    )}
                   </div>
                 </div>
-              ) : null}
+              </div>
             </div>
           ) : (
             <p className="text-sm text-slate-600">
@@ -557,9 +574,7 @@ export function Dashboard() {
       {weeklyOpen ? (
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
           <div className="border-b border-[#00B050]/30 bg-[#00B050] px-3 py-2 dark:bg-[#00B050]/90">
-            <h3 className="text-sm font-bold text-white">
-              Weekly progress · {scopeShortLabel(scope, sortedSprints)}
-            </h3>
+            <h3 className="text-sm font-bold text-white">Weekly progress</h3>
           </div>
           <div className="p-4">
             <WeeklyProgressPanel
@@ -574,9 +589,7 @@ export function Dashboard() {
       ) : (
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
           <div className="border-b border-[#00B050]/30 bg-[#00B050] px-3 py-2">
-            <h3 className="text-sm font-bold text-white">
-              Work items · {scopeShortLabel(scope, sortedSprints)}
-            </h3>
+            <h3 className="text-sm font-bold text-white">Work items</h3>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[56rem] border-collapse text-left text-xs">
@@ -615,9 +628,22 @@ export function Dashboard() {
                     </td>
                   </tr>
                 ) : (
-                  tableItems.map((w) => {
+                  tableAssigneeGroups.flatMap((g) => {
                     const jiraBase = ctx.jiraBaseUrl.trim().replace(/\/$/, '')
-                    return (
+                    const headerRow = (
+                      <tr
+                        key={`grp-${g.name}`}
+                        className="bg-[#00B050]/10 dark:bg-[#00B050]/15"
+                      >
+                        <td
+                          colSpan={isAdmin(user) ? 6 : 5}
+                          className="px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-[#0d5c2e] dark:text-emerald-300"
+                        >
+                          {g.name}
+                        </td>
+                      </tr>
+                    )
+                    const itemRows = g.items.map((w) => (
                       <tr
                         key={w.id}
                         className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50"
@@ -625,11 +651,13 @@ export function Dashboard() {
                         <td className="max-w-[14rem] px-3 py-2 align-top">
                           <WorkItemTitleLink
                             item={w}
-                            showCommentHover={false}
+                            showCommentHover
+                            maxPreviewComments={3}
+                            sprintCommentWindow={sprintCommentWindow}
                             className={titleLinkCls}
                           />
                         </td>
-                        <td className="px-3 py-2 align-top text-slate-700 dark:text-slate-200">
+                        <td className="px-3 py-2 align-top font-medium text-slate-800 dark:text-slate-200">
                           {w.section || '—'}
                         </td>
                         {isAdmin(user) ? (
@@ -649,7 +677,7 @@ export function Dashboard() {
                                   href={`${jiraBase}/${k}`}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="font-mono text-[11px] text-indigo-700 hover:text-indigo-900 hover:underline dark:text-sky-100 dark:hover:text-white"
+                                  className="font-mono text-[11px] font-semibold text-indigo-700 hover:text-indigo-900 hover:underline dark:text-sky-100 dark:hover:text-white"
                                 >
                                   {k}
                                 </a>
@@ -661,11 +689,12 @@ export function Dashboard() {
                             </span>
                           )}
                         </td>
-                        <td className="max-w-[20rem] px-3 py-2 align-top text-slate-600 dark:text-slate-300">
+                        <td className="max-w-[20rem] px-3 py-2 align-top text-sm font-medium text-slate-700 dark:text-slate-300">
                           {latestCommentPreview(w)}
                         </td>
                       </tr>
-                    )
+                    ))
+                    return [headerRow, ...itemRows]
                   })
                 )}
               </tbody>
@@ -673,51 +702,6 @@ export function Dashboard() {
           </div>
         </div>
       )}
-
-      {isAdmin(user) ? (
-        <div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {roster.map((name) => {
-              const personHref = personDetailHref(name, scope)
-              const mine = itemsForAssignee(name, filteredItems)
-              const pct = personCompletionPercent(name, filteredItems)
-              return (
-                <div
-                  key={name}
-                  className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900/90"
-                >
-                  <PersonProgressBar
-                    name={name}
-                    percent={pct}
-                    itemCount={mine.length}
-                    to={personHref}
-                    slackUrl={resolveSlackDmUrl(
-                      name,
-                      ctx.slackDmUrlByDisplayName,
-                      ctx.teamUsers,
-                    )}
-                  />
-                  <ul className="mt-3 max-h-48 space-y-2 overflow-y-auto text-sm">
-                    {mine.map((w) => (
-                      <li
-                        key={w.id}
-                        className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-2 first:border-t-0 first:pt-0"
-                      >
-                        <WorkItemTitleLink
-                          item={w}
-                          showCommentHover={isAdmin(user)}
-                          className={`min-w-0 flex-1 ${titleLinkCls}`}
-                        />
-                        <StatusBadge status={w.status} />
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      ) : null}
         </div>
 
         {chartAside}

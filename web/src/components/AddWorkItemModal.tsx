@@ -191,13 +191,8 @@ export function AddWorkItemModal({
                       checked={sprintIds.includes(s.id)}
                       onChange={() => toggleSprint(s.id)}
                     />
-                    <span>
-                      <span className="font-medium text-slate-900">
-                        {s.emoji ?? ''} {s.name}
-                      </span>
-                      <span className="block text-slate-500">
-                        {s.start} → {s.end}
-                      </span>
+                    <span className="font-medium text-slate-900">
+                      {s.emoji ?? ''} {s.name}
                     </span>
                   </label>
                 ))

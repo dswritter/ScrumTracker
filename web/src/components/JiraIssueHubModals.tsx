@@ -9,6 +9,7 @@ import {
   fetchJiraProjectsForTeam,
   postJiraCreateIssue,
 } from '../lib/jiraApi'
+import { bumpJiraProjectUsage, sortJiraProjectsForPicker } from '../lib/jiraProjectSort'
 import { canAddWorkItem, canEditWorkItem } from '../lib/permissions'
 import type { Sprint, TrackerUserAccount, WorkItem } from '../types'
 
@@ -20,15 +21,6 @@ export function mergeJiraKeysList(existing: string[], add: string): string[] {
   if (!u) return existing
   if (existing.some((k) => k.toUpperCase() === u)) return [...existing]
   return [...existing, u]
-}
-
-/** Project keys starting with CT (case-insensitive), then the rest; each group A→Z by key. */
-export function sortJiraProjectsCtFirst<T extends { key: string }>(projects: T[]): T[] {
-  const isCt = (key: string) => key.toUpperCase().startsWith('CT')
-  const ct = projects.filter((p) => isCt(p.key))
-  const rest = projects.filter((p) => !isCt(p.key))
-  const byKey = (a: T, b: T) => a.key.localeCompare(b.key)
-  return [...[...ct].sort(byKey), ...[...rest].sort(byKey)]
 }
 
 function pickDefaultJiraIssueTypeName(types: { name: string }[]): string {
@@ -119,14 +111,22 @@ export function JiraCreateIssueModal({
         setProjects([])
         return
       }
-      const ordered = sortJiraProjectsCtFirst(r.projects)
+      const ordered = sortJiraProjectsForPicker(r.projects, workItems, user)
       setProjects(ordered)
       if (ordered[0]) setProjectKey(ordered[0].key)
     })()
     return () => {
       cancelled = true
     }
-  }, [open, syncCtx.teamId, syncCtx.syncMode, syncCtx.trackerUsername, canNew])
+  }, [
+    open,
+    syncCtx.teamId,
+    syncCtx.syncMode,
+    syncCtx.trackerUsername,
+    canNew,
+    workItems,
+    user,
+  ])
 
   useEffect(() => {
     if (!open) return
@@ -214,6 +214,7 @@ export function JiraCreateIssueModal({
         setFormErr('No issue key in response.')
         return
       }
+      bumpJiraProjectUsage(projectKey)
       if (target === 'new') {
         onApplyNewItem({
           title: sum,

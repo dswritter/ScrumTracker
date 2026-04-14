@@ -7,6 +7,8 @@ import type { WorkItem } from '../types'
 
 const HOVER_HIDE_MS = 120
 
+export type SprintCommentWindow = { start: string; end: string }
+
 /**
  * Title link to the item detail page. Optional hover panel with recent comments,
  * intended for admin views (Dashboard / People / profiles). Uses a fixed-position portal
@@ -17,12 +19,18 @@ export function WorkItemTitleLink({
   className = '',
   showCommentHover = false,
   disableLink = false,
+  maxPreviewComments,
+  sprintCommentWindow = null,
 }: {
   item: WorkItem
   className?: string
   showCommentHover?: boolean
   /** When true, title is plain text (e.g. read-only teammate profile). */
   disableLink?: boolean
+  /** When set, only the newest N comments are listed in the hover panel. */
+  maxPreviewComments?: number
+  /** When set, only comments whose date falls in this sprint window (inclusive). */
+  sprintCommentWindow?: SprintCommentWindow | null
 }) {
   const title = item.title || '(untitled)'
   const anchorRef = useRef<HTMLSpanElement>(null)
@@ -30,13 +38,22 @@ export function WorkItemTitleLink({
   const [open, setOpen] = useState(false)
   const [pos, setPos] = useState({ top: 0, left: 0 })
 
-  const sortedComments = useMemo(
-    () =>
-      [...item.comments].sort((a, b) =>
-        b.createdAt.localeCompare(a.createdAt),
-      ),
-    [item.comments],
-  )
+  const sortedComments = useMemo(() => {
+    let list = [...item.comments].sort((a, b) =>
+      b.createdAt.localeCompare(a.createdAt),
+    )
+    if (sprintCommentWindow) {
+      const { start, end } = sprintCommentWindow
+      list = list.filter((c) => {
+        const d = c.createdAt.slice(0, 10)
+        return d >= start && d <= end
+      })
+    }
+    if (maxPreviewComments != null && maxPreviewComments > 0) {
+      list = list.slice(0, maxPreviewComments)
+    }
+    return list
+  }, [item.comments, sprintCommentWindow, maxPreviewComments])
 
   const clearHide = useCallback(() => {
     if (hideTimer.current) {
@@ -100,7 +117,9 @@ export function WorkItemTitleLink({
       >
         {sortedComments.length === 0 ? (
           <p className="text-[11px] text-slate-500 dark:text-slate-400">
-            No comments yet.
+            {sprintCommentWindow
+              ? 'No comments in this sprint window.'
+              : 'No comments yet.'}
           </p>
         ) : (
           <>

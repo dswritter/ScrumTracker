@@ -2,7 +2,8 @@ import { useMemo } from 'react'
 import { useTeamContextNullable } from '../hooks/useTeamContext'
 import { resolveSlackDmUrl } from '../lib/slackDm'
 import { sprintsSortedNewestFirst } from '../lib/sdates'
-import { matrixCellTitles } from '../lib/stats'
+import { WorkItemTitleLink } from '../components/WorkItemTitleLink'
+import { matrixCellItems } from '../lib/stats'
 
 export function Matrix() {
   const ctx = useTeamContextNullable()
@@ -38,9 +39,6 @@ export function Matrix() {
                   <span className="block whitespace-nowrap">
                     {sp.emoji} {sp.name}
                   </span>
-                  <span className="block text-[10px] font-normal text-slate-600 dark:text-slate-400">
-                    {sp.start} → {sp.end}
-                  </span>
                 </th>
               ))}
             </tr>
@@ -75,25 +73,33 @@ export function Matrix() {
                     </span>
                   </td>
                   {sortedSprints.map((sp) => {
-                    const titles = matrixCellTitles(person, sp.id, workItems)
+                    const cellItems = matrixCellItems(person, sp.id, workItems)
                     return (
                       <td
                         key={sp.id}
                         className="align-top px-2 py-2 text-slate-700 dark:text-slate-200"
                       >
-                        {titles.length === 0 ? (
+                        {cellItems.length === 0 ? (
                           <span className="text-slate-400 dark:text-slate-500">
                             —
                           </span>
                         ) : (
                           <ul className="list-inside list-disc space-y-1 marker:text-[#00B050] dark:marker:text-emerald-400">
-                            {titles.map((t, i) => (
+                            {cellItems.map((w) => (
                               <li
-                                key={i}
-                                className="max-w-[200px] truncate text-slate-800 dark:text-slate-200"
-                                title={t}
+                                key={w.id}
+                                className="max-w-[200px] truncate text-sm font-semibold text-slate-900 dark:text-slate-100"
                               >
-                                {t}
+                                <WorkItemTitleLink
+                                  item={w}
+                                  showCommentHover
+                                  maxPreviewComments={3}
+                                  sprintCommentWindow={{
+                                    start: sp.start,
+                                    end: sp.end,
+                                  }}
+                                  className="font-semibold text-indigo-800 hover:text-indigo-950 hover:underline dark:text-sky-100 dark:hover:text-white"
+                                />
                               </li>
                             ))}
                           </ul>

@@ -109,13 +109,8 @@ export function SprintPickerCell({
                     checked={selected.has(s.id)}
                     onChange={() => toggle(s.id)}
                   />
-                  <span>
-                    <span className="font-semibold text-slate-900">
-                      {s.emoji ?? ''} {s.name}
-                    </span>
-                    <span className="block text-xs text-slate-500">
-                      {s.start} → {s.end}
-                    </span>
+                  <span className="font-semibold text-slate-900">
+                    {s.emoji ?? ''} {s.name}
                   </span>
                 </label>
               ))}
