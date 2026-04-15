@@ -1,8 +1,9 @@
-import { useState, useSyncExternalStore } from 'react'
+import { useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { PasswordField } from '../components/PasswordField'
 import { useAuthHydrated } from '../hooks/useAuthHydrated'
 import { useCurrentUser } from '../hooks/useCurrentUser'
+import { useTrackerPersistHydrated } from '../hooks/useTrackerPersistHydrated'
 import { passwordsMatch } from '../lib/passwords'
 import { normalizeLoginUsername } from '../lib/username'
 import { useAuthStore } from '../store/useAuthStore'
@@ -25,12 +26,7 @@ export function Login() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const authHydrated = useAuthHydrated()
-  const storeHydrated = useSyncExternalStore(
-    (onStoreChange) =>
-      useTrackerStore.persist.onFinishHydration(onStoreChange),
-    () => useTrackerStore.persist.hasHydrated(),
-    () => true,
-  )
+  const storeHydrated = useTrackerPersistHydrated()
 
   if (!authHydrated || !storeHydrated) {
     return (
