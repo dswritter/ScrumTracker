@@ -8,6 +8,7 @@ import { Chat } from './pages/Chat'
 import { Dashboard } from './pages/Dashboard'
 import { ItemDetail } from './pages/ItemDetail'
 import { Items } from './pages/Items'
+import { KnowledgeBase } from './pages/KnowledgeBase'
 import { Login } from './pages/Login'
 import { Matrix } from './pages/Matrix'
 import { Me } from './pages/Me'
@@ -32,6 +33,8 @@ export default function App() {
             <Route path="chat" element={<Chat />} />
             <Route path="items/:itemId" element={<ItemDetail />} />
             <Route path="items" element={<Items />} />
+            <Route path="kb/:pageId" element={<KnowledgeBase />} />
+            <Route path="kb" element={<KnowledgeBase />} />
             <Route path="people/:personName" element={<PersonDetail />} />
             <Route element={<AdminRoute />}>
               <Route path="people" element={<People />} />

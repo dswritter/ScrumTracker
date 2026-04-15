@@ -1,10 +1,39 @@
 import type {
   TeamChatMessage,
+  TeamKnowledgePage,
   TrackerTeam,
   TrackerTeamData,
   WorkComment,
   WorkItem,
 } from '../types'
+
+function mergeKnowledgePages(
+  remote: TeamKnowledgePage[] | undefined,
+  local: TeamKnowledgePage[] | undefined,
+): TeamKnowledgePage[] | undefined {
+  if (!remote?.length && !local?.length) return undefined
+  const r = remote ?? []
+  const l = local ?? []
+  const byId = new Map<string, TeamKnowledgePage>()
+  for (const p of l) byId.set(p.id, p)
+  for (const p of r) {
+    const existing = byId.get(p.id)
+    if (!existing) {
+      byId.set(p.id, p)
+    } else if (p.updatedAt > existing.updatedAt) {
+      byId.set(p.id, p)
+    }
+  }
+  const remoteIds = r.map((p) => p.id)
+  const seen = new Set(remoteIds)
+  const tail = l.map((p) => p.id).filter((id) => !seen.has(id))
+  const order = [...remoteIds, ...tail]
+  const rank = new Map(order.map((id, i) => [id, i]))
+  const merged = [...byId.values()].sort(
+    (a, b) => (rank.get(a.id) ?? 999) - (rank.get(b.id) ?? 999),
+  )
+  return merged.length ? merged : undefined
+}
 
 function mergeWorkComments(
   remote: WorkComment[],
@@ -87,6 +116,10 @@ export function mergeTeamDataWithRemote(
     teamChatThreads: mergeTeamChatThreads(
       remote.teamChatThreads,
       local.teamChatThreads,
+    ),
+    teamKnowledgePages: mergeKnowledgePages(
+      remote.teamKnowledgePages,
+      local.teamKnowledgePages,
     ),
   }
 }
