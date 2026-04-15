@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   MetabuildAssigneeBars,
@@ -8,6 +15,7 @@ import {
 import { WeeklyProgressPanel } from '../components/WeeklyProgressPanel'
 import { WorkItemTitleLink } from '../components/WorkItemTitleLink'
 import { StatusBadge } from '../components/StatusBadge'
+import { useCurrentUser } from '../hooks/useCurrentUser'
 import { useTeamContextNullable } from '../hooks/useTeamContext'
 import { isAdmin } from '../lib/permissions'
 import {
@@ -23,6 +31,14 @@ import {
   scopeToParams,
   yearOptionsFromSprints,
 } from '../lib/dashboardScope'
+import {
+  loadPersistedWeekKey,
+  loadPersistedWeeklyFilters,
+  loadPersistedWeeklyOpen,
+  savePersistedWeekKey,
+  savePersistedWeeklyFilters,
+  savePersistedWeeklyOpen,
+} from '../lib/dashboardUiPersistence'
 import {
   allAssignees,
   assigneeChartUniqueLabels,
@@ -40,8 +56,10 @@ import {
   formatWeekRangeLabel,
   mondayDateKey,
   parseMondayKey,
+  previousMondayKey,
   weekMondayOffsets,
 } from '../lib/weeklyProgress'
+import { useTrackerStore } from '../store/useTrackerStore'
 import type { WorkItem } from '../types'
 
 function displayInitials(name: string): string {
@@ -61,10 +79,39 @@ function latestCommentPreview(w: WorkItem): string {
   const t = sorted[0].body.replace(/\s+/g, ' ').trim()
   return t.length > 120 ? `${t.slice(0, 119)}…` : t
 }
+
+function DashboardPageSkeleton() {
+  return (
+    <div className="animate-pulse space-y-4">
+      <div className="h-24 rounded-xl bg-slate-200/80 dark:bg-slate-700/60 xl:hidden" />
+      <div className="flex flex-col gap-5 xl:grid xl:grid-cols-[min(20rem,calc(100vw-3rem))_1fr] xl:items-start xl:gap-5">
+        <div className="order-1 space-y-3 xl:order-2 xl:min-w-0">
+          <div className="h-64 rounded-xl bg-slate-200/80 dark:bg-slate-700/60" />
+        </div>
+        <aside className="order-2 hidden space-y-3 xl:order-1 xl:block xl:w-full">
+          <div className="h-40 rounded-xl bg-slate-200/80 dark:bg-slate-700/60" />
+          <div className="h-48 rounded-xl bg-slate-200/80 dark:bg-slate-700/60" />
+        </aside>
+      </div>
+    </div>
+  )
+}
+
 export function Dashboard() {
   const navigate = useNavigate()
+  const user = useCurrentUser()
   const ctx = useTeamContextNullable()
-  const user = ctx?.user
+  const storeHydrated = useSyncExternalStore(
+    (onStoreChange) =>
+      useTrackerStore.persist.onFinishHydration(onStoreChange),
+    () => useTrackerStore.persist.hasHydrated(),
+    () => true,
+  )
+
+  const scopeSelectRef = useRef<HTMLSelectElement>(null)
+  const weeklySearchInputRef = useRef<HTMLInputElement>(null)
+  const memberWpersonInitialized = useRef(false)
+  const weeklyFiltersFromLs = useRef(false)
 
   const sortedSprints = useMemo(() => {
     if (!ctx?.sprints?.length) return []
@@ -78,9 +125,15 @@ export function Dashboard() {
 
   const [searchParams, setSearchParams] = useSearchParams()
   const weeklyOpen = searchParams.get('weekly') === '1'
-  const [weeklyWeekKey, setWeeklyWeekKey] = useState(() =>
-    mondayDateKey(weekMondayOffsets(12)[0]),
-  )
+  const [weeklyWeekKey, setWeeklyWeekKey] = useState(() => {
+    const persisted = loadPersistedWeekKey()
+    if (persisted) return persisted
+    return mondayDateKey(weekMondayOffsets(12)[0])
+  })
+
+  const wPerson = searchParams.get('wperson') ?? ''
+  const [wProject, setWProject] = useState('')
+  const [wQuery, setWQuery] = useState('')
 
   const weekChoices = useMemo(
     () =>
@@ -109,7 +162,10 @@ export function Dashboard() {
         sid && sortedSprints.some((s) => s.id === sid) ? sid : current
       sp.set('scope', 'sprint')
       sp.set('sprint', id)
-      if (!sp.has('weekly')) sp.set('weekly', '1')
+      if (!sp.has('weekly')) {
+        const p = loadPersistedWeeklyOpen()
+        sp.set('weekly', p === false ? '0' : '1')
+      }
       setSearchParams(sp, { replace: true })
       return
     }
@@ -141,14 +197,12 @@ export function Dashboard() {
         sortedSprints.length - 1,
         Math.max(0, sprintIndex + delta),
       )
-      const sp = new URLSearchParams({
-        scope: 'sprint',
-        sprint: sortedSprints[next].id,
-      })
-      if (weeklyOpen) sp.set('weekly', '1')
+      const sp = new URLSearchParams(searchParams)
+      sp.set('scope', 'sprint')
+      sp.set('sprint', sortedSprints[next]!.id)
       setSearchParams(sp)
     },
-    [sortedSprints, sprintIndex, setSearchParams, weeklyOpen],
+    [sortedSprints, sprintIndex, setSearchParams, searchParams],
   )
 
   const scopedItems = useMemo(
@@ -309,7 +363,13 @@ export function Dashboard() {
       sortedSprints,
       defaultSprintId,
     )
-    const sp = new URLSearchParams(scopeToParams(next))
+    const sp = new URLSearchParams(searchParams)
+    for (const key of ['scope', 'sprint', 'year', 'month']) {
+      sp.delete(key)
+    }
+    for (const [k, v] of Object.entries(scopeToParams(next))) {
+      sp.set(k, v)
+    }
     if (weeklyOpen) sp.set('weekly', '1')
     setSearchParams(sp)
   }
@@ -341,18 +401,124 @@ export function Dashboard() {
     ctx,
   ])
 
+  const weeklyCardsPrevWeek = useMemo(() => {
+    if (!weeklyOpen || !ctx) return []
+    const mon = parseMondayKey(previousMondayKey(weeklyWeekKey))
+    return buildWeeklyProgressCards(
+      scopedItems,
+      weeklyPersonRoster,
+      mon,
+      ctx.jiraBaseUrl,
+    )
+  }, [
+    weeklyOpen,
+    weeklyWeekKey,
+    scopedItems,
+    weeklyPersonRoster,
+    ctx,
+  ])
+
+  useEffect(() => {
+    savePersistedWeekKey(weeklyWeekKey)
+  }, [weeklyWeekKey])
+
+  useEffect(() => {
+    if (!storeHydrated || weeklyFiltersFromLs.current) return
+    weeklyFiltersFromLs.current = true
+    const f = loadPersistedWeeklyFilters()
+    setWProject(f.project)
+    setWQuery(f.query)
+  }, [storeHydrated])
+
+  useEffect(() => {
+    if (!user || isAdmin(user) || memberWpersonInitialized.current) return
+    if (searchParams.has('wperson')) {
+      memberWpersonInitialized.current = true
+      return
+    }
+    memberWpersonInitialized.current = true
+    const sp = new URLSearchParams(searchParams)
+    sp.set('wperson', user.displayName)
+    setSearchParams(sp, { replace: true })
+    savePersistedWeeklyFilters({
+      person: user.displayName,
+      project: wProject,
+      query: wQuery,
+    })
+  }, [user, searchParams, setSearchParams, wProject, wQuery])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return
+      const t = e.target as HTMLElement | null
+      if (t?.closest('input, textarea, select, [contenteditable="true"]')) {
+        return
+      }
+      e.preventDefault()
+      if (weeklyOpen) {
+        weeklySearchInputRef.current?.focus()
+      } else {
+        scopeSelectRef.current?.focus()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [weeklyOpen])
+
+  const onWeeklyPersonChange = useCallback(
+    (v: string) => {
+      const sp = new URLSearchParams(searchParams)
+      if (v) sp.set('wperson', v)
+      else sp.delete('wperson')
+      setSearchParams(sp)
+      savePersistedWeeklyFilters({
+        person: v,
+        project: wProject,
+        query: wQuery,
+      })
+    },
+    [searchParams, setSearchParams, wProject, wQuery],
+  )
+
+  const onWeeklyProjectChange = useCallback(
+    (v: string) => {
+      setWProject(v)
+      savePersistedWeeklyFilters({
+        person: wPerson,
+        project: v,
+        query: wQuery,
+      })
+    },
+    [wPerson, wQuery],
+  )
+
+  const onWeeklySearchChange = useCallback(
+    (v: string) => {
+      setWQuery(v)
+      savePersistedWeeklyFilters({
+        person: wPerson,
+        project: wProject,
+        query: v,
+      })
+    },
+    [wPerson, wProject],
+  )
+
   const toggleWeekly = () => {
     const sp = new URLSearchParams(searchParams)
     if (weeklyOpen) {
       sp.delete('weekly')
+      savePersistedWeeklyOpen(false)
     } else {
       sp.set('weekly', '1')
-      setWeeklyWeekKey(mondayDateKey(weekMondayOffsets(12)[0]))
+      savePersistedWeeklyOpen(true)
     }
     setSearchParams(sp)
   }
 
-  if (!user || !ctx) return null
+  if (!user) return null
+  if (!storeHydrated) return <DashboardPageSkeleton />
+  if (!ctx) return null
 
   const titleLinkCls =
     'font-semibold text-indigo-800 hover:text-indigo-950 hover:underline dark:text-slate-100 dark:hover:text-white'
@@ -385,6 +551,7 @@ export function Dashboard() {
     )
     const scopeSelect = (
       <select
+        ref={scopeSelectRef}
         aria-label="Dashboard scope"
         className={selectCls}
         value={scopeSelectValue(scope)}
@@ -499,7 +666,19 @@ export function Dashboard() {
                   {progressLine}
                 </div>
               </div>
-              <div className="flex w-full min-w-0 items-stretch gap-1">
+              <div
+                className="flex w-full min-w-0 items-stretch gap-1"
+                onKeyDown={(e) => {
+                  if ((e.target as HTMLElement).closest('select')) return
+                  if (e.key === 'ArrowLeft') {
+                    e.preventDefault()
+                    goSprint(1)
+                  } else if (e.key === 'ArrowRight') {
+                    e.preventDefault()
+                    goSprint(-1)
+                  }
+                }}
+              >
                 {olderBtn}
                 {scopeSelect}
                 {newerBtn}
@@ -507,7 +686,19 @@ export function Dashboard() {
               {weeklyBtn}
             </div>
           ) : (
-            <div className="relative z-10 flex flex-wrap items-center gap-2 gap-y-2 px-3 py-2">
+            <div
+              className="relative z-10 flex flex-wrap items-center gap-2 gap-y-2 px-3 py-2"
+              onKeyDown={(e) => {
+                if ((e.target as HTMLElement).closest('select')) return
+                if (e.key === 'ArrowLeft') {
+                  e.preventDefault()
+                  goSprint(1)
+                } else if (e.key === 'ArrowRight') {
+                  e.preventDefault()
+                  goSprint(-1)
+                }
+              }}
+            >
               <span className="text-[10px] font-bold uppercase tracking-wide text-[#007a3d] dark:text-emerald-300">
                 Scope
               </span>
@@ -524,7 +715,7 @@ export function Dashboard() {
   }
 
   const chartAside = (
-    <aside className="order-2 w-full max-w-full space-y-3 xl:fixed xl:bottom-8 xl:left-8 xl:top-24 xl:z-20 xl:w-[min(20rem,calc(100vw-4rem))] xl:max-w-[20rem] xl:overflow-y-auto xl:overscroll-contain xl:pr-1">
+    <aside className="order-2 w-full max-w-full space-y-3 xl:order-1 xl:sticky xl:top-16 xl:z-10 xl:max-h-[calc(100vh-4.5rem)] xl:w-full xl:max-w-[20rem] xl:shrink-0 xl:overflow-y-auto xl:overscroll-contain xl:self-start xl:pr-1">
       {sortedSprints.length > 0 ? (
         <div className="hidden xl:block">{renderScopeCard('sidebar')}</div>
       ) : null}
@@ -606,39 +797,77 @@ export function Dashboard() {
     </aside>
   )
 
-  return (
-    <div className="space-y-6">
-      {!isAdmin(user) ? (
-        <p className="text-sm text-slate-600">
-          Showing your assignments for the selected scope.
+  const emptySprintsCallout = (
+    <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-slate-300 bg-slate-50/80 px-6 py-12 text-center dark:border-slate-600 dark:bg-slate-900/40">
+      <div
+        className="flex h-14 w-14 items-center justify-center rounded-full bg-[#00B050]/15 text-[#0d5c2e] dark:bg-emerald-950/50 dark:text-emerald-200"
+        aria-hidden
+      >
+        <i className="fa-solid fa-clipboard-list text-2xl" />
+      </div>
+      <div>
+        <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+          No sprints yet
         </p>
-      ) : null}
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+          Add a sprint from Settings (JSON import) or open Work items after
+          syncing from Jira.
+        </p>
+      </div>
+      <div className="flex flex-wrap items-center justify-center gap-2">
+        {isAdmin(user) ? (
+          <Link
+            to="/settings"
+            className="inline-flex items-center gap-2 rounded-lg bg-[#00B050] px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-[#009948]"
+          >
+            <i className="fa-solid fa-file-import text-xs" aria-hidden />
+            Import data
+          </Link>
+        ) : null}
+        <Link
+          to="/items"
+          className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+        >
+          <i className="fa-solid fa-table-list text-xs" aria-hidden />
+          Open work items
+        </Link>
+      </div>
+    </div>
+  )
+
+  return (
+    <div className="space-y-4 xl:space-y-0">
       {sortedSprints.length > 0 ? (
         <div className="xl:hidden">{renderScopeCard('toolbar')}</div>
       ) : null}
 
-      <div className="relative flex flex-col gap-5 xl:block">
-        <div className="order-1 min-w-0 space-y-2 xl:ml-[21.25rem]">
-          {sortedSprints.length === 0 ? (
-            <p className="text-sm text-slate-600">
-              Sprints will appear here once seeded or imported.
-            </p>
-          ) : null}
+      <div className="relative flex flex-col gap-4 xl:grid xl:grid-cols-[min(20rem,calc(100vw-3rem))_1fr] xl:items-start xl:gap-5">
+        <div className="order-1 min-w-0 space-y-2 xl:order-2">
+          {sortedSprints.length === 0 ? emptySprintsCallout : null}
 
-      {weeklyOpen ? (
+      {sortedSprints.length > 0 && weeklyOpen ? (
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
           <WeeklyProgressPanel
             cards={weeklyCards}
+            previousWeekCards={weeklyCardsPrevWeek}
             peopleOptions={weeklyPersonRoster}
             weekChoices={weekChoices}
             weekKey={weeklyWeekKey}
             onWeekKeyChange={setWeeklyWeekKey}
+            personFilter={wPerson}
+            onPersonFilterChange={onWeeklyPersonChange}
+            projectFilter={wProject}
+            onProjectFilterChange={onWeeklyProjectChange}
+            searchQuery={wQuery}
+            onSearchQueryChange={onWeeklySearchChange}
+            weeklySearchInputRef={weeklySearchInputRef}
             showReportHeader
-            reportTeamName={ctx?.teamName}
+            reportTeamName={ctx.teamName}
             reportScopeLabel={scopeShortLabel(scope, sortedSprints)}
           />
         </div>
-      ) : (
+      ) : null}
+      {sortedSprints.length > 0 && !weeklyOpen ? (
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
           <div className="border-b border-[#00B050]/30 bg-[#00B050] px-3 py-2">
             <h3 className="text-sm font-bold text-white">Work items</h3>
@@ -672,11 +901,35 @@ export function Dashboard() {
               <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                 {tableItems.length === 0 ? (
                   <tr>
-                    <td
-                      colSpan={isAdmin(user) ? 6 : 5}
-                      className="px-3 py-6 text-center text-slate-500 dark:text-slate-400"
-                    >
-                      No items in this scope.
+                    <td colSpan={isAdmin(user) ? 6 : 5} className="px-4 py-10">
+                      <div className="flex flex-col items-center justify-center gap-3 text-center">
+                        <div
+                          className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-200/80 text-slate-600 dark:bg-slate-700 dark:text-slate-300"
+                          aria-hidden
+                        >
+                          <i className="fa-solid fa-inbox text-xl" />
+                        </div>
+                        <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                          No work items in this scope
+                        </p>
+                        <div className="flex flex-wrap justify-center gap-2">
+                          {isAdmin(user) ? (
+                            <Link
+                              to="/settings"
+                              className="inline-flex items-center gap-1.5 rounded-lg bg-[#00B050] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#009948]"
+                            >
+                              <i className="fa-solid fa-file-import" aria-hidden />
+                              Import sprint
+                            </Link>
+                          ) : null}
+                          <Link
+                            to="/items"
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                          >
+                            Open work items
+                          </Link>
+                        </div>
+                      </div>
                     </td>
                   </tr>
                 ) : (
@@ -753,10 +1006,10 @@ export function Dashboard() {
             </table>
           </div>
         </div>
-      )}
+      ) : null}
         </div>
 
-        {chartAside}
+        {sortedSprints.length > 0 ? chartAside : null}
       </div>
     </div>
   )

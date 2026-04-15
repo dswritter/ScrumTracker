@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { JiraDailyAutoSync } from './JiraDailyAutoSync'
 import { JiraHeaderSyncButton } from './JiraHeaderSyncButton'
 import { UserMenu } from './UserMenu'
@@ -34,6 +34,7 @@ const memberNav = [
 ]
 
 export function Layout() {
+  const { pathname } = useLocation()
   const user = useCurrentUser()
   const teamCtx = useTeamContextNullable()
   const chatUnread = useChatUnreadTotal()
@@ -47,6 +48,7 @@ export function Layout() {
   }, [teamCtx?.teamId, rollIncompleteWorkItems])
 
   const nav = user && isAdmin(user) ? adminNav : memberNav
+  const dashboardMain = pathname === '/' || pathname === '/index.html'
 
   return (
     <div className="flex min-h-svh flex-col">
@@ -86,7 +88,13 @@ export function Layout() {
           </nav>
         </div>
       </header>
-      <main className="mx-auto w-full max-w-none flex-1 px-4 py-8 sm:px-6 lg:px-8">
+      <main
+        className={
+          dashboardMain
+            ? 'mx-auto w-full max-w-none flex-1 px-4 pb-8 pt-0 sm:px-6 lg:px-8'
+            : 'mx-auto w-full max-w-none flex-1 px-4 py-8 sm:px-6 lg:px-8'
+        }
+      >
         <Outlet />
       </main>
     </div>

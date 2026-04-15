@@ -7,7 +7,6 @@ import { passwordsMatch } from '../lib/passwords'
 import { normalizeLoginUsername } from '../lib/username'
 import { useAuthStore } from '../store/useAuthStore'
 import { useTrackerStore } from '../store/useTrackerStore'
-import { isAdmin } from '../lib/permissions'
 
 export function Login() {
   const navigate = useNavigate()
@@ -42,7 +41,7 @@ export function Login() {
   }
 
   if (existing && !existing.mustChangePassword) {
-    return <Navigate to={isAdmin(existing) ? '/' : '/me'} replace />
+    return <Navigate to="/" replace />
   }
   if (existing?.mustChangePassword) {
     return <Navigate to="/change-password" replace />
@@ -64,9 +63,7 @@ export function Login() {
     }
     const safeFrom =
       from && !from.startsWith('/login') ? from : null
-    const dest =
-      u.role === 'admin' ? (safeFrom ?? '/') : '/me'
-    navigate(dest, { replace: true })
+    navigate(safeFrom ?? '/', { replace: true })
   }
 
   return (

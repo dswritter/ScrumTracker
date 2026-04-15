@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import type { RefObject } from 'react'
 import { Link } from 'react-router-dom'
 import { itemDetailPath } from '../lib/workItemRoutes'
 import {
@@ -201,6 +202,7 @@ function WeeklyReportExportMenu({
         type="button"
         disabled={disabled}
         className="inline-flex h-7 w-7 items-center justify-center rounded text-white hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-40"
+        title="Download weekly report as Word or PDF"
         aria-label="Export weekly report"
         aria-expanded={open}
         aria-haspopup="true"
@@ -241,28 +243,70 @@ function WeeklyReportExportMenu({
   )
 }
 
+const COLLAPSE_WHEN_TASKS_GTE = 4
+
+function filterWeeklyCards(
+  source: WeeklyProgressCard[],
+  person: string,
+  project: string,
+  query: string,
+): WeeklyProgressCard[] {
+  const q = query.trim().toLowerCase()
+  return source.filter((c) => {
+    if (person && c.personName !== person) return false
+    if (project && c.section !== project) return false
+    if (!q) return true
+    const blob = [
+      c.personName,
+      c.authorRaw,
+      c.itemTitle,
+      ...c.bulletLines.map((bl) =>
+        isCommentSeparator(bl) ? '' : bl.text,
+      ),
+      ...c.jiraLinks.map((j) => j.key),
+    ]
+      .join('\n')
+      .toLowerCase()
+    return blob.includes(q)
+  })
+}
+
 export function WeeklyProgressPanel({
   cards,
+  previousWeekCards = [],
   peopleOptions,
   weekChoices,
   weekKey,
   onWeekKeyChange,
+  personFilter,
+  onPersonFilterChange,
+  projectFilter,
+  onProjectFilterChange,
+  searchQuery,
+  onSearchQueryChange,
+  weeklySearchInputRef,
   showReportHeader = false,
   reportTeamName,
   reportScopeLabel,
 }: {
   cards: WeeklyProgressCard[]
+  previousWeekCards?: WeeklyProgressCard[]
   peopleOptions: string[]
   weekChoices: { key: string; label: string }[]
   weekKey: string
   onWeekKeyChange: (key: string) => void
+  personFilter: string
+  onPersonFilterChange: (v: string) => void
+  projectFilter: string
+  onProjectFilterChange: (v: string) => void
+  searchQuery: string
+  onSearchQueryChange: (v: string) => void
+  weeklySearchInputRef?: RefObject<HTMLInputElement | null>
   showReportHeader?: boolean
   reportTeamName?: string
   reportScopeLabel?: string
 }) {
-  const [person, setPerson] = useState('')
-  const [project, setProject] = useState('')
-  const [query, setQuery] = useState('')
+  const [personExpand, setPersonExpand] = useState<Record<string, boolean>>({})
 
   const projectOptions = useMemo(() => {
     const s = new Set<string>()
@@ -270,26 +314,33 @@ export function WeeklyProgressPanel({
     return [...s].sort((a, b) => a.localeCompare(b))
   }, [cards])
 
-  const filteredCards = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    return cards.filter((c) => {
-      if (person && c.personName !== person) return false
-      if (project && c.section !== project) return false
-      if (!q) return true
-      const blob = [
-        c.personName,
-        c.authorRaw,
-        c.itemTitle,
-        ...c.bulletLines.map((bl) =>
-          isCommentSeparator(bl) ? '' : bl.text,
-        ),
-        ...c.jiraLinks.map((j) => j.key),
-      ]
-        .join('\n')
-        .toLowerCase()
-      return blob.includes(q)
-    })
-  }, [cards, person, project, query])
+  const filteredCards = useMemo(
+    () =>
+      filterWeeklyCards(cards, personFilter, projectFilter, searchQuery),
+    [cards, personFilter, projectFilter, searchQuery],
+  )
+
+  const filteredPrevCards = useMemo(
+    () =>
+      filterWeeklyCards(
+        previousWeekCards,
+        personFilter,
+        projectFilter,
+        searchQuery,
+      ),
+    [previousWeekCards, personFilter, projectFilter, searchQuery],
+  )
+
+  const weekCompare = useMemo(() => {
+    const curU = new Set(filteredCards.map((c) => c.personName)).size
+    const prevU = new Set(filteredPrevCards.map((c) => c.personName)).size
+    return {
+      curCount: filteredCards.length,
+      prevCount: filteredPrevCards.length,
+      curPeople: curU,
+      prevPeople: prevU,
+    }
+  }, [filteredCards, filteredPrevCards])
 
   const bundles = useMemo(
     () => bundleWeeklyProgressByPerson(filteredCards),
@@ -348,13 +399,57 @@ export function WeeklyProgressPanel({
         </div>
       ) : null}
       <div className={`space-y-4 ${showReportHeader ? 'p-4' : ''}`}>
+      {showReportHeader ? (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-slate-200 bg-white/90 px-3 py-2 text-xs text-slate-700 shadow-sm dark:border-slate-600 dark:bg-slate-900/60 dark:text-slate-200">
+          <span className="font-semibold text-[#0d5c2e] dark:text-emerald-300">
+            This week
+          </span>
+          <span className="tabular-nums">
+            {weekCompare.curCount} updates
+            <span className="text-slate-500 dark:text-slate-400">
+              {' '}
+              · {weekCompare.curPeople}{' '}
+              {weekCompare.curPeople === 1 ? 'person' : 'people'}
+            </span>
+          </span>
+          <span className="text-slate-400 dark:text-slate-500">|</span>
+          <span className="font-medium text-slate-600 dark:text-slate-300">
+            Last week
+          </span>
+          <span className="tabular-nums text-slate-600 dark:text-slate-300">
+            {weekCompare.prevCount} updates
+            <span className="text-slate-500 dark:text-slate-400">
+              {' '}
+              · {weekCompare.prevPeople}{' '}
+              {weekCompare.prevPeople === 1 ? 'person' : 'people'}
+            </span>
+          </span>
+          <span
+            className={`ml-auto font-semibold tabular-nums ${
+              weekCompare.curCount - weekCompare.prevCount > 0
+                ? 'text-emerald-700 dark:text-emerald-400'
+                : weekCompare.curCount - weekCompare.prevCount < 0
+                  ? 'text-rose-700 dark:text-rose-400'
+                  : 'text-slate-500 dark:text-slate-400'
+            }`}
+          >
+            {weekCompare.curCount - weekCompare.prevCount > 0
+              ? `+${weekCompare.curCount - weekCompare.prevCount}`
+              : weekCompare.curCount - weekCompare.prevCount}
+            <span className="font-normal text-slate-500 dark:text-slate-400">
+              {' '}
+              vs last week
+            </span>
+          </span>
+        </div>
+      ) : null}
       <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-600 dark:bg-slate-900/50 sm:flex-row sm:flex-wrap sm:items-end">
         <label className="flex min-w-[10rem] flex-1 flex-col gap-1 text-[11px] font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
           Person
           <select
             className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm font-normal text-slate-900 shadow-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
-            value={person}
-            onChange={(e) => setPerson(e.target.value)}
+            value={personFilter}
+            onChange={(e) => onPersonFilterChange(e.target.value)}
           >
             <option value="">All teammates</option>
             {peopleOptions.map((p) => (
@@ -382,8 +477,8 @@ export function WeeklyProgressPanel({
           Project / section
           <select
             className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm font-normal text-slate-900 shadow-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
-            value={project}
-            onChange={(e) => setProject(e.target.value)}
+            value={projectFilter}
+            onChange={(e) => onProjectFilterChange(e.target.value)}
           >
             <option value="">All</option>
             {projectOptions.map((s) => (
@@ -396,18 +491,34 @@ export function WeeklyProgressPanel({
         <label className="flex min-w-[12rem] flex-[2] flex-col gap-1 text-[11px] font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
           Search
           <input
+            ref={weeklySearchInputRef}
             type="search"
             placeholder="Filter by text, Jira key…"
             className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm font-normal text-slate-900 shadow-sm placeholder:text-slate-400 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            value={searchQuery}
+            onChange={(e) => onSearchQueryChange(e.target.value)}
           />
         </label>
       </div>
 
       {bundles.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/50 px-4 py-10 text-center text-sm text-slate-600 dark:border-slate-600 dark:bg-slate-900/40 dark:text-slate-300">
-          No updates match these filters for this week.
+        <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-slate-300 bg-slate-50/50 px-4 py-10 text-center dark:border-slate-600 dark:bg-slate-900/40">
+          <div
+            className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-200/90 text-slate-600 dark:bg-slate-700 dark:text-slate-300"
+            aria-hidden
+          >
+            <i className="fa-regular fa-comment-dots text-xl" />
+          </div>
+          <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
+            No updates match these filters for this week.
+          </p>
+          <Link
+            to="/items"
+            className="inline-flex items-center gap-2 rounded-lg bg-[#00B050] px-4 py-2 text-xs font-bold text-white hover:bg-[#009948]"
+          >
+            <i className="fa-solid fa-table-list" aria-hidden />
+            Open work items
+          </Link>
         </div>
       ) : (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-3">
@@ -416,28 +527,62 @@ export function WeeklyProgressPanel({
               key={`col-${colIdx}`}
               className="m-0 flex min-w-0 flex-1 list-none flex-col gap-3 p-0"
             >
-              {col.map(({ item: b, index: idx }) => (
+              {col.map(({ item: b, index: idx }) => {
+                const expanded =
+                  personExpand[b.id] ?? b.tasks.length < COLLAPSE_WHEN_TASKS_GTE
+                const toggleExpand = () => {
+                  setPersonExpand((m) => ({
+                    ...m,
+                    [b.id]: !expanded,
+                  }))
+                }
+                const showToggle = b.tasks.length >= COLLAPSE_WHEN_TASKS_GTE
+                return (
                 <li
                   key={b.id}
                   className={`flex flex-col rounded-2xl border p-4 shadow-sm ${shellClass(idx)}`}
                 >
-                  <div className="flex items-start justify-between gap-2 border-b border-slate-200/70 pb-2 dark:border-slate-600/60">
+                  <div
+                    className={`flex items-start justify-between gap-2 border-b border-slate-200/70 pb-2 dark:border-slate-600/60 ${showToggle ? 'cursor-pointer select-none' : ''}`}
+                    role={showToggle ? 'button' : undefined}
+                    tabIndex={showToggle ? 0 : undefined}
+                    aria-expanded={showToggle ? expanded : undefined}
+                    onClick={showToggle ? toggleExpand : undefined}
+                    onKeyDown={
+                      showToggle
+                        ? (e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault()
+                              toggleExpand()
+                            }
+                          }
+                        : undefined }
+                  >
                     <p className="min-w-0 truncate text-sm font-bold text-slate-900 dark:text-slate-50">
                       {b.personName}
                     </p>
-                    {b.tasks.length === 1 ? (
-                      <time
-                        className="shrink-0 text-[10px] tabular-nums text-slate-600 dark:text-slate-300"
-                        dateTime={b.tasks[0]!.dateKey}
-                      >
-                        {b.tasks[0]!.dateLabel}
-                      </time>
-                    ) : (
-                      <span className="shrink-0 text-[10px] tabular-nums text-slate-500 dark:text-slate-400">
-                        {b.tasks.length} tasks
-                      </span>
-                    )}
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      {b.tasks.length === 1 ? (
+                        <time
+                          className="text-[10px] tabular-nums text-slate-600 dark:text-slate-300"
+                          dateTime={b.tasks[0]!.dateKey}
+                        >
+                          {b.tasks[0]!.dateLabel}
+                        </time>
+                      ) : (
+                        <span className="text-[10px] tabular-nums text-slate-500 dark:text-slate-400">
+                          {b.tasks.length} tasks
+                        </span>
+                      )}
+                      {showToggle ? (
+                        <i
+                          className={`fa-solid ${expanded ? 'fa-chevron-up' : 'fa-chevron-down'} text-[10px] text-slate-500 dark:text-slate-400`}
+                          aria-hidden
+                        />
+                      ) : null}
+                    </div>
                   </div>
+                  {expanded ? (
                   <div className="mt-3 space-y-4">
                     {b.tasks.map((c, taskIdx) => (
                       <div
@@ -529,8 +674,13 @@ export function WeeklyProgressPanel({
                       </div>
                     ))}
                   </div>
+                  ) : (
+                    <p className="mt-3 text-center text-xs text-slate-500 dark:text-slate-400">
+                      {b.tasks.length} tasks hidden — click header to expand
+                    </p>
+                  )}
                 </li>
-              ))}
+              )})}
             </ul>
           ))}
         </div>

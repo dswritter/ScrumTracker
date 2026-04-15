@@ -140,6 +140,13 @@ export function parseMondayKey(key: string): Date {
   return startOfWeekMonday(new Date(y, mo - 1, da))
 }
 
+/** Monday date key for the calendar week immediately before `key`. */
+export function previousMondayKey(key: string): string {
+  const d = parseMondayKey(key)
+  d.setDate(d.getDate() - 7)
+  return mondayDateKey(d)
+}
+
 function commentInWeek(iso: string, weekStart: Date, weekEnd: Date): boolean {
   const t = Date.parse(iso)
   if (Number.isNaN(t)) return false

@@ -3,8 +3,6 @@ import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { PasswordField } from '../components/PasswordField'
 import { useCurrentUser } from '../hooks/useCurrentUser'
 import { useTrackerStore } from '../store/useTrackerStore'
-import { isAdmin } from '../lib/permissions'
-
 type VoluntaryMode = 'current' | 'master'
 
 export function ChangePassword() {
@@ -29,7 +27,7 @@ export function ChangePassword() {
     return <Navigate to="/login" replace />
   }
 
-  const home = isAdmin(user) ? '/' : '/me'
+  const home = '/'
 
   const onFirstLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault()
