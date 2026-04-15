@@ -273,7 +273,6 @@ function filterWeeklyCards(
 
 export function WeeklyProgressPanel({
   cards,
-  previousWeekCards = [],
   peopleOptions,
   weekChoices,
   weekKey,
@@ -290,7 +289,6 @@ export function WeeklyProgressPanel({
   reportScopeLabel,
 }: {
   cards: WeeklyProgressCard[]
-  previousWeekCards?: WeeklyProgressCard[]
   peopleOptions: string[]
   weekChoices: { key: string; label: string }[]
   weekKey: string
@@ -319,28 +317,6 @@ export function WeeklyProgressPanel({
       filterWeeklyCards(cards, personFilter, projectFilter, searchQuery),
     [cards, personFilter, projectFilter, searchQuery],
   )
-
-  const filteredPrevCards = useMemo(
-    () =>
-      filterWeeklyCards(
-        previousWeekCards,
-        personFilter,
-        projectFilter,
-        searchQuery,
-      ),
-    [previousWeekCards, personFilter, projectFilter, searchQuery],
-  )
-
-  const weekCompare = useMemo(() => {
-    const curU = new Set(filteredCards.map((c) => c.personName)).size
-    const prevU = new Set(filteredPrevCards.map((c) => c.personName)).size
-    return {
-      curCount: filteredCards.length,
-      prevCount: filteredPrevCards.length,
-      curPeople: curU,
-      prevPeople: prevU,
-    }
-  }, [filteredCards, filteredPrevCards])
 
   const bundles = useMemo(
     () => bundleWeeklyProgressByPerson(filteredCards),
@@ -399,50 +375,6 @@ export function WeeklyProgressPanel({
         </div>
       ) : null}
       <div className={`space-y-4 ${showReportHeader ? 'p-4' : ''}`}>
-      {showReportHeader ? (
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-slate-200 bg-white/90 px-3 py-2 text-xs text-slate-700 shadow-sm dark:border-slate-600 dark:bg-slate-900/60 dark:text-slate-200">
-          <span className="font-semibold text-[#0d5c2e] dark:text-emerald-300">
-            This week
-          </span>
-          <span className="tabular-nums">
-            {weekCompare.curCount} updates
-            <span className="text-slate-500 dark:text-slate-400">
-              {' '}
-              · {weekCompare.curPeople}{' '}
-              {weekCompare.curPeople === 1 ? 'person' : 'people'}
-            </span>
-          </span>
-          <span className="text-slate-400 dark:text-slate-500">|</span>
-          <span className="font-medium text-slate-600 dark:text-slate-300">
-            Last week
-          </span>
-          <span className="tabular-nums text-slate-600 dark:text-slate-300">
-            {weekCompare.prevCount} updates
-            <span className="text-slate-500 dark:text-slate-400">
-              {' '}
-              · {weekCompare.prevPeople}{' '}
-              {weekCompare.prevPeople === 1 ? 'person' : 'people'}
-            </span>
-          </span>
-          <span
-            className={`ml-auto font-semibold tabular-nums ${
-              weekCompare.curCount - weekCompare.prevCount > 0
-                ? 'text-emerald-700 dark:text-emerald-400'
-                : weekCompare.curCount - weekCompare.prevCount < 0
-                  ? 'text-rose-700 dark:text-rose-400'
-                  : 'text-slate-500 dark:text-slate-400'
-            }`}
-          >
-            {weekCompare.curCount - weekCompare.prevCount > 0
-              ? `+${weekCompare.curCount - weekCompare.prevCount}`
-              : weekCompare.curCount - weekCompare.prevCount}
-            <span className="font-normal text-slate-500 dark:text-slate-400">
-              {' '}
-              vs last week
-            </span>
-          </span>
-        </div>
-      ) : null}
       <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-600 dark:bg-slate-900/50 sm:flex-row sm:flex-wrap sm:items-end">
         <label className="flex min-w-[10rem] flex-1 flex-col gap-1 text-[11px] font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
           Person

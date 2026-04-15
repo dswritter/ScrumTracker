@@ -56,7 +56,6 @@ import {
   formatWeekRangeLabel,
   mondayDateKey,
   parseMondayKey,
-  previousMondayKey,
   weekMondayOffsets,
 } from '../lib/weeklyProgress'
 import { useTrackerStore } from '../store/useTrackerStore'
@@ -387,23 +386,6 @@ export function Dashboard() {
     if (!weeklyOpen || !ctx) return []
     const mon = parseMondayKey(weeklyWeekKey)
     /** Team sprint scope (not per-user filtered) so weekly shows all teammate comments in the sprint. */
-    return buildWeeklyProgressCards(
-      scopedItems,
-      weeklyPersonRoster,
-      mon,
-      ctx.jiraBaseUrl,
-    )
-  }, [
-    weeklyOpen,
-    weeklyWeekKey,
-    scopedItems,
-    weeklyPersonRoster,
-    ctx,
-  ])
-
-  const weeklyCardsPrevWeek = useMemo(() => {
-    if (!weeklyOpen || !ctx) return []
-    const mon = parseMondayKey(previousMondayKey(weeklyWeekKey))
     return buildWeeklyProgressCards(
       scopedItems,
       weeklyPersonRoster,
@@ -849,7 +831,6 @@ export function Dashboard() {
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
           <WeeklyProgressPanel
             cards={weeklyCards}
-            previousWeekCards={weeklyCardsPrevWeek}
             peopleOptions={weeklyPersonRoster}
             weekChoices={weekChoices}
             weekKey={weeklyWeekKey}
