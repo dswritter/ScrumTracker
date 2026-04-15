@@ -140,3 +140,18 @@ export function rankKnowledgePagesByQuery<
     .sort((a, b) => b.score - a.score)
   return scored.slice(0, limit)
 }
+
+/** All pages whose title or body contains the query (substring), best match first. */
+export function listAllSearchMatches<
+  T extends { id: string; title: string; body: string },
+>(query: string, pages: T[]): { page: T; score: number }[] {
+  const n = query.trim().toLowerCase()
+  if (!n) return []
+  return pages
+    .filter((p) => `${p.title}\n${p.body}`.toLowerCase().includes(n))
+    .map((page) => ({
+      page,
+      score: knowledgeMatchScore(query, page.title, page.body),
+    }))
+    .sort((a, b) => b.score - a.score)
+}

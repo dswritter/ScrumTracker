@@ -1,5 +1,6 @@
 import { type FormEvent, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { listAllSearchMatches } from '../lib/knowledgeMarkdown'
 import { useCurrentUser } from '../hooks/useCurrentUser'
 import { useTrackerStore } from '../store/useTrackerStore'
 import type { TeamKnowledgePage } from '../types'
@@ -25,22 +26,20 @@ export function KnowledgeHeaderSearch({ fused = false }: Props) {
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault()
-    const needle = q.trim().toLowerCase()
-    if (!needle) {
+    const raw = q.trim()
+    if (!raw) {
       navigate('/kb')
       return
     }
-    const hit = pages.find((p) => {
-      const blob = `${p.title}\n${p.body}`.toLowerCase()
-      return blob.includes(needle)
-    })
-    if (hit) {
-      navigate(`/kb/${hit.id}`)
+    const matches = listAllSearchMatches(raw, pages)
+    if (matches.length > 0) {
+      const best = matches[0]!.page
+      navigate(`/kb/${best.id}?q=${encodeURIComponent(raw)}`)
       return
     }
     const first = pages[0]
     if (first) {
-      navigate(`/kb/${first.id}?find=${encodeURIComponent(needle)}`)
+      navigate(`/kb/${first.id}?find=${encodeURIComponent(raw.toLowerCase())}`)
     } else {
       navigate('/kb')
     }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useLayoutEffect, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import type { TeamKnowledgePage } from '../types'
 
@@ -16,18 +16,26 @@ type Props = {
   currentId: string
   /** Neighbors on each side of current (default 2 → up to 5 cards). */
   windowRadius?: number
+  /** Two-finger horizontal scroll / trackpad: move to previous (-1) or next (+1) page. */
+  onHorizontalStep?: (direction: -1 | 1) => void
+  /** Preserve URL params (e.g. search highlight) on page links. */
+  pageHref?: (pageId: string) => string
 }
 
 export function KnowledgePageDialNav({
   pages,
   currentId,
   windowRadius = 2,
+  onHorizontalStep,
+  pageHref = (id) => `/kb/${id}`,
 }: Props) {
   const idx = useMemo(
     () => pages.findIndex((p) => p.id === currentId),
     [pages, currentId],
   )
   const activeRef = useRef<HTMLDivElement | null>(null)
+  const scrollerRef = useRef<HTMLDivElement | null>(null)
+  const wheelAccumRef = useRef(0)
 
   const windowSlice = useMemo(() => {
     if (idx < 0 || pages.length <= 1) return []
@@ -39,16 +47,42 @@ export function KnowledgePageDialNav({
     }))
   }, [pages, idx, windowRadius])
 
-  useEffect(() => {
-    if (!activeRef.current) return
-    activeRef.current.scrollIntoView({
-      inline: 'center',
-      block: 'nearest',
-      behavior: 'smooth',
+  useLayoutEffect(() => {
+    const scroller = scrollerRef.current
+    const card = activeRef.current
+    if (!scroller || !card) return
+    const id = window.requestAnimationFrame(() => {
+      const target =
+        card.offsetLeft - scroller.clientWidth / 2 + card.offsetWidth / 2
+      scroller.scrollTo({
+        left: Math.max(0, target),
+        behavior: 'smooth',
+      })
     })
-  }, [currentId, windowSlice.length])
+    return () => window.cancelAnimationFrame(id)
+  }, [currentId, windowSlice])
 
   if (pages.length <= 1 || idx < 0 || windowSlice.length === 0) return null
+
+  const onWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    if (!onHorizontalStep) return
+    const dx = e.deltaX
+    const dy = e.deltaY
+    const dominant =
+      Math.abs(dx) > Math.abs(dy) ? dx : e.shiftKey ? dy : 0
+    if (Math.abs(dominant) < 1) return
+    wheelAccumRef.current += dominant
+    const threshold = 45
+    if (wheelAccumRef.current > threshold) {
+      wheelAccumRef.current = 0
+      onHorizontalStep(1)
+      e.preventDefault()
+    } else if (wheelAccumRef.current < -threshold) {
+      wheelAccumRef.current = 0
+      onHorizontalStep(-1)
+      e.preventDefault()
+    }
+  }
 
   return (
     <nav
@@ -59,10 +93,14 @@ export function KnowledgePageDialNav({
         className={`${KB_PAGE_WIDTH_CLASS} relative px-2 py-2`}
         style={{
           maskImage:
-            'linear-gradient(to right, transparent, black 10%, black 90%, transparent)',
+            'linear-gradient(to right, transparent, black 8%, black 92%, transparent)',
         }}
       >
-        <div className="flex snap-x snap-mandatory items-end justify-center gap-3 overflow-x-auto overflow-y-visible py-1 [scrollbar-width:thin]">
+        <div
+          ref={scrollerRef}
+          className="kb-dial-scroll flex snap-x snap-mandatory items-end justify-center gap-3 overflow-x-auto overflow-y-visible py-1 [scrollbar-width:thin]"
+          onWheel={onWheel}
+        >
           {windowSlice.map(({ page, indexInTeam }) => {
             const dist = Math.abs(indexInTeam - idx)
             const isCurrent = page.id === currentId
@@ -86,7 +124,7 @@ export function KnowledgePageDialNav({
             )
 
             const cardClass = [
-              'flex w-[min(14rem,72vw)] shrink-0 snap-center flex-col rounded-lg border bg-slate-50/90 p-2.5 text-left shadow-sm transition-[transform,opacity,box-shadow,border-color] duration-300 ease-out dark:bg-slate-800/60',
+              'kb-dial-card flex w-[min(14rem,72vw)] shrink-0 snap-center flex-col rounded-lg border bg-slate-50/90 p-2.5 text-left shadow-sm dark:bg-slate-800/60',
               isCurrent
                 ? 'z-10 border-[#00B050]/70 shadow-md ring-2 ring-[#00B050]/25 dark:border-emerald-500/50'
                 : 'border-slate-200 hover:border-[#00B050]/50 hover:bg-white dark:border-slate-600 dark:hover:bg-slate-800',
@@ -96,7 +134,7 @@ export function KnowledgePageDialNav({
               <div
                 key={page.id}
                 ref={isCurrent ? activeRef : undefined}
-                className="flex shrink-0 justify-center pb-0.5"
+                className="kb-dial-item flex shrink-0 justify-center pb-0.5 will-change-transform"
                 style={{
                   transform: `scale(${scale})`,
                   opacity,
@@ -113,7 +151,7 @@ export function KnowledgePageDialNav({
                   </div>
                 ) : (
                   <Link
-                    to={`/kb/${page.id}`}
+                    to={pageHref(page.id)}
                     className={cardClass}
                   >
                     {cardInner}

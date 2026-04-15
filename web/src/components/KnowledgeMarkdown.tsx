@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import rehypeHighlight from 'rehype-highlight'
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize'
@@ -7,27 +8,41 @@ import type { PluggableList } from 'unified'
 
 import 'highlight.js/styles/github.css'
 
+import { rehypeKbSearchHighlight } from '../lib/rehypeKbSearchHighlight'
 import { toggleNthTaskListItem } from '../lib/knowledgeMarkdown'
 
-/** Allow interactive task checkboxes (default GH schema forces disabled). */
-const taskListSanitizeSchema = {
+const withInlineImages = {
   ...defaultSchema,
-  attributes: {
-    ...defaultSchema.attributes,
-    input: ['type', 'checkbox', 'checked', 'className', 'disabled'],
+  protocols: {
+    ...defaultSchema.protocols,
+    src: ['http', 'https', 'data'],
   },
 }
 
-const rehypePluginsInteractive: PluggableList = [
-  [rehypeSanitize, taskListSanitizeSchema],
-  rehypeHighlight,
-]
+const withMark = {
+  ...withInlineImages,
+  tagNames: [...(defaultSchema.tagNames ?? []), 'mark'],
+  attributes: {
+    ...defaultSchema.attributes,
+    mark: ['className'],
+  },
+}
 
-const rehypePluginsReadOnly: PluggableList = [rehypeSanitize, rehypeHighlight]
+/** Allow interactive task checkboxes (default GH schema forces disabled). */
+const taskListSanitizeSchema = {
+  ...withMark,
+  attributes: {
+    ...withMark.attributes,
+    input: ['type', 'checkbox', 'checked', 'className', 'disabled'],
+  },
+  required: {},
+}
 
 type Props = {
   source: string
   className?: string
+  /** Highlight plain-text matches in rendered output (e.g. from knowledge search). */
+  highlightQuery?: string
   /** When set with onTasksSourceChange, task checkboxes toggle the markdown source. */
   interactiveTasks?: boolean
   onTasksSourceChange?: (next: string) => void
@@ -37,9 +52,20 @@ type Props = {
 export function KnowledgeMarkdown({
   source,
   className = '',
+  highlightQuery,
   interactiveTasks = false,
   onTasksSourceChange,
 }: Props) {
+  const rehypePlugins = useMemo((): PluggableList => {
+    const hi = highlightQuery?.trim()
+    const searchPlugin = hi ? [rehypeKbSearchHighlight(hi)] : []
+    const tail: PluggableList =
+      interactiveTasks && onTasksSourceChange
+        ? [[rehypeSanitize, taskListSanitizeSchema]]
+        : [[rehypeSanitize, withMark]]
+    return [rehypeHighlight, ...searchPlugin, ...tail]
+  }, [highlightQuery, interactiveTasks, onTasksSourceChange])
+
   if (!source.trim()) {
     return (
       <p className="text-sm text-slate-400 dark:text-slate-500">Nothing to preview.</p>
@@ -93,11 +119,6 @@ export function KnowledgeMarkdown({
     },
   }
 
-  const plugins: PluggableList =
-    interactiveTasks && onTasksSourceChange
-      ? rehypePluginsInteractive
-      : rehypePluginsReadOnly
-
   return (
     <div
       className={[
@@ -108,23 +129,22 @@ export function KnowledgeMarkdown({
         'prose-pre:bg-slate-100 prose-pre:text-slate-900 dark:prose-pre:bg-slate-900 dark:prose-pre:text-slate-100',
         'prose-code:before:content-none prose-code:after:content-none',
         'prose-table:text-sm',
-        /* Slack-like list spacing */
         'prose-ul:my-3 prose-ul:list-none prose-ul:pl-0',
-        'prose-ol:my-3 prose-ol:pl-6',
+        'prose-ol:my-3 prose-ol:list-decimal prose-ol:list-outside prose-ol:pl-6',
         '[&_ul:not(.contains-task-list)>li]:relative [&_ul:not(.contains-task-list)>li]:my-1.5 [&_ul:not(.contains-task-list)>li]:pl-6 [&_ul:not(.contains-task-list)>li]:leading-relaxed',
         '[&_ul:not(.contains-task-list)>li]:before:absolute [&_ul:not(.contains-task-list)>li]:before:left-0 [&_ul:not(.contains-task-list)>li]:before:top-[0.55em] [&_ul:not(.contains-task-list)>li]:before:h-1.5 [&_ul:not(.contains-task-list)>li]:before:w-1.5 [&_ul:not(.contains-task-list)>li]:before:rounded-full [&_ul:not(.contains-task-list)>li]:before:bg-slate-400 [&_ul:not(.contains-task-list)>li]:before:content-[""] dark:[&_ul:not(.contains-task-list)>li]:before:bg-slate-500',
         '[&_ol>li]:my-1.5 [&_ol>li]:leading-relaxed [&_ol>li]:marker:font-semibold [&_ol>li]:marker:text-[#007a3d] dark:[&_ol>li]:marker:text-emerald-400',
-        /* Task lists: comfy spacing + pointer */
         '[&_.contains-task-list]:list-none [&_.contains-task-list]:pl-0',
         '[&_li.task-list-item]:relative [&_li.task-list-item]:my-2 [&_li.task-list-item]:flex [&_li.task-list-item]:items-start [&_li.task-list-item]:gap-2 [&_li.task-list-item]:pl-0',
         '[&_li.task-list-item>input]:mt-0.5 [&_li.task-list-item>input]:h-4 [&_li.task-list-item>input]:w-4 [&_li.task-list-item>input]:shrink-0 [&_li.task-list-item>input]:cursor-pointer [&_li.task-list-item>input]:rounded-sm [&_li.task-list-item>input]:border-slate-400 [&_li.task-list-item>input]:text-[#00B050] focus-visible:[&_li.task-list-item>input]:ring-2 focus-visible:[&_li.task-list-item>input]:ring-[#00B050]/40 dark:[&_li.task-list-item>input]:border-slate-500',
+        '[&_mark.kb-search-hit]:rounded-sm [&_mark.kb-search-hit]:bg-[#00B050]/25 [&_mark.kb-search-hit]:px-0.5 [&_mark.kb-search-hit]:text-inherit dark:[&_mark.kb-search-hit]:bg-emerald-400/25',
         className,
       ].join(' ')}
     >
-      <div className="mx-auto max-w-[65ch]">
+      <div className="w-full px-1 sm:px-2">
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
-          rehypePlugins={plugins}
+          rehypePlugins={rehypePlugins}
           components={markdownComponents}
         >
           {source}
