@@ -19,6 +19,7 @@ import rehypeRaw from 'rehype-raw'
 import rehypeSanitize from 'rehype-sanitize'
 import { KnowledgeFindPanel } from '../components/KnowledgeFindPanel'
 import { KnowledgeMarkdown } from '../components/KnowledgeMarkdown'
+import { KnowledgePageComments } from '../components/KnowledgePageComments'
 import {
   KB_PAGE_WIDTH_CLASS,
   KnowledgePageDialNav,
@@ -349,7 +350,10 @@ export function KnowledgeBase() {
     if (pendingNewPageIdRef.current && pendingNewPageIdRef.current !== page.id) {
       pendingNewPageIdRef.current = null
     }
-    setDraftTitle(page.title)
+    const blankDefaultTitle =
+      page.title.trim().toLowerCase() === DEFAULT_NEW_TITLE.toLowerCase() &&
+      !page.body.trim()
+    setDraftTitle(blankDefaultTitle ? '' : page.title)
     setDraftBody(page.body)
     setEditing(true)
   }, [page])
@@ -420,7 +424,7 @@ export function KnowledgeBase() {
     setTableModalOpen(false)
     tableApiRef.current = null
     updateKnowledgePage(teamId, page.id, {
-      title: draftTitle,
+      title: draftTitle.trim() || DEFAULT_NEW_TITLE,
       body: draftBody,
     })
     setEditing(false)
@@ -435,7 +439,7 @@ export function KnowledgeBase() {
     })
     pendingNewPageIdRef.current = id
     navigate(`/kb/${id}`)
-    setDraftTitle(DEFAULT_NEW_TITLE)
+    setDraftTitle('')
     setDraftBody('')
     setEditing(true)
   }, [teamId, user, addKnowledgePage, navigate])
@@ -751,16 +755,15 @@ export function KnowledgeBase() {
       >
         {editing ? (
           <div className="flex min-h-0 flex-col space-y-4 p-5">
-            <div className="flex flex-wrap items-start gap-3">
-              <label className="block min-w-0 flex-1 text-xs font-semibold text-slate-600 dark:text-slate-400">
-                Title
-                <input
-                  ref={titleInputRef}
-                  value={draftTitle}
-                  onChange={(e) => setDraftTitle(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-                />
-              </label>
+            <div className="flex flex-wrap items-center gap-3">
+              <input
+                ref={titleInputRef}
+                value={draftTitle}
+                onChange={(e) => setDraftTitle(e.target.value)}
+                className="min-w-0 flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                placeholder="Page Title"
+                aria-label="Page Title"
+              />
               {headerActions}
             </div>
             {tableModalOpen ? (
@@ -822,7 +825,7 @@ export function KnowledgeBase() {
             </div>
           </div>
         ) : (
-          <>
+          <div className="flex min-h-0 flex-col">
             <header className="flex flex-wrap items-start gap-3 border-b border-emerald-200/50 px-5 py-4 dark:border-emerald-900/40">
               <div className="group/title min-w-0 flex-1 pr-2">
                 <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -839,10 +842,6 @@ export function KnowledgeBase() {
                     <i className="fa-solid fa-pen text-xs" aria-hidden />
                   </button>
                 </div>
-                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                  Updated {new Date(page.updatedAt).toLocaleString()} ·{' '}
-                  {page.authorDisplayName}
-                </p>
               </div>
               {headerActions}
             </header>
@@ -860,7 +859,20 @@ export function KnowledgeBase() {
                 </p>
               )}
             </div>
-          </>
+            <footer className="mt-auto border-t border-emerald-200/50 px-5 pb-4 pt-1 dark:border-emerald-900/40">
+              <KnowledgePageComments
+                teamId={ctx.teamId}
+                pageId={page.id}
+                comments={page.comments ?? []}
+                currentDisplayName={user.displayName}
+              />
+              <p className="mt-3 text-right text-[10px] leading-snug text-slate-500 dark:text-slate-500">
+                Owner {page.authorDisplayName} · Created{' '}
+                {new Date(page.createdAt).toLocaleString()} · Last edited{' '}
+                {new Date(page.updatedAt).toLocaleString()}
+              </p>
+            </footer>
+          </div>
         )}
       </article>
 

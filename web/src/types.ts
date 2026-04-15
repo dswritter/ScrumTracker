@@ -74,6 +74,8 @@ export interface TeamKnowledgePage {
   createdAt: string
   updatedAt: string
   authorDisplayName: string
+  /** Page discussion; same shape as work-item comments. */
+  comments: WorkComment[]
 }
 
 export interface TrackerTeamData {

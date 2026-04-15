@@ -21,7 +21,21 @@ function mergeKnowledgePages(
     if (!existing) {
       byId.set(p.id, p)
     } else if (p.updatedAt > existing.updatedAt) {
-      byId.set(p.id, p)
+      byId.set(p.id, {
+        ...p,
+        comments: mergeWorkComments(
+          p.comments ?? [],
+          existing.comments ?? [],
+        ),
+      })
+    } else {
+      byId.set(p.id, {
+        ...existing,
+        comments: mergeWorkComments(
+          existing.comments ?? [],
+          p.comments ?? [],
+        ),
+      })
     }
   }
   const remoteIds = r.map((p) => p.id)

@@ -74,7 +74,7 @@ export function KnowledgeHeaderSearch({
     return (
       <button
         type="button"
-        className="inline-flex shrink-0 items-center px-3 py-2 text-slate-500 transition-colors hover:text-[#007a3d] dark:text-slate-400 dark:hover:text-emerald-300"
+        className="flex h-full w-full min-w-0 items-center justify-center px-3 py-2 text-slate-500 transition-colors hover:text-[#007a3d] dark:text-slate-400 dark:hover:text-emerald-300"
         aria-label="Open knowledge search"
         onClick={() => setExpanded(true)}
       >
@@ -89,7 +89,7 @@ export function KnowledgeHeaderSearch({
       title="Tip: press . anywhere (outside a field) to open search"
       className={
         fused
-          ? 'relative min-w-0 flex-1'
+          ? 'relative flex h-full min-w-0 w-full flex-1'
           : 'relative w-full min-w-0'
       }
     >
@@ -107,7 +107,7 @@ export function KnowledgeHeaderSearch({
         onChange={(e) => setQ(e.target.value)}
         className={
           fused
-            ? 'w-full min-w-[12rem] border-0 bg-transparent py-2.5 pl-9 pr-3 text-sm text-slate-900 shadow-none placeholder:text-slate-400 focus:border-0 focus:outline-none focus:ring-0 dark:bg-transparent dark:text-slate-100 dark:placeholder:text-slate-500'
+            ? 'w-full min-w-0 border-0 bg-transparent py-2.5 pl-9 pr-3 text-sm text-slate-900 shadow-none placeholder:text-slate-400 focus:border-0 focus:outline-none focus:ring-0 dark:bg-transparent dark:text-slate-100 dark:placeholder:text-slate-500'
             : 'w-full rounded-lg border border-slate-200 bg-white py-1.5 pl-8 pr-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-[#00B050] focus:outline-none focus:ring-1 focus:ring-[#00B050]/40 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500'
         }
         aria-label="Search team knowledge"

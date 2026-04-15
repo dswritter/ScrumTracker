@@ -217,6 +217,33 @@ function ensureSeedColorGraphicsAdmin(
   return [normalizeUser(seedAdmin, SEED_TEAM_ID), ...users]
 }
 
+function normalizeKnowledgePageComments(raw: unknown): WorkComment[] {
+  if (!Array.isArray(raw)) return []
+  const out: WorkComment[] = []
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue
+    const o = item as Record<string, unknown>
+    const body = typeof o.body === 'string' ? o.body.trim() : ''
+    if (!body) continue
+    out.push({
+      id:
+        typeof o.id === 'string' && o.id.trim()
+          ? o.id.trim()
+          : newId('kbcomment'),
+      authorName:
+        typeof o.authorName === 'string' && o.authorName.trim()
+          ? o.authorName.trim()
+          : 'Unknown',
+      body,
+      createdAt:
+        typeof o.createdAt === 'string' && o.createdAt
+          ? o.createdAt
+          : new Date().toISOString(),
+    })
+  }
+  return out.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+}
+
 function normalizeTeamKnowledgePages(
   raw: unknown,
 ): TeamKnowledgePage[] | undefined {
@@ -243,6 +270,7 @@ function normalizeTeamKnowledgePages(
         typeof o.authorDisplayName === 'string' && o.authorDisplayName.trim()
           ? o.authorDisplayName.trim()
           : 'Unknown',
+      comments: normalizeKnowledgePageComments(o.comments),
     })
   }
   return out.length ? out : undefined
@@ -566,6 +594,13 @@ export interface TrackerState {
   ) => void
 
   deleteKnowledgePage: (teamId: string, id: string) => void
+
+  addKnowledgePageComment: (
+    teamId: string,
+    pageId: string,
+    authorName: string,
+    body: string,
+  ) => void
 }
 
 const defaultWorkItem = (): WorkItem => ({
@@ -728,6 +763,7 @@ export const useTrackerStore = create<TrackerState>()(
           createdAt: now,
           updatedAt: now,
           authorDisplayName: author,
+          comments: [],
         }
         set((s) => {
           const d = getSlice(s, teamId)
@@ -761,6 +797,29 @@ export const useTrackerStore = create<TrackerState>()(
             teamsData: patchSlice(s, teamId, { teamKnowledgePages: next }),
           }
         }),
+
+      addKnowledgePageComment: (teamId, pageId, authorName, body) => {
+        const t = body.trim()
+        if (!t) return
+        const entry: WorkComment = {
+          id: newId('kbcomment'),
+          authorName: authorName.trim() || 'Unknown',
+          body: t,
+          createdAt: new Date().toISOString(),
+        }
+        set((s) => {
+          const d = getSlice(s, teamId)
+          const prev = d.teamKnowledgePages ?? []
+          const next = prev.map((p) =>
+            p.id === pageId
+              ? { ...p, comments: [...(p.comments ?? []), entry] }
+              : p,
+          )
+          return {
+            teamsData: patchSlice(s, teamId, { teamKnowledgePages: next }),
+          }
+        })
+      },
 
       deleteKnowledgePage: (teamId, id) =>
         set((s) => {

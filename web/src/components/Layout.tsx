@@ -61,6 +61,20 @@ export function Layout() {
   }, [])
 
   useEffect(() => {
+    if (!kbSearchExpanded) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      const t = e.target
+      if (t instanceof HTMLElement && t.closest('[role="dialog"]')) return
+      if (document.querySelector('.w-md-editor-fullscreen')) return
+      setKbSearchExpanded(false)
+      e.preventDefault()
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [kbSearchExpanded])
+
+  useEffect(() => {
     const focusKnowledgeSearch = (e: KeyboardEvent) => {
       if (e.key !== '.' || e.ctrlKey || e.metaKey || e.altKey) return
       const t = e.target
@@ -111,13 +125,8 @@ export function Layout() {
             </h1>
           </div>
           {user && teamCtx ? (
-            <div className="flex min-w-0 w-full flex-1 justify-center lg:mx-auto lg:max-w-xl">
-              <div
-                className={[
-                  'flex min-w-0 items-stretch overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm ring-1 ring-slate-200/70 dark:border-slate-600 dark:bg-slate-900/85 dark:ring-slate-700/80',
-                  kbSearchExpanded ? 'w-full max-w-lg' : 'w-auto max-w-lg',
-                ].join(' ')}
-              >
+            <div className="flex min-w-0 w-full flex-1 justify-start lg:mx-auto lg:max-w-xl">
+              <div className="flex w-full max-w-lg min-w-0 items-stretch overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm ring-1 ring-slate-200/70 dark:border-slate-600 dark:bg-slate-900/85 dark:ring-slate-700/80">
                 <NavLink
                   to="/kb"
                   className={({ isActive }) =>
@@ -135,11 +144,20 @@ export function Layout() {
                   className="w-px shrink-0 self-stretch bg-slate-200 dark:bg-slate-600"
                   aria-hidden
                 />
-                <KnowledgeHeaderSearch
-                  fused
-                  expanded={kbSearchExpanded}
-                  onExpandedChange={setKbSearchExpanded}
-                />
+                <div
+                  className={[
+                    'min-h-0 min-w-0 overflow-hidden transition-[max-width] duration-300 ease-in-out',
+                    kbSearchExpanded
+                      ? 'max-w-[min(32rem,calc(100vw-2rem))] flex-1'
+                      : 'max-w-[2.75rem] shrink-0',
+                  ].join(' ')}
+                >
+                  <KnowledgeHeaderSearch
+                    fused
+                    expanded={kbSearchExpanded}
+                    onExpandedChange={setKbSearchExpanded}
+                  />
+                </div>
               </div>
             </div>
           ) : null}
