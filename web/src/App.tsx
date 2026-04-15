@@ -25,9 +25,16 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<RegisterTeam />} />
         <Route element={<RequireAuth />}>
-          <Route path="/" element={<Layout />}>
+          <Route
+            path="change-password"
+            element={
+              <div className="min-h-svh bg-slate-50 dark:bg-slate-950">
+                <ChangePassword />
+              </div>
+            }
+          />
+          <Route element={<Layout />}>
             <Route index element={<Dashboard />} />
-            <Route path="change-password" element={<ChangePassword />} />
             <Route path="me" element={<Me />} />
             <Route path="chat/:peerName" element={<Chat />} />
             <Route path="chat" element={<Chat />} />
