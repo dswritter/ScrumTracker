@@ -6,6 +6,7 @@ import {
   useParams,
   useSearchParams,
 } from 'react-router-dom'
+import type { PluggableList } from 'unified'
 import MDEditor, {
   type ExecuteState,
   type ICommand,
@@ -13,14 +14,17 @@ import MDEditor, {
   type TextAreaTextApi,
 } from '@uiw/react-md-editor'
 import '@uiw/react-md-editor/markdown-editor.css'
+import rehypeHighlight from 'rehype-highlight'
+import rehypeRaw from 'rehype-raw'
+import rehypeSanitize from 'rehype-sanitize'
 import { KnowledgeFindPanel } from '../components/KnowledgeFindPanel'
 import { KnowledgeMarkdown } from '../components/KnowledgeMarkdown'
-import { KnowledgeSearchMatchesPanel } from '../components/KnowledgeSearchMatchesPanel'
 import {
   KB_PAGE_WIDTH_CLASS,
   KnowledgePageDialNav,
 } from '../components/KnowledgePageDialNav'
-import { KnowledgeTableModal } from '../components/KnowledgeTableModal'
+import { KnowledgeVisualTableEditor } from '../components/KnowledgeVisualTableEditor'
+import { kbInteractiveSanitizeSchema } from '../lib/kbRehypeSchema'
 import { useCurrentUser } from '../hooks/useCurrentUser'
 import { useTeamContextNullable } from '../hooks/useTeamContext'
 import {
@@ -57,6 +61,11 @@ function buildMdPreviewOptions(
 ) {
   let taskIdx = 0
   return {
+    rehypePlugins: [
+      rehypeRaw,
+      rehypeHighlight,
+      [rehypeSanitize, kbInteractiveSanitizeSchema],
+    ] as PluggableList,
     components: {
       input(props: InputHTMLAttributes<HTMLInputElement>) {
         if (props.type !== 'checkbox') {
@@ -130,6 +139,15 @@ export function KnowledgeBase() {
   const focusTitleOnEditRef = useRef(false)
   const pendingNewPageIdRef = useRef<string | null>(null)
 
+  const [editorHeight, setEditorHeight] = useState(520)
+  useEffect(() => {
+    const measure = () =>
+      setEditorHeight(Math.min(800, Math.max(440, window.innerHeight - 220)))
+    measure()
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+  }, [])
+
   const idx = useMemo(
     () => (pageId ? pages.findIndex((p) => p.id === pageId) : -1),
     [pageId, pages],
@@ -155,6 +173,7 @@ export function KnowledgeBase() {
   )
 
   const clearSearchQuery = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('kb-search-collapse'))
     setSearchParams(
       (prev) => {
         const n = new URLSearchParams(prev)
@@ -165,14 +184,26 @@ export function KnowledgeBase() {
     )
   }, [setSearchParams])
 
-  const goRelative = useCallback(
+  const dialPages = useMemo(() => {
+    if (highlightQ && searchMatches.length > 0) {
+      return searchMatches.map((m) => m.page)
+    }
+    return pages
+  }, [highlightQ, searchMatches, pages])
+
+  const dialIdx = useMemo(
+    () => (pageId ? dialPages.findIndex((p) => p.id === pageId) : -1),
+    [dialPages, pageId],
+  )
+
+  const goRelativeDial = useCallback(
     (delta: -1 | 1) => {
-      const n = idx + delta
-      if (n < 0 || n >= pages.length) return
-      const p = pages[n]!
+      const n = dialIdx + delta
+      if (n < 0 || n >= dialPages.length) return
+      const p = dialPages[n]!
       navigatePreservingKbParams(`/kb/${p.id}`)
     },
-    [idx, pages, navigatePreservingKbParams],
+    [dialIdx, dialPages, navigatePreservingKbParams],
   )
 
   const pageHref = useCallback(
@@ -191,11 +222,32 @@ export function KnowledgeBase() {
       if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement) return
       if (t instanceof HTMLElement && t.closest('[contenteditable="true"]')) return
       e.preventDefault()
-      goRelative(e.key === 'ArrowLeft' ? -1 : 1)
+      goRelativeDial(e.key === 'ArrowLeft' ? -1 : 1)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [editing, goRelative])
+  }, [editing, goRelativeDial])
+
+  useEffect(() => {
+    if (!highlightQ) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      const t = e.target
+      if (t instanceof HTMLTextAreaElement) return
+      if (
+        t instanceof HTMLInputElement &&
+        t.id !== 'kb-knowledge-search-input'
+      ) {
+        return
+      }
+      if (t instanceof HTMLElement && t.closest('[contenteditable="true"]')) return
+      if (t instanceof HTMLElement && t.closest('[role="dialog"]')) return
+      clearSearchQuery()
+      e.preventDefault()
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [highlightQ, clearSearchQuery])
 
   const dismissFind = useCallback(() => {
     setSearchParams(
@@ -326,6 +378,8 @@ export function KnowledgeBase() {
 
     if (discardBlankNew) {
       pendingNewPageIdRef.current = null
+      setTableModalOpen(false)
+      tableApiRef.current = null
       const dest = pages[idx + 1] ?? pages[idx - 1]
       deleteKnowledgePage(teamId, page.id)
       if (dest) navigatePreservingKbParams(`/kb/${dest.id}`)
@@ -336,6 +390,8 @@ export function KnowledgeBase() {
 
     if (teamId && page && isPristineUnusedNewPage()) {
       pendingNewPageIdRef.current = null
+      setTableModalOpen(false)
+      tableApiRef.current = null
       const dest = pages[idx + 1] ?? pages[idx - 1]
       deleteKnowledgePage(teamId, page.id)
       if (dest) navigatePreservingKbParams(`/kb/${dest.id}`)
@@ -343,6 +399,8 @@ export function KnowledgeBase() {
       setEditing(false)
       return
     }
+    setTableModalOpen(false)
+    tableApiRef.current = null
     setEditing(false)
   }, [
     teamId,
@@ -359,6 +417,8 @@ export function KnowledgeBase() {
   const saveEdit = useCallback(() => {
     if (!teamId || !page) return
     pendingNewPageIdRef.current = null
+    setTableModalOpen(false)
+    tableApiRef.current = null
     updateKnowledgePage(teamId, page.id, {
       title: draftTitle,
       body: draftBody,
@@ -483,11 +543,15 @@ export function KnowledgeBase() {
         mdEditorRef.current?.dispatch?.({ fullscreen: false })
         e.preventDefault()
         e.stopPropagation()
+        return
       }
+      cancelEdit()
+      e.preventDefault()
+      e.stopPropagation()
     }
     window.addEventListener('keydown', onKeyDown, true)
     return () => window.removeEventListener('keydown', onKeyDown, true)
-  }, [editing])
+  }, [editing, cancelEdit])
 
   useEffect(() => {
     if (!editing) return
@@ -562,11 +626,11 @@ export function KnowledgeBase() {
   }
 
   const headerActions = (
-    <div className="flex shrink-0 items-center gap-1.5">
+    <div className="flex shrink-0 items-center gap-0.5">
       <button
         type="button"
         onClick={onAddPage}
-        className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+        className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-100"
         title="Add page"
         aria-label="Add knowledge page"
       >
@@ -575,7 +639,7 @@ export function KnowledgeBase() {
       <button
         type="button"
         onClick={onDeletePage}
-        className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-rose-200 bg-white text-rose-700 shadow-sm hover:bg-rose-50 dark:border-rose-900 dark:text-rose-300 dark:bg-slate-800 dark:hover:bg-rose-950/40"
+        className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/40"
         title="Delete this page"
         aria-label="Delete knowledge page"
       >
@@ -585,7 +649,7 @@ export function KnowledgeBase() {
         <button
           type="button"
           onClick={startEdit}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-[#00B050] text-white shadow-sm hover:bg-[#009948]"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-[#007a3d] hover:bg-[#00B050]/10 dark:text-emerald-300 dark:hover:bg-emerald-950/50"
           title="Edit page"
           aria-label="Edit page"
         >
@@ -596,7 +660,9 @@ export function KnowledgeBase() {
   )
 
   return (
-    <div className={`${KB_PAGE_WIDTH_CLASS} flex flex-col items-center pb-24`}>
+    <div
+      className={`${editing ? 'mx-auto w-full min-w-0 max-w-none' : KB_PAGE_WIDTH_CLASS} flex min-h-0 flex-col pb-24 ${editing ? 'items-stretch' : 'items-center'}`}
+    >
       {imageModalOpen ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
@@ -667,21 +733,6 @@ export function KnowledgeBase() {
         </div>
       ) : null}
 
-      <KnowledgeTableModal
-        key={tableModalNonce}
-        open={tableModalOpen}
-        onClose={() => {
-          setTableModalOpen(false)
-          tableApiRef.current = null
-        }}
-        onInsert={(md) => {
-          const api = tableApiRef.current
-          insertMarkdownAtCursor(md, api)
-          tableApiRef.current = null
-          setTableModalOpen(false)
-        }}
-      />
-
       {findRaw ? (
         <KnowledgeFindPanel
           query={findRaw}
@@ -691,18 +742,15 @@ export function KnowledgeBase() {
         />
       ) : null}
 
-      {!editing && highlightQ ? (
-        <KnowledgeSearchMatchesPanel
-          query={highlightQ}
-          currentId={page.id}
-          matches={searchMatches}
-          onDismiss={clearSearchQuery}
-        />
-      ) : null}
-
-      <article className="w-max max-w-[min(100%,97.75vw)] rounded-xl border border-emerald-200/70 bg-[#E8F5E9]/95 shadow-sm dark:border-emerald-900/55 dark:bg-emerald-950/40">
+      <article
+        className={
+          editing
+            ? 'w-full max-w-none flex-1 rounded-xl border border-emerald-200/70 bg-[#E8F5E9]/95 shadow-sm dark:border-emerald-900/55 dark:bg-emerald-950/40'
+            : 'w-max max-w-[min(100%,97.75vw)] rounded-xl border border-emerald-200/70 bg-[#E8F5E9]/95 shadow-sm dark:border-emerald-900/55 dark:bg-emerald-950/40'
+        }
+      >
         {editing ? (
-          <div className="space-y-4 p-5">
+          <div className="flex min-h-0 flex-col space-y-4 p-5">
             <div className="flex flex-wrap items-start gap-3">
               <label className="block min-w-0 flex-1 text-xs font-semibold text-slate-600 dark:text-slate-400">
                 Title
@@ -710,51 +758,64 @@ export function KnowledgeBase() {
                   ref={titleInputRef}
                   value={draftTitle}
                   onChange={(e) => setDraftTitle(e.target.value)}
-                  className="mt-1 w-full max-w-xl rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                 />
               </label>
               {headerActions}
             </div>
-            <div className="flex w-full justify-center">
-              <div
-                ref={editorSurfaceRef}
-                data-color-mode={mdColorMode}
-                className="kb-md-editor min-h-0 w-fit max-w-full"
-                onDragOver={onEditorDragOver}
-                onDrop={onEditorDrop}
-              >
-                <MDEditor
-                  ref={mdEditorRef}
-                  value={draftBody}
-                  onChange={(v) =>
-                    setDraftBody(sanitizeTableCellsInMarkdown(v ?? ''))
-                  }
-                  preview="live"
-                  height={520}
-                  visibleDragbar
-                  autoFocus
-                  textareaProps={{
-                    spellCheck: true,
-                    'aria-label': 'Markdown content',
-                    onPaste: onEditorPaste,
-                  }}
-                  commandsFilter={commandsFilter}
-                  previewOptions={previewOptions}
-                />
-              </div>
+            {tableModalOpen ? (
+              <KnowledgeVisualTableEditor
+                key={tableModalNonce}
+                onCancel={() => {
+                  setTableModalOpen(false)
+                  tableApiRef.current = null
+                }}
+                onInsert={(html) => {
+                  const api = tableApiRef.current
+                  insertMarkdownAtCursor(html, api)
+                  tableApiRef.current = null
+                  setTableModalOpen(false)
+                }}
+              />
+            ) : null}
+            <div
+              ref={editorSurfaceRef}
+              data-color-mode={mdColorMode}
+              className="kb-md-editor kb-md-editor-edit-mode min-h-0 w-full min-w-0 flex-1"
+              onDragOver={onEditorDragOver}
+              onDrop={onEditorDrop}
+            >
+              <MDEditor
+                ref={mdEditorRef}
+                value={draftBody}
+                onChange={(v) =>
+                  setDraftBody(sanitizeTableCellsInMarkdown(v ?? ''))
+                }
+                preview="live"
+                height={editorHeight}
+                visibleDragbar
+                autoFocus
+                textareaProps={{
+                  spellCheck: true,
+                  'aria-label': 'Markdown content',
+                  onPaste: onEditorPaste,
+                }}
+                commandsFilter={commandsFilter}
+                previewOptions={previewOptions}
+              />
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-4 pt-1">
               <button
                 type="button"
                 onClick={saveEdit}
-                className="rounded-lg bg-[#00B050] px-3 py-1.5 text-xs font-bold text-white"
+                className="text-sm font-semibold text-[#007a3d] hover:underline dark:text-emerald-300"
               >
                 Save
               </button>
               <button
                 type="button"
                 onClick={cancelEdit}
-                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold dark:border-slate-600"
+                className="text-sm font-semibold text-slate-600 hover:underline dark:text-slate-300"
               >
                 Cancel
               </button>
@@ -771,7 +832,7 @@ export function KnowledgeBase() {
                   <button
                     type="button"
                     onClick={startEditFromTitle}
-                    className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 opacity-0 shadow-sm transition-opacity hover:border-[#00B050]/50 hover:text-[#007a3d] group-hover/title:opacity-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-emerald-500/50 dark:hover:text-emerald-300"
+                    className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-slate-500 opacity-0 transition-opacity hover:bg-slate-100 hover:text-[#007a3d] group-hover/title:opacity-100 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-emerald-300"
                     title="Edit title"
                     aria-label="Edit title"
                   >
@@ -803,12 +864,13 @@ export function KnowledgeBase() {
         )}
       </article>
 
-      {!editing && pages.length > 1 ? (
+      {!editing && dialPages.length > 1 ? (
         <KnowledgePageDialNav
-          pages={pages}
+          pages={dialPages}
           currentId={page.id}
-          onHorizontalStep={goRelative}
+          onHorizontalStep={goRelativeDial}
           pageHref={pageHref}
+          matchMode={Boolean(highlightQ && searchMatches.length > 0)}
         />
       ) : null}
     </div>

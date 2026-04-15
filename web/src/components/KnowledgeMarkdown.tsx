@@ -1,42 +1,20 @@
 import { useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import rehypeHighlight from 'rehype-highlight'
-import rehypeSanitize, { defaultSchema } from 'rehype-sanitize'
+import rehypeRaw from 'rehype-raw'
+import rehypeSanitize from 'rehype-sanitize'
 import remarkGfm from 'remark-gfm'
 import type { Components } from 'react-markdown'
 import type { PluggableList } from 'unified'
 
 import 'highlight.js/styles/github.css'
 
+import {
+  kbInteractiveSanitizeSchema,
+  kbRehypeSanitizeSchema,
+} from '../lib/kbRehypeSchema'
 import { rehypeKbSearchHighlight } from '../lib/rehypeKbSearchHighlight'
 import { toggleNthTaskListItem } from '../lib/knowledgeMarkdown'
-
-const withInlineImages = {
-  ...defaultSchema,
-  protocols: {
-    ...defaultSchema.protocols,
-    src: ['http', 'https', 'data'],
-  },
-}
-
-const withMark = {
-  ...withInlineImages,
-  tagNames: [...(defaultSchema.tagNames ?? []), 'mark'],
-  attributes: {
-    ...defaultSchema.attributes,
-    mark: ['className'],
-  },
-}
-
-/** Allow interactive task checkboxes (default GH schema forces disabled). */
-const taskListSanitizeSchema = {
-  ...withMark,
-  attributes: {
-    ...withMark.attributes,
-    input: ['type', 'checkbox', 'checked', 'className', 'disabled'],
-  },
-  required: {},
-}
 
 type Props = {
   source: string
@@ -59,11 +37,15 @@ export function KnowledgeMarkdown({
   const rehypePlugins = useMemo((): PluggableList => {
     const hi = highlightQuery?.trim()
     const searchPlugin = hi ? [rehypeKbSearchHighlight(hi)] : []
-    const tail: PluggableList =
+    const sanitizeSchema =
       interactiveTasks && onTasksSourceChange
-        ? [[rehypeSanitize, taskListSanitizeSchema]]
-        : [[rehypeSanitize, withMark]]
-    return [rehypeHighlight, ...searchPlugin, ...tail]
+        ? kbInteractiveSanitizeSchema
+        : kbRehypeSanitizeSchema
+    const tail: PluggableList = [
+      ...searchPlugin,
+      [rehypeSanitize, sanitizeSchema],
+    ]
+    return [rehypeRaw, rehypeHighlight, ...tail]
   }, [highlightQuery, interactiveTasks, onTasksSourceChange])
 
   if (!source.trim()) {
@@ -129,6 +111,10 @@ export function KnowledgeMarkdown({
         'prose-pre:bg-slate-100 prose-pre:text-slate-900 dark:prose-pre:bg-slate-900 dark:prose-pre:text-slate-100',
         'prose-code:before:content-none prose-code:after:content-none',
         'prose-table:text-sm',
+        '[&_table.kb-html-table]:w-full [&_table.kb-html-table]:border-collapse [&_table.kb-html-table]:overflow-hidden [&_table.kb-html-table]:rounded-lg [&_table.kb-html-table]:border [&_table.kb-html-table]:border-slate-200 dark:[&_table.kb-html-table]:border-slate-600',
+        '[&_table.kb-html-table_th]:bg-slate-100 [&_table.kb-html-table_th]:px-3 [&_table.kb-html-table_th]:py-2 [&_table.kb-html-table_th]:text-left [&_table.kb-html-table_th]:font-semibold dark:[&_table.kb-html-table_th]:bg-slate-800',
+        '[&_table.kb-html-table_td]:border-t [&_table.kb-html-table_td]:border-slate-200 [&_table.kb-html-table_td]:px-3 [&_table.kb-html-table_td]:py-2 dark:[&_table.kb-html-table_td]:border-slate-600',
+        '[&_table.kb-html-table_tbody_tr:nth-child(even)]:bg-slate-50/80 dark:[&_table.kb-html-table_tbody_tr:nth-child(even)]:bg-slate-900/40',
         'prose-ul:my-3 prose-ul:list-none prose-ul:pl-0',
         'prose-ol:my-3 prose-ol:list-decimal prose-ol:list-outside prose-ol:pl-6',
         '[&_ul:not(.contains-task-list)>li]:relative [&_ul:not(.contains-task-list)>li]:my-1.5 [&_ul:not(.contains-task-list)>li]:pl-6 [&_ul:not(.contains-task-list)>li]:leading-relaxed',

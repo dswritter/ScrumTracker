@@ -51,6 +51,61 @@ body {
   min-width: min(42rem, 100%);
 }
 
+/* Full-width edit mode: use available main column. */
+.kb-md-editor-edit-mode .w-md-editor {
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+.kb-md-editor .wmde-markdown .kb-html-table {
+  width: 100%;
+  border-collapse: collapse;
+  overflow: hidden;
+  border-radius: 0.5rem;
+  border: 1px solid rgb(226 232 240);
+  font-size: 0.875rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  .kb-md-editor .wmde-markdown .kb-html-table {
+    border-color: rgb(71 85 105);
+  }
+}
+
+.kb-md-editor .wmde-markdown .kb-html-table th {
+  background: rgb(241 245 249);
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  font-weight: 600;
+}
+
+@media (prefers-color-scheme: dark) {
+  .kb-md-editor .wmde-markdown .kb-html-table th {
+    background: rgb(30 41 59);
+  }
+}
+
+.kb-md-editor .wmde-markdown .kb-html-table td {
+  border-top: 1px solid rgb(226 232 240);
+  padding: 0.5rem 0.75rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  .kb-md-editor .wmde-markdown .kb-html-table td {
+    border-color: rgb(71 85 105);
+  }
+}
+
+.kb-md-editor .wmde-markdown .kb-html-table tbody tr:nth-child(even) {
+  background: rgb(248 250 252 / 0.85);
+}
+
+@media (prefers-color-scheme: dark) {
+  .kb-md-editor .wmde-markdown .kb-html-table tbody tr:nth-child(even) {
+    background: rgb(15 23 42 / 0.45);
+  }
+}
+
 /* Knowledge base: editor textarea closer to preview (sans, readable line height). */
 .kb-md-editor .w-md-editor-text-pre code.w-md-editor-text-input {
   font-family: var(--font-sans) !important;

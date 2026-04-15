@@ -20,6 +20,8 @@ type Props = {
   onHorizontalStep?: (direction: -1 | 1) => void
   /** Preserve URL params (e.g. search highlight) on page links. */
   pageHref?: (pageId: string) => string
+  /** When true, cards use “Match n” instead of global page index (search-filtered dial). */
+  matchMode?: boolean
 }
 
 export function KnowledgePageDialNav({
@@ -28,6 +30,7 @@ export function KnowledgePageDialNav({
   windowRadius = 2,
   onHorizontalStep,
   pageHref = (id) => `/kb/${id}`,
+  matchMode = false,
 }: Props) {
   const idx = useMemo(
     () => pages.findIndex((p) => p.id === currentId),
@@ -133,7 +136,11 @@ export function KnowledgePageDialNav({
             const cardInner = (
               <>
                 <span className="text-[10px] font-bold uppercase tracking-wide text-[#007a3d] dark:text-emerald-300">
-                  {isCurrent ? 'Current' : `Page ${indexInTeam + 1}`}
+                  {isCurrent
+                    ? 'Current'
+                    : matchMode
+                      ? `Match ${indexInTeam + 1}`
+                      : `Page ${indexInTeam + 1}`}
                 </span>
                 <span className="mt-0.5 block truncate text-xs font-semibold text-slate-900 dark:text-slate-100">
                   {page.title}

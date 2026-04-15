@@ -1,4 +1,4 @@
-import { type FormEvent, useState } from 'react'
+import { type FormEvent, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { listAllSearchMatches } from '../lib/knowledgeMarkdown'
 import { useCurrentUser } from '../hooks/useCurrentUser'
@@ -23,18 +23,40 @@ export function KnowledgeHeaderSearch({ fused = false }: Props) {
   )
   const navigate = useNavigate()
   const [q, setQ] = useState('')
+  const [expanded, setExpanded] = useState(!fused)
+
+  useEffect(() => {
+    const onExpand = () => setExpanded(true)
+    const onCollapse = () => setExpanded(false)
+    window.addEventListener('kb-search-expand', onExpand)
+    window.addEventListener('kb-search-collapse', onCollapse)
+    return () => {
+      window.removeEventListener('kb-search-expand', onExpand)
+      window.removeEventListener('kb-search-collapse', onCollapse)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (expanded && fused) {
+      requestAnimationFrame(() => {
+        document.getElementById('kb-knowledge-search-input')?.focus()
+      })
+    }
+  }, [expanded, fused])
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault()
     const raw = q.trim()
     if (!raw) {
       navigate('/kb')
+      if (fused) setExpanded(false)
       return
     }
     const matches = listAllSearchMatches(raw, pages)
     if (matches.length > 0) {
       const best = matches[0]!.page
       navigate(`/kb/${best.id}?q=${encodeURIComponent(raw)}`)
+      if (fused) setExpanded(false)
       return
     }
     const first = pages[0]
@@ -43,12 +65,28 @@ export function KnowledgeHeaderSearch({ fused = false }: Props) {
     } else {
       navigate('/kb')
     }
+    if (fused) setExpanded(false)
+  }
+
+  if (fused && !expanded) {
+    return (
+      <div className="flex min-w-0 flex-1 items-stretch justify-center">
+        <button
+          type="button"
+          className="flex w-full items-center justify-center px-3 text-slate-500 transition-colors hover:text-[#007a3d] dark:text-slate-400 dark:hover:text-emerald-300"
+          aria-label="Open knowledge search"
+          onClick={() => setExpanded(true)}
+        >
+          <i className="fa-solid fa-magnifying-glass text-sm" aria-hidden />
+        </button>
+      </div>
+    )
   }
 
   return (
     <form
       onSubmit={onSubmit}
-      title="Tip: press . anywhere (outside a field) to focus this search"
+      title="Tip: press . anywhere (outside a field) to open search"
       className={
         fused
           ? 'relative min-w-0 flex-1'

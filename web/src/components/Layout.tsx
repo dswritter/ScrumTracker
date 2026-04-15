@@ -60,7 +60,10 @@ export function Layout() {
       if (active instanceof HTMLElement && active.closest('[contenteditable="true"]'))
         return
       e.preventDefault()
-      document.getElementById('kb-knowledge-search-input')?.focus()
+      window.dispatchEvent(new CustomEvent('kb-search-expand'))
+      requestAnimationFrame(() => {
+        document.getElementById('kb-knowledge-search-input')?.focus()
+      })
     }
     window.addEventListener('keydown', focusKnowledgeSearch, true)
     return () => window.removeEventListener('keydown', focusKnowledgeSearch, true)
