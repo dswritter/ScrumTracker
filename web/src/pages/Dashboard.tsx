@@ -453,32 +453,29 @@ export function Dashboard() {
         →
       </button>
     )
-    const progressBlock = (
-      <div
-        className={
-          sidebar
-            ? 'text-center text-[10px] tabular-nums text-slate-700 dark:text-slate-200'
-            : 'ml-auto flex shrink-0 flex-col items-end gap-0.5 text-right text-[10px] tabular-nums text-slate-700 dark:text-slate-200'
-        }
-      >
-        {selectedSprint && sprintProgress ? (
-          <span
-            role="status"
-            aria-label={`Sprint calendar progress ${Math.round(frac * 100)} percent, day ${sprintProgress.current} of ${sprintProgress.total}`}
-          >
-            <span className="font-bold text-[#007a3d] dark:text-emerald-300">
-              {Math.round(frac * 100)}%
-            </span>
-            <span>
-              {' '}
-              · day {sprintProgress.current}/{sprintProgress.total}
-            </span>
+    const progressLine =
+      selectedSprint && sprintProgress ? (
+        <span
+          role="status"
+          aria-label={`Sprint calendar progress ${Math.round(frac * 100)} percent, day ${sprintProgress.current} of ${sprintProgress.total}`}
+        >
+          <span className="font-bold text-[#007a3d] dark:text-emerald-300">
+            {Math.round(frac * 100)}%
           </span>
-        ) : (
-          <span className="font-semibold text-slate-600 dark:text-slate-300">
-            {scopeShortLabel(scope, sortedSprints)}
+          <span>
+            {' '}
+            · day {sprintProgress.current}/{sprintProgress.total}
           </span>
-        )}
+        </span>
+      ) : (
+        <span className="block max-w-[11rem] truncate font-semibold text-slate-600 dark:text-slate-300">
+          {scopeShortLabel(scope, sortedSprints)}
+        </span>
+      )
+
+    const progressBlockToolbar = (
+      <div className="ml-auto flex shrink-0 flex-col items-end gap-0.5 text-right text-[10px] tabular-nums text-slate-700 dark:text-slate-200">
+        {progressLine}
       </div>
     )
 
@@ -493,17 +490,21 @@ export function Dashboard() {
             />
           ) : null}
           {sidebar ? (
-            <div className="relative z-10 flex flex-col gap-2 px-2.5 py-2.5">
-              <span className="text-[10px] font-bold uppercase tracking-wide text-[#007a3d] dark:text-emerald-300">
-                Scope
-              </span>
+            <div className="relative z-10 flex flex-col gap-2 px-2.5 py-2">
+              <div className="flex min-w-0 items-start justify-between gap-2">
+                <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide text-[#007a3d] dark:text-emerald-300">
+                  Scope
+                </span>
+                <div className="min-w-0 text-right text-[10px] leading-tight tabular-nums text-slate-700 dark:text-slate-200">
+                  {progressLine}
+                </div>
+              </div>
               <div className="flex w-full min-w-0 items-stretch gap-1">
                 {olderBtn}
                 {scopeSelect}
                 {newerBtn}
               </div>
               {weeklyBtn}
-              {progressBlock}
             </div>
           ) : (
             <div className="relative z-10 flex flex-wrap items-center gap-2 gap-y-2 px-3 py-2">
@@ -514,7 +515,7 @@ export function Dashboard() {
               {scopeSelect}
               {weeklyBtn}
               {newerBtn}
-              {progressBlock}
+              {progressBlockToolbar}
             </div>
           )}
         </div>
