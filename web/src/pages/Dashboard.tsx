@@ -516,6 +516,15 @@ export function Dashboard() {
       ? 'min-w-0 flex-1 rounded border border-slate-200/80 bg-white/95 py-1 pl-2 pr-6 text-xs font-semibold text-slate-900 shadow-sm dark:border-slate-600 dark:bg-slate-900/95 dark:text-slate-100'
       : 'min-w-0 max-w-[7.5rem] shrink-0 flex-1 rounded border border-slate-200/80 bg-white/95 py-1 pl-2 pr-6 text-xs font-semibold text-slate-900 shadow-sm dark:border-slate-600 dark:bg-slate-900/95 dark:text-slate-100 sm:max-w-[11rem]'
 
+    const onSprintArrowKeyDownCapture = (e: React.KeyboardEvent) => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+      if ((e.target as HTMLElement).closest('select')) return
+      e.preventDefault()
+      e.stopPropagation()
+      if (e.key === 'ArrowLeft') goSprint(1)
+      else goSprint(-1)
+    }
+
     const olderBtn = (
       <button
         type="button"
@@ -649,17 +658,11 @@ export function Dashboard() {
                 </div>
               </div>
               <div
-                className="flex w-full min-w-0 items-stretch gap-1"
-                onKeyDown={(e) => {
-                  if ((e.target as HTMLElement).closest('select')) return
-                  if (e.key === 'ArrowLeft') {
-                    e.preventDefault()
-                    goSprint(1)
-                  } else if (e.key === 'ArrowRight') {
-                    e.preventDefault()
-                    goSprint(-1)
-                  }
-                }}
+                className="flex w-full min-w-0 items-stretch gap-1 rounded-md outline-none ring-[#00B050]/40 focus-visible:ring-2"
+                role="group"
+                aria-label="Sprint navigation"
+                tabIndex={0}
+                onKeyDownCapture={onSprintArrowKeyDownCapture}
               >
                 {olderBtn}
                 {scopeSelect}
@@ -668,26 +671,22 @@ export function Dashboard() {
               {weeklyBtn}
             </div>
           ) : (
-            <div
-              className="relative z-10 flex flex-wrap items-center gap-2 gap-y-2 px-3 py-2"
-              onKeyDown={(e) => {
-                if ((e.target as HTMLElement).closest('select')) return
-                if (e.key === 'ArrowLeft') {
-                  e.preventDefault()
-                  goSprint(1)
-                } else if (e.key === 'ArrowRight') {
-                  e.preventDefault()
-                  goSprint(-1)
-                }
-              }}
-            >
+            <div className="relative z-10 flex flex-wrap items-center gap-2 gap-y-2 px-3 py-2">
               <span className="text-[10px] font-bold uppercase tracking-wide text-[#007a3d] dark:text-emerald-300">
                 Scope
               </span>
-              {olderBtn}
-              {scopeSelect}
+              <div
+                className="flex min-w-0 flex-wrap items-center gap-1 rounded-md outline-none ring-[#00B050]/40 focus-visible:ring-2"
+                role="group"
+                aria-label="Sprint navigation"
+                tabIndex={0}
+                onKeyDownCapture={onSprintArrowKeyDownCapture}
+              >
+                {olderBtn}
+                {scopeSelect}
+                {newerBtn}
+              </div>
               {weeklyBtn}
-              {newerBtn}
               {progressBlockToolbar}
             </div>
           )}
