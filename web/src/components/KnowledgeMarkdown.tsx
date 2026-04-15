@@ -40,20 +40,24 @@ export function KnowledgeMarkdown({ source, className = '' }: Props) {
     <div
       className={[
         'prose prose-slate max-w-none dark:prose-invert',
-        'prose-headings:scroll-mt-20 prose-a:text-[#007a3d] dark:prose-a:text-emerald-300',
+        'prose-headings:scroll-mt-20 prose-headings:mb-3 prose-headings:font-sans',
+        'prose-p:leading-relaxed prose-p:[font-family:var(--font-reading)]',
+        'prose-a:text-[#007a3d] dark:prose-a:text-emerald-300',
         'prose-pre:bg-slate-100 prose-pre:text-slate-900 dark:prose-pre:bg-slate-900 dark:prose-pre:text-slate-100',
         'prose-code:before:content-none prose-code:after:content-none',
         'prose-table:text-sm',
         className,
       ].join(' ')}
     >
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeSanitize, rehypeHighlight]}
-        components={markdownComponents}
-      >
-        {source}
-      </ReactMarkdown>
+      <div className="mx-auto max-w-[65ch]">
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          rehypePlugins={[rehypeSanitize, rehypeHighlight]}
+          components={markdownComponents}
+        >
+          {source}
+        </ReactMarkdown>
+      </div>
     </div>
   )
 }

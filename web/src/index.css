@@ -4,6 +4,8 @@
 @theme {
   --font-sans:
     'Source Sans 3', 'Segoe UI', ui-sans-serif, system-ui, sans-serif;
+  --font-reading:
+    ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif;
   --color-brand-green: #00b050;
   --color-brand-green-dark: #007a3d;
 }

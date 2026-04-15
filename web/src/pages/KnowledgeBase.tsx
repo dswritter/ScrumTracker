@@ -1,86 +1,61 @@
-import { useCallback, useMemo, useState } from 'react'
-import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Navigate, useNavigate, useParams } from 'react-router-dom'
+import MDEditor, {
+  type ExecuteState,
+  type ICommand,
+  type TextAreaTextApi,
+} from '@uiw/react-md-editor'
+import '@uiw/react-md-editor/markdown-editor.css'
 import { KnowledgeMarkdown } from '../components/KnowledgeMarkdown'
+import {
+  KB_PAGE_WIDTH_CLASS,
+  KnowledgePageDialNav,
+} from '../components/KnowledgePageDialNav'
 import { useCurrentUser } from '../hooks/useCurrentUser'
 import { useTeamContextNullable } from '../hooks/useTeamContext'
 import { useTrackerStore } from '../store/useTrackerStore'
 import type { TeamKnowledgePage } from '../types'
 
-/** ~85% of viewport width; matches article + bottom prev/next rail */
-const KB_PAGE_WIDTH_CLASS = 'mx-auto w-[min(100%,85vw)]'
-
 const EMPTY_KB_PAGES: TeamKnowledgePage[] = []
 
-function previewSnippet(body: string, max = 120): string {
-  const t = body.replace(/\s+/g, ' ').trim()
-  if (t.length <= max) return t || '—'
-  return `${t.slice(0, max - 1)}…`
-}
-
-function PagePreviewLink({
-  page,
-  label,
-}: {
-  page: TeamKnowledgePage
-  label: string
-}) {
-  return (
-    <Link
-      to={`/kb/${page.id}`}
-      className="flex min-w-0 flex-1 flex-col rounded-lg border border-slate-200 bg-slate-50/90 p-2.5 text-left shadow-sm transition-colors hover:border-[#00B050]/50 hover:bg-white dark:border-slate-600 dark:bg-slate-800/60 dark:hover:bg-slate-800 sm:max-w-[14rem]"
-    >
-      <span className="text-[10px] font-bold uppercase tracking-wide text-[#007a3d] dark:text-emerald-300">
-        {label}
-      </span>
-      <span className="mt-0.5 truncate text-xs font-semibold text-slate-900 dark:text-slate-100">
-        {page.title}
-      </span>
-      <span className="mt-1 line-clamp-2 text-[11px] leading-snug text-slate-600 dark:text-slate-400">
-        {previewSnippet(page.body, 100)}
-      </span>
-    </Link>
+function useMdEditorColorMode(): 'light' | 'dark' {
+  const [mode, setMode] = useState<'light' | 'dark'>(() =>
+    typeof window !== 'undefined' &&
+    window.matchMedia('(prefers-color-scheme: dark)').matches
+      ? 'dark'
+      : 'light',
   )
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)')
+    const onChange = () => setMode(mq.matches ? 'dark' : 'light')
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+  return mode
 }
 
-function MarkdownHelpPanel() {
+function MarkdownHelpHint() {
   return (
-    <details className="rounded-lg border border-slate-200 bg-slate-50/80 text-xs dark:border-slate-600 dark:bg-slate-800/50">
-      <summary className="cursor-pointer select-none px-3 py-2 font-semibold text-slate-700 dark:text-slate-200">
-        Markdown tips &amp; images
-      </summary>
-      <div className="space-y-2 border-t border-slate-200 px-3 py-3 text-slate-600 dark:border-slate-600 dark:text-slate-300">
-        <p>
-          Content is{' '}
-          <strong className="text-slate-800 dark:text-slate-100">Markdown</strong>
-          . Plain text still works. Use{' '}
-          <code className="rounded bg-white px-1 dark:bg-slate-900">https://</code>{' '}
-          links and images only (
-          <code className="rounded bg-white px-1 dark:bg-slate-900">
-            ![alt](https://…)
-          </code>
-          ); large pasted images are not stored in the team snapshot.
-        </p>
-        <ul className="list-inside list-disc space-y-1">
-          <li>
-            Headings: <code className="rounded bg-white px-1 dark:bg-slate-900">## Title</code>
-          </li>
-          <li>
-            Bold / italic: <code className="rounded bg-white px-1 dark:bg-slate-900">**bold**</code>,{' '}
-            <code className="rounded bg-white px-1 dark:bg-slate-900">*italic*</code>
-          </li>
-          <li>Lists: lines starting with <code className="rounded bg-white px-1 dark:bg-slate-900">-</code> or <code className="rounded bg-white px-1 dark:bg-slate-900">1.</code></li>
-          <li>
-            Code: <code className="rounded bg-white px-1 dark:bg-slate-900">`inline`</code> or fenced blocks with{' '}
-            <code className="rounded bg-white px-1 dark:bg-slate-900">```js</code>
-          </li>
-          <li>Tables: GitHub-style pipes (see GFM table syntax)</li>
-        </ul>
-      </div>
-    </details>
+    <p className="text-xs text-slate-600 dark:text-slate-400">
+      Content is saved as Markdown. Use the toolbar to format; images must use{' '}
+      <code className="rounded bg-slate-100 px-1 dark:bg-slate-800">https://</code>{' '}
+      URLs (no uploads).{' '}
+      <details className="ml-1 inline align-baseline">
+        <summary className="cursor-pointer font-semibold text-[#007a3d] dark:text-emerald-300">
+          More tips
+        </summary>
+        <span className="mt-1 block max-w-prose rounded border border-slate-200 bg-slate-50/90 p-2 text-[11px] leading-snug dark:border-slate-600 dark:bg-slate-800/50">
+          Keyboard: lists and headings from the toolbar; paste plain text freely.
+          For images, use the image button or the “Insert image URL” control to
+          add <code className="rounded bg-white px-0.5 dark:bg-slate-900">![alt](url)</code>.
+        </span>
+      </details>
+    </p>
   )
 }
 
 export function KnowledgeBase() {
+  const mdColorMode = useMdEditorColorMode()
   const { pageId } = useParams<{ pageId: string }>()
   const navigate = useNavigate()
   const user = useCurrentUser()
@@ -95,14 +70,50 @@ export function KnowledgeBase() {
   const [editing, setEditing] = useState(false)
   const [draftTitle, setDraftTitle] = useState('')
   const [draftBody, setDraftBody] = useState('')
+  const [imageModalOpen, setImageModalOpen] = useState(false)
+  const [imageUrl, setImageUrl] = useState('')
+  const [imageAlt, setImageAlt] = useState('')
+  const imageApiRef = useRef<TextAreaTextApi | null>(null)
 
   const idx = useMemo(
     () => (pageId ? pages.findIndex((p) => p.id === pageId) : -1),
     [pageId, pages],
   )
   const page = idx >= 0 ? pages[idx]! : null
-  const prevPage = idx > 0 ? pages[idx - 1]! : null
-  const nextPage = idx >= 0 && idx < pages.length - 1 ? pages[idx + 1]! : null
+
+  const imageCommandFilter = useCallback((command: ICommand, isExtra: boolean) => {
+    if (isExtra || command.keyCommand !== 'image') return command
+    return {
+      ...command,
+      execute: (_state: ExecuteState, api: TextAreaTextApi) => {
+        imageApiRef.current = api
+        setImageUrl('')
+        setImageAlt('')
+        setImageModalOpen(true)
+      },
+    }
+  }, [])
+
+  const closeImageModal = useCallback(() => {
+    setImageModalOpen(false)
+    imageApiRef.current = null
+  }, [])
+
+  const confirmInsertImage = useCallback(() => {
+    const url = imageUrl.trim()
+    if (!/^https:\/\//i.test(url)) {
+      window.alert('Image URL must start with https://')
+      return
+    }
+    const alt = (imageAlt.trim() || 'Image').replace(/[[\]]/g, '')
+    const api = imageApiRef.current
+    if (api) {
+      api.replaceSelection(`![${alt}](${url})`)
+    } else {
+      setDraftBody((b) => `${b}${b && !b.endsWith('\n') ? '\n' : ''}![${alt}](${url})\n`)
+    }
+    closeImageModal()
+  }, [imageUrl, imageAlt, closeImageModal])
 
   const startEdit = useCallback(() => {
     if (!page) return
@@ -200,6 +211,68 @@ export function KnowledgeBase() {
 
   return (
     <div className={`${KB_PAGE_WIDTH_CLASS} pb-24`}>
+      {imageModalOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          role="presentation"
+          onClick={closeImageModal}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="kb-image-dialog-title"
+            className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-4 shadow-xl dark:border-slate-600 dark:bg-slate-900"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2
+              id="kb-image-dialog-title"
+              className="text-sm font-bold text-slate-900 dark:text-slate-100"
+            >
+              Insert image from URL
+            </h2>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              Use an <code className="rounded bg-slate-100 px-1 dark:bg-slate-800">https://</code>{' '}
+              link only.
+            </p>
+            <label className="mt-3 block text-xs font-semibold text-slate-600 dark:text-slate-400">
+              Image URL
+              <input
+                value={imageUrl}
+                onChange={(e) => setImageUrl(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                placeholder="https://…"
+                autoComplete="off"
+              />
+            </label>
+            <label className="mt-2 block text-xs font-semibold text-slate-600 dark:text-slate-400">
+              Alt text
+              <input
+                value={imageAlt}
+                onChange={(e) => setImageAlt(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                placeholder="Description"
+              />
+            </label>
+            <div className="mt-4 flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                onClick={closeImageModal}
+                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold dark:border-slate-600"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmInsertImage}
+                className="rounded-lg bg-[#00B050] px-3 py-1.5 text-xs font-bold text-white"
+              >
+                Insert
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">
           Team knowledge
@@ -227,7 +300,21 @@ export function KnowledgeBase() {
       <article className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
         {editing ? (
           <div className="space-y-4 p-5">
-            <MarkdownHelpPanel />
+            <MarkdownHelpHint />
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="rounded-lg border border-slate-200 px-2 py-1 text-[11px] font-semibold text-slate-700 dark:border-slate-600 dark:text-slate-200"
+                onClick={() => {
+                  imageApiRef.current = null
+                  setImageUrl('')
+                  setImageAlt('')
+                  setImageModalOpen(true)
+                }}
+              >
+                Insert image URL…
+              </button>
+            </div>
             <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400">
               Title
               <input
@@ -236,26 +323,19 @@ export function KnowledgeBase() {
                 className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
               />
             </label>
-            <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
-              <label className="block min-h-0 text-xs font-semibold text-slate-600 dark:text-slate-400 lg:col-span-1">
-                Markdown
-                <textarea
-                  value={draftBody}
-                  onChange={(e) => setDraftBody(e.target.value)}
-                  rows={20}
-                  spellCheck={false}
-                  className="mt-1 max-h-[70vh] min-h-[16rem] w-full resize-y rounded-lg border border-slate-200 px-3 py-2 font-mono text-sm leading-relaxed dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-                  aria-label="Markdown content"
-                />
-              </label>
-              <div className="min-h-0 lg:col-span-1">
-                <p className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                  Preview
-                </p>
-                <div className="mt-1 max-h-[70vh] min-h-[16rem] overflow-y-auto rounded-lg border border-slate-200 bg-slate-50/80 px-4 py-3 dark:border-slate-600 dark:bg-slate-950/50">
-                  <KnowledgeMarkdown source={draftBody} />
-                </div>
-              </div>
+            <div data-color-mode={mdColorMode} className="min-h-0">
+              <MDEditor
+                value={draftBody}
+                onChange={(v) => setDraftBody(v ?? '')}
+                preview="live"
+                height={420}
+                visibleDragbar
+                textareaProps={{
+                  spellCheck: true,
+                  'aria-label': 'Markdown content',
+                }}
+                commandsFilter={imageCommandFilter}
+              />
             </div>
             <div className="flex flex-wrap gap-2">
               <button
@@ -305,24 +385,8 @@ export function KnowledgeBase() {
         )}
       </article>
 
-      {(prevPage || nextPage) && !editing ? (
-        <nav
-          className="fixed bottom-0 left-0 right-0 z-20 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur-md dark:border-slate-700 dark:bg-slate-900/95"
-          aria-label="Adjacent pages"
-        >
-          <div className={`flex ${KB_PAGE_WIDTH_CLASS} gap-3`}>
-            {prevPage ? (
-              <PagePreviewLink page={prevPage} label="Previous" />
-            ) : (
-              <span className="flex-1" />
-            )}
-            {nextPage ? (
-              <PagePreviewLink page={nextPage} label="Next" />
-            ) : (
-              <span className="flex-1" />
-            )}
-          </div>
-        </nav>
+      {!editing && pages.length > 1 ? (
+        <KnowledgePageDialNav pages={pages} currentId={page.id} />
       ) : null}
     </div>
   )

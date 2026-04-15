@@ -1,0 +1,280 @@
+# 🚀 Instant GitHub Webhook → Auto Pull → Restart App (Windows)
+
+## 🎯 Goal
+
+On every push to:
+
+```
+https://github.com/dswritter/ScrumTracker
+```
+
+System should:
+
+1. Receive webhook instantly
+2. Pull latest code
+3. Run:
+
+   * `stop-all.ps1`
+   * `start-all.ps1`
+4. Run fully in background (no manual steps)
+
+---
+
+## 🧱 Architecture
+
+```
+GitHub (push)
+   ↓
+Webhook (ngrok public URL)
+   ↓
+Local Node.js server (port 3001)
+   ↓
+Exec:
+  git pull
+  stop-all.ps1
+  start-all.ps1
+```
+
+---
+
+## 📁 Folder Structure
+
+```
+D:\ScrumTracker\
+│
+├── automation\
+│   ├── webhook-server.js
+│   ├── deploy.ps1
+│   ├── start-all.ps1
+│   ├── stop-all.ps1
+│   ├── run-webhook.ps1
+│   └── logs\
+│       └── webhook.log
+│
+├── app.js
+├── package.json
+└── .env
+```
+
+---
+
+## ⚙️ Components
+
+### 1. Webhook Server (Node.js)
+
+**File:** `automation/webhook-server.js`
+
+**Responsibilities:**
+
+* Listen on `/webhook`
+* Accept only `push` events
+* Execute deployment script
+* Log output
+* Return response immediately
+
+**Requirements:**
+
+* Use `express`
+* Use `child_process.exec`
+* Handle errors + stdout logging
+
+---
+
+### 2. Deployment Script
+
+**File:** `automation/deploy.ps1`
+
+**Responsibilities:**
+
+```
+cd repo
+git pull
+run stop-all.ps1
+run start-all.ps1
+```
+
+**Notes:**
+
+* Use absolute paths
+* Add logging
+* Fail safely
+
+---
+
+### 3. Ngrok Setup
+
+**Install:**
+
+```
+ngrok config add-authtoken <YOUR_TOKEN>
+```
+
+**Run:**
+
+```
+ngrok http 3001
+```
+
+**Output:**
+
+* Public HTTPS URL (used in GitHub webhook)
+
+---
+
+### 4. GitHub Webhook Setup
+
+Go to:
+
+```
+Repo → Settings → Webhooks → Add webhook
+```
+
+**Config:**
+
+* Payload URL:
+
+```
+https://<ngrok-url>/webhook
+```
+
+* Content type: `application/json`
+* Events: **Push only**
+
+---
+
+### 5. Webhook Runner Script
+
+**File:** `automation/run-webhook.ps1`
+
+**Responsibilities:**
+
+* Start Node server
+* Keep running in background
+* Log output
+
+---
+
+### 6. Task Scheduler Setup
+
+**Task Name:**
+
+```
+Webhook Listener - ScrumTracker
+```
+
+**General:**
+
+* ✔ Run whether user is logged on or not
+* ✔ Run with highest privileges
+
+**Trigger:**
+
+* At startup
+
+**Action:**
+
+```
+Program: powershell.exe
+Arguments: -ExecutionPolicy Bypass -File "D:\ScrumTracker\automation\run-webhook.ps1"
+Start in: D:\ScrumTracker\automation\
+```
+
+---
+
+### 7. Ngrok Auto Start (Optional)
+
+Options:
+
+* Separate Task Scheduler task
+* OR start inside `run-webhook.ps1`
+
+---
+
+## 🔐 Security
+
+**Minimum:**
+
+* Validate header:
+
+```
+x-github-event === push
+```
+
+**Recommended:**
+
+* Add webhook secret
+* Validate using HMAC SHA256
+
+---
+
+## 📊 Logging
+
+**Log:**
+
+* webhook received
+* git pull output
+* script success/failure
+
+**Location:**
+
+```
+D:\ScrumTracker\automation\logs\webhook.log
+```
+
+---
+
+## 🧪 Testing
+
+1. Start webhook server
+2. Run ngrok
+3. Configure GitHub webhook
+4. Push commit
+
+**Verify:**
+
+* webhook received
+* git pull runs
+* scripts execute
+* logs written
+
+---
+
+## ⚠️ Failure Cases
+
+* Git not in PATH
+* Wrong branch (`main` vs `master`)
+* Repo has uncommitted changes
+* Port conflict
+* ngrok stopped
+* Script path incorrect
+
+---
+
+## 💡 Enhancements (Optional)
+
+* Retry on failure
+* Debounce multiple commits
+* Add `/health` endpoint
+* Use PM2 instead of raw Node
+* Convert to Windows Service
+
+---
+
+## 🚀 Deliverables
+
+* `webhook-server.js`
+* `deploy.ps1`
+* `run-webhook.ps1`
+* Logging system
+* Error handling
+
+---
+
+## 🧠 Notes
+
+* Always use absolute paths
+* Avoid UI-dependent scripts
+* Keep execution simple and reliable
+* Prefer stability over complexity
+
+---
