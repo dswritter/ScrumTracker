@@ -53,7 +53,7 @@ export function Layout() {
   return (
     <div className="flex min-h-svh flex-col">
       <JiraDailyAutoSync />
-      <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/90 shadow-sm backdrop-blur-md dark:border-slate-700 dark:bg-slate-900/90">
+      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/90 shadow-sm backdrop-blur-md dark:border-slate-700 dark:bg-slate-900/90">
         <div className="mx-auto flex w-full max-w-none flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
           <div className="text-left">
             <p className="text-xs font-semibold uppercase tracking-wider text-[#007a3d] dark:text-[#4ade80]">
@@ -91,7 +91,7 @@ export function Layout() {
       <main
         className={
           dashboardMain
-            ? 'mx-auto w-full max-w-none flex-1 px-4 pb-8 pt-0 sm:px-6 lg:px-8'
+            ? 'mx-auto w-full max-w-none flex-1 px-4 pb-8 pt-4 sm:px-6 lg:px-8'
             : 'mx-auto w-full max-w-none flex-1 px-4 py-8 sm:px-6 lg:px-8'
         }
       >
