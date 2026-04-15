@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { JiraDailyAutoSync } from './JiraDailyAutoSync'
 import { JiraHeaderSyncButton } from './JiraHeaderSyncButton'
@@ -39,6 +39,7 @@ export function Layout() {
   const user = useCurrentUser()
   const teamCtx = useTeamContextNullable()
   const chatUnread = useChatUnreadTotal()
+  const [kbSearchExpanded, setKbSearchExpanded] = useState(false)
   const rollIncompleteWorkItems = useTrackerStore(
     (s) => s.rollIncompleteWorkItems,
   )
@@ -47,6 +48,17 @@ export function Layout() {
     if (!teamCtx?.teamId) return
     rollIncompleteWorkItems(teamCtx.teamId)
   }, [teamCtx?.teamId, rollIncompleteWorkItems])
+
+  useEffect(() => {
+    const onExpand = () => setKbSearchExpanded(true)
+    const onCollapse = () => setKbSearchExpanded(false)
+    window.addEventListener('kb-search-expand', onExpand)
+    window.addEventListener('kb-search-collapse', onCollapse)
+    return () => {
+      window.removeEventListener('kb-search-expand', onExpand)
+      window.removeEventListener('kb-search-collapse', onCollapse)
+    }
+  }, [])
 
   useEffect(() => {
     const focusKnowledgeSearch = (e: KeyboardEvent) => {
@@ -100,7 +112,12 @@ export function Layout() {
           </div>
           {user && teamCtx ? (
             <div className="flex min-w-0 w-full flex-1 justify-center lg:mx-auto lg:max-w-xl">
-              <div className="flex min-w-0 w-full max-w-lg items-stretch overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm ring-1 ring-slate-200/70 dark:border-slate-600 dark:bg-slate-900/85 dark:ring-slate-700/80">
+              <div
+                className={[
+                  'flex min-w-0 items-stretch overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm ring-1 ring-slate-200/70 dark:border-slate-600 dark:bg-slate-900/85 dark:ring-slate-700/80',
+                  kbSearchExpanded ? 'w-full max-w-lg' : 'w-auto max-w-lg',
+                ].join(' ')}
+              >
                 <NavLink
                   to="/kb"
                   className={({ isActive }) =>
@@ -118,7 +135,11 @@ export function Layout() {
                   className="w-px shrink-0 self-stretch bg-slate-200 dark:bg-slate-600"
                   aria-hidden
                 />
-                <KnowledgeHeaderSearch fused />
+                <KnowledgeHeaderSearch
+                  fused
+                  expanded={kbSearchExpanded}
+                  onExpandedChange={setKbSearchExpanded}
+                />
               </div>
             </div>
           ) : null}
