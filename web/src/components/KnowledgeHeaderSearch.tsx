@@ -2,12 +2,18 @@ import { type FormEvent, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCurrentUser } from '../hooks/useCurrentUser'
 import { useTrackerStore } from '../store/useTrackerStore'
+import type { TeamKnowledgePage } from '../types'
+
+/** Stable fallback so the zustand selector does not return a new [] every render (infinite updates / #185). */
+const EMPTY_KNOWLEDGE_PAGES: TeamKnowledgePage[] = []
 
 export function KnowledgeHeaderSearch() {
   const user = useCurrentUser()
   const teamId = user?.teamId
   const pages = useTrackerStore((s) =>
-    teamId ? (s.teamsData[teamId]?.teamKnowledgePages ?? []) : [],
+    teamId
+      ? (s.teamsData[teamId]?.teamKnowledgePages ?? EMPTY_KNOWLEDGE_PAGES)
+      : EMPTY_KNOWLEDGE_PAGES,
   )
   const navigate = useNavigate()
   const [q, setQ] = useState('')
