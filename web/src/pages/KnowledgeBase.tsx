@@ -1,9 +1,15 @@
 import { useCallback, useMemo, useState } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
+import { KnowledgeMarkdown } from '../components/KnowledgeMarkdown'
 import { useCurrentUser } from '../hooks/useCurrentUser'
 import { useTeamContextNullable } from '../hooks/useTeamContext'
 import { useTrackerStore } from '../store/useTrackerStore'
 import type { TeamKnowledgePage } from '../types'
+
+/** ~85% of viewport width; matches article + bottom prev/next rail */
+const KB_PAGE_WIDTH_CLASS = 'mx-auto w-[min(100%,85vw)]'
+
+const EMPTY_KB_PAGES: TeamKnowledgePage[] = []
 
 function previewSnippet(body: string, max = 120): string {
   const t = body.replace(/\s+/g, ' ').trim()
@@ -36,13 +42,51 @@ function PagePreviewLink({
   )
 }
 
+function MarkdownHelpPanel() {
+  return (
+    <details className="rounded-lg border border-slate-200 bg-slate-50/80 text-xs dark:border-slate-600 dark:bg-slate-800/50">
+      <summary className="cursor-pointer select-none px-3 py-2 font-semibold text-slate-700 dark:text-slate-200">
+        Markdown tips &amp; images
+      </summary>
+      <div className="space-y-2 border-t border-slate-200 px-3 py-3 text-slate-600 dark:border-slate-600 dark:text-slate-300">
+        <p>
+          Content is{' '}
+          <strong className="text-slate-800 dark:text-slate-100">Markdown</strong>
+          . Plain text still works. Use{' '}
+          <code className="rounded bg-white px-1 dark:bg-slate-900">https://</code>{' '}
+          links and images only (
+          <code className="rounded bg-white px-1 dark:bg-slate-900">
+            ![alt](https://…)
+          </code>
+          ); large pasted images are not stored in the team snapshot.
+        </p>
+        <ul className="list-inside list-disc space-y-1">
+          <li>
+            Headings: <code className="rounded bg-white px-1 dark:bg-slate-900">## Title</code>
+          </li>
+          <li>
+            Bold / italic: <code className="rounded bg-white px-1 dark:bg-slate-900">**bold**</code>,{' '}
+            <code className="rounded bg-white px-1 dark:bg-slate-900">*italic*</code>
+          </li>
+          <li>Lists: lines starting with <code className="rounded bg-white px-1 dark:bg-slate-900">-</code> or <code className="rounded bg-white px-1 dark:bg-slate-900">1.</code></li>
+          <li>
+            Code: <code className="rounded bg-white px-1 dark:bg-slate-900">`inline`</code> or fenced blocks with{' '}
+            <code className="rounded bg-white px-1 dark:bg-slate-900">```js</code>
+          </li>
+          <li>Tables: GitHub-style pipes (see GFM table syntax)</li>
+        </ul>
+      </div>
+    </details>
+  )
+}
+
 export function KnowledgeBase() {
   const { pageId } = useParams<{ pageId: string }>()
   const navigate = useNavigate()
   const user = useCurrentUser()
   const ctx = useTeamContextNullable()
   const teamId = ctx?.teamId
-  const pages = ctx?.teamKnowledgePages ?? []
+  const pages = ctx?.teamKnowledgePages ?? EMPTY_KB_PAGES
 
   const addKnowledgePage = useTrackerStore((s) => s.addKnowledgePage)
   const updateKnowledgePage = useTrackerStore((s) => s.updateKnowledgePage)
@@ -119,7 +163,7 @@ export function KnowledgeBase() {
 
   if (pages.length === 0) {
     return (
-      <div className="mx-auto max-w-2xl space-y-6">
+      <div className={`${KB_PAGE_WIDTH_CLASS} space-y-6`}>
         <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/80 px-6 py-14 text-center dark:border-slate-600 dark:bg-slate-900/40">
           <div
             className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#00B050]/15 text-[#0d5c2e] dark:bg-emerald-950/50 dark:text-emerald-200"
@@ -132,7 +176,7 @@ export function KnowledgeBase() {
           </h2>
           <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
             No pages yet. Add runbooks, Git/Jira notes, URLs, and setup guides—
-            everyone on the team can edit.
+            everyone on the team can edit. Pages use Markdown for formatting.
           </p>
           <button
             type="button"
@@ -155,7 +199,7 @@ export function KnowledgeBase() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl pb-24">
+    <div className={`${KB_PAGE_WIDTH_CLASS} pb-24`}>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">
           Team knowledge
@@ -182,7 +226,8 @@ export function KnowledgeBase() {
 
       <article className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
         {editing ? (
-          <div className="space-y-3 p-5">
+          <div className="space-y-4 p-5">
+            <MarkdownHelpPanel />
             <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400">
               Title
               <input
@@ -191,15 +236,27 @@ export function KnowledgeBase() {
                 className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
               />
             </label>
-            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400">
-              Content
-              <textarea
-                value={draftBody}
-                onChange={(e) => setDraftBody(e.target.value)}
-                rows={16}
-                className="mt-1 w-full resize-y rounded-lg border border-slate-200 px-3 py-2 font-mono text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-              />
-            </label>
+            <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
+              <label className="block min-h-0 text-xs font-semibold text-slate-600 dark:text-slate-400 lg:col-span-1">
+                Markdown
+                <textarea
+                  value={draftBody}
+                  onChange={(e) => setDraftBody(e.target.value)}
+                  rows={20}
+                  spellCheck={false}
+                  className="mt-1 max-h-[70vh] min-h-[16rem] w-full resize-y rounded-lg border border-slate-200 px-3 py-2 font-mono text-sm leading-relaxed dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                  aria-label="Markdown content"
+                />
+              </label>
+              <div className="min-h-0 lg:col-span-1">
+                <p className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+                  Preview
+                </p>
+                <div className="mt-1 max-h-[70vh] min-h-[16rem] overflow-y-auto rounded-lg border border-slate-200 bg-slate-50/80 px-4 py-3 dark:border-slate-600 dark:bg-slate-950/50">
+                  <KnowledgeMarkdown source={draftBody} />
+                </div>
+              </div>
+            </div>
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
@@ -235,9 +292,13 @@ export function KnowledgeBase() {
                 {page.authorDisplayName}
               </p>
             </header>
-            <div className="whitespace-pre-wrap px-5 py-4 text-sm leading-relaxed text-slate-800 dark:text-slate-200">
-              {page.body.trim() || (
-                <span className="text-slate-400">Empty page — click Edit.</span>
+            <div className="px-5 py-4">
+              {page.body.trim() ? (
+                <KnowledgeMarkdown source={page.body} />
+              ) : (
+                <p className="text-sm text-slate-400 dark:text-slate-500">
+                  Empty page — click Edit.
+                </p>
               )}
             </div>
           </>
@@ -249,7 +310,7 @@ export function KnowledgeBase() {
           className="fixed bottom-0 left-0 right-0 z-20 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur-md dark:border-slate-700 dark:bg-slate-900/95"
           aria-label="Adjacent pages"
         >
-          <div className="mx-auto flex max-w-3xl gap-3">
+          <div className={`flex ${KB_PAGE_WIDTH_CLASS} gap-3`}>
             {prevPage ? (
               <PagePreviewLink page={prevPage} label="Previous" />
             ) : (
