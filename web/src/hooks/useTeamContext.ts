@@ -49,6 +49,7 @@ export function useTeamContextNullable(): TeamContext | null {
       slackDmUrlByDisplayName: d.slackDmUrlByDisplayName,
       weeklyWikiPageUrl: d.weeklyWikiPageUrl,
       teamChatThreads: d.teamChatThreads,
+      teamKnowledgePages: d.teamKnowledgePages,
     }
     }, [user, teams, slice, allUsers])
 }
