@@ -22,7 +22,6 @@ const adminNav = [
   { to: '/', label: 'Dashboard', end: true },
   { to: '/me', label: 'My page' },
   { to: '/items', label: 'Work items' },
-  { to: '/kb', label: 'Knowledge' },
   { to: '/chat', label: 'Chat' },
   { to: '/people', label: 'People' },
   { to: '/matrix', label: 'Matrix' },
@@ -32,7 +31,6 @@ const memberNav = [
   { to: '/', label: 'Dashboard', end: true },
   { to: '/me', label: 'My page' },
   { to: '/items', label: 'Work items' },
-  { to: '/kb', label: 'Knowledge' },
   { to: '/chat', label: 'Chat' },
 ]
 
@@ -49,6 +47,24 @@ export function Layout() {
     if (!teamCtx?.teamId) return
     rollIncompleteWorkItems(teamCtx.teamId)
   }, [teamCtx?.teamId, rollIncompleteWorkItems])
+
+  useEffect(() => {
+    const focusKnowledgeSearch = (e: KeyboardEvent) => {
+      if (e.key !== '.' || e.ctrlKey || e.metaKey || e.altKey) return
+      const t = e.target
+      if (t instanceof HTMLTextAreaElement || t instanceof HTMLInputElement) return
+      if (t instanceof HTMLElement && t.isContentEditable) return
+      const active = document.activeElement
+      if (active instanceof HTMLTextAreaElement || active instanceof HTMLInputElement)
+        return
+      if (active instanceof HTMLElement && active.closest('[contenteditable="true"]'))
+        return
+      e.preventDefault()
+      document.getElementById('kb-knowledge-search-input')?.focus()
+    }
+    window.addEventListener('keydown', focusKnowledgeSearch, true)
+    return () => window.removeEventListener('keydown', focusKnowledgeSearch, true)
+  }, [])
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -80,8 +96,27 @@ export function Layout() {
             </h1>
           </div>
           {user && teamCtx ? (
-            <div className="min-w-0 w-full flex-1 lg:mx-auto lg:max-w-md">
-              <KnowledgeHeaderSearch />
+            <div className="flex min-w-0 w-full flex-1 justify-center lg:mx-auto lg:max-w-xl">
+              <div className="flex min-w-0 w-full max-w-lg items-stretch overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm ring-1 ring-slate-200/70 dark:border-slate-600 dark:bg-slate-900/85 dark:ring-slate-700/80">
+                <NavLink
+                  to="/kb"
+                  className={({ isActive }) =>
+                    [
+                      'inline-flex shrink-0 items-center px-3 py-2 text-sm font-semibold transition-colors',
+                      isActive
+                        ? 'bg-[#00B050]/15 text-[#0d5c2e] dark:bg-[#00B050]/20 dark:text-[#86efac]'
+                        : 'text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800',
+                    ].join(' ')
+                  }
+                >
+                  Knowledge
+                </NavLink>
+                <span
+                  className="w-px shrink-0 self-stretch bg-slate-200 dark:bg-slate-600"
+                  aria-hidden
+                />
+                <KnowledgeHeaderSearch fused />
+              </div>
             </div>
           ) : null}
           <nav className="flex flex-wrap items-center gap-1 lg:shrink-0 lg:justify-end">

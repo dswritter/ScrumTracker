@@ -1,11 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Navigate, useNavigate, useParams } from 'react-router-dom'
+import type { InputHTMLAttributes } from 'react'
+import {
+  Navigate,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from 'react-router-dom'
 import MDEditor, {
   type ExecuteState,
   type ICommand,
   type TextAreaTextApi,
 } from '@uiw/react-md-editor'
 import '@uiw/react-md-editor/markdown-editor.css'
+import { KnowledgeFindPanel } from '../components/KnowledgeFindPanel'
 import { KnowledgeMarkdown } from '../components/KnowledgeMarkdown'
 import {
   KB_PAGE_WIDTH_CLASS,
@@ -13,6 +20,11 @@ import {
 } from '../components/KnowledgePageDialNav'
 import { useCurrentUser } from '../hooks/useCurrentUser'
 import { useTeamContextNullable } from '../hooks/useTeamContext'
+import {
+  rankKnowledgePagesByQuery,
+  sanitizeTableCellsInMarkdown,
+  toggleNthTaskListItem,
+} from '../lib/knowledgeMarkdown'
 import { useTrackerStore } from '../store/useTrackerStore'
 import type { TeamKnowledgePage } from '../types'
 
@@ -34,29 +46,37 @@ function useMdEditorColorMode(): 'light' | 'dark' {
   return mode
 }
 
-function MarkdownHelpHint() {
-  return (
-    <p className="text-xs text-slate-600 dark:text-slate-400">
-      Content is saved as Markdown. Use the toolbar to format; images must use{' '}
-      <code className="rounded bg-slate-100 px-1 dark:bg-slate-800">https://</code>{' '}
-      URLs (no uploads).{' '}
-      <details className="ml-1 inline align-baseline">
-        <summary className="cursor-pointer font-semibold text-[#007a3d] dark:text-emerald-300">
-          More tips
-        </summary>
-        <span className="mt-1 block max-w-prose rounded border border-slate-200 bg-slate-50/90 p-2 text-[11px] leading-snug dark:border-slate-600 dark:bg-slate-800/50">
-          Keyboard: lists and headings from the toolbar; paste plain text freely.
-          For images, use the image button or the “Insert image URL” control to
-          add <code className="rounded bg-white px-0.5 dark:bg-slate-900">![alt](url)</code>.
-        </span>
-      </details>
-    </p>
-  )
+function buildMdPreviewOptions(
+  setDraftBody: React.Dispatch<React.SetStateAction<string>>,
+) {
+  let taskIdx = 0
+  return {
+    components: {
+      input(props: InputHTMLAttributes<HTMLInputElement>) {
+        if (props.type !== 'checkbox') {
+          return <input {...props} />
+        }
+        const idx = taskIdx++
+        return (
+          <input
+            type="checkbox"
+            className={props.className}
+            checked={!!props.checked}
+            onChange={() => {
+              setDraftBody((b) => toggleNthTaskListItem(b, idx) ?? b)
+            }}
+          />
+        )
+      },
+    },
+  }
 }
 
 export function KnowledgeBase() {
   const mdColorMode = useMdEditorColorMode()
   const { pageId } = useParams<{ pageId: string }>()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const findRaw = searchParams.get('find')?.trim() ?? ''
   const navigate = useNavigate()
   const user = useCurrentUser()
   const ctx = useTeamContextNullable()
@@ -80,6 +100,22 @@ export function KnowledgeBase() {
     [pageId, pages],
   )
   const page = idx >= 0 ? pages[idx]! : null
+
+  const findSuggestions = useMemo(() => {
+    if (!findRaw) return []
+    return rankKnowledgePagesByQuery(findRaw, pages, 6)
+  }, [findRaw, pages])
+
+  const dismissFind = useCallback(() => {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        next.delete('find')
+        return next
+      },
+      { replace: true },
+    )
+  }, [setSearchParams])
 
   const imageCommandFilter = useCallback((command: ICommand, isExtra: boolean) => {
     if (isExtra || command.keyCommand !== 'image') return command
@@ -135,7 +171,7 @@ export function KnowledgeBase() {
     setEditing(false)
   }, [teamId, page, draftTitle, draftBody, updateKnowledgePage])
 
-  const onAddPage = () => {
+  const onAddPage = useCallback(() => {
     if (!teamId || !user) return
     const id = addKnowledgePage(teamId, {
       title: 'New page',
@@ -146,16 +182,36 @@ export function KnowledgeBase() {
     setDraftTitle('New page')
     setDraftBody('')
     setEditing(true)
-  }
+  }, [teamId, user, addKnowledgePage, navigate])
 
-  const onDeletePage = () => {
-    if (!teamId || !page || !confirm('Delete this knowledge page?')) return
+  const onDeletePage = useCallback(() => {
+    if (!teamId || !page) return
+    if (
+      !window.confirm(
+        `Delete the page “${page.title}”? This cannot be undone.`,
+      )
+    ) {
+      return
+    }
     const next = pages.filter((p) => p.id !== page.id)
     deleteKnowledgePage(teamId, page.id)
     if (next[0]) navigate(`/kb/${next[0].id}`)
     else navigate('/kb')
     setEditing(false)
-  }
+  }, [teamId, page, pages, deleteKnowledgePage, navigate])
+
+  const onReadTaskChange = useCallback(
+    (nextBody: string) => {
+      if (!teamId || !page) return
+      updateKnowledgePage(teamId, page.id, { body: nextBody })
+    },
+    [teamId, page, updateKnowledgePage],
+  )
+
+  const previewOptions = useMemo(
+    () => buildMdPreviewOptions(setDraftBody),
+    [],
+  )
 
   if (!user) {
     return (
@@ -201,12 +257,14 @@ export function KnowledgeBase() {
     )
   }
 
+  const qs = findRaw ? `?find=${encodeURIComponent(findRaw)}` : ''
+
   if (!pageId) {
-    return <Navigate to={`/kb/${pages[0]!.id}`} replace />
+    return <Navigate to={`/kb/${pages[0]!.id}${qs}`} replace />
   }
 
   if (!page) {
-    return <Navigate to={`/kb/${pages[0]!.id}`} replace />
+    return <Navigate to={`/kb/${pages[0]!.id}${qs}`} replace />
   }
 
   return (
@@ -273,48 +331,48 @@ export function KnowledgeBase() {
         </div>
       ) : null}
 
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">
-          Team knowledge
-        </h1>
-        <div className="flex flex-wrap gap-2">
+      <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+        <button
+          type="button"
+          onClick={onAddPage}
+          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+          title="Add page"
+          aria-label="Add knowledge page"
+        >
+          <i className="fa-solid fa-plus" aria-hidden />
+        </button>
+        <button
+          type="button"
+          onClick={onDeletePage}
+          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-rose-200 bg-white text-rose-700 shadow-sm hover:bg-rose-50 dark:border-rose-900 dark:bg-rose-300 dark:bg-slate-800 dark:hover:bg-rose-950/40"
+          title="Delete this page"
+          aria-label="Delete knowledge page"
+        >
+          <i className="fa-solid fa-trash-can" aria-hidden />
+        </button>
+        {!editing ? (
           <button
             type="button"
-            onClick={onAddPage}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-sm hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+            onClick={startEdit}
+            className="rounded-lg bg-[#00B050] px-3 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-[#009948]"
           >
-            Add page
+            Edit
           </button>
-          {!editing ? (
-            <button
-              type="button"
-              onClick={startEdit}
-              className="rounded-lg bg-[#00B050] px-3 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-[#009948]"
-            >
-              Edit
-            </button>
-          ) : null}
-        </div>
+        ) : null}
       </div>
+
+      {findRaw ? (
+        <KnowledgeFindPanel
+          query={findRaw}
+          suggestions={findSuggestions}
+          onContribute={onAddPage}
+          onDismiss={dismissFind}
+        />
+      ) : null}
 
       <article className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
         {editing ? (
           <div className="space-y-4 p-5">
-            <MarkdownHelpHint />
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                className="rounded-lg border border-slate-200 px-2 py-1 text-[11px] font-semibold text-slate-700 dark:border-slate-600 dark:text-slate-200"
-                onClick={() => {
-                  imageApiRef.current = null
-                  setImageUrl('')
-                  setImageAlt('')
-                  setImageModalOpen(true)
-                }}
-              >
-                Insert image URL…
-              </button>
-            </div>
             <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400">
               Title
               <input
@@ -323,18 +381,21 @@ export function KnowledgeBase() {
                 className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
               />
             </label>
-            <div data-color-mode={mdColorMode} className="min-h-0">
+            <div data-color-mode={mdColorMode} className="kb-md-editor min-h-0">
               <MDEditor
                 value={draftBody}
-                onChange={(v) => setDraftBody(v ?? '')}
+                onChange={(v) =>
+                  setDraftBody(sanitizeTableCellsInMarkdown(v ?? ''))
+                }
                 preview="live"
-                height={420}
+                height={480}
                 visibleDragbar
                 textareaProps={{
                   spellCheck: true,
                   'aria-label': 'Markdown content',
                 }}
                 commandsFilter={imageCommandFilter}
+                previewOptions={previewOptions}
               />
             </div>
             <div className="flex flex-wrap gap-2">
@@ -352,13 +413,6 @@ export function KnowledgeBase() {
               >
                 Cancel
               </button>
-              <button
-                type="button"
-                onClick={onDeletePage}
-                className="ml-auto rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-50 dark:border-rose-900 dark:text-rose-300 dark:hover:bg-rose-950/40"
-              >
-                Delete page
-              </button>
             </div>
           </div>
         ) : (
@@ -374,7 +428,11 @@ export function KnowledgeBase() {
             </header>
             <div className="px-5 py-4">
               {page.body.trim() ? (
-                <KnowledgeMarkdown source={page.body} />
+                <KnowledgeMarkdown
+                  source={page.body}
+                  interactiveTasks
+                  onTasksSourceChange={onReadTaskChange}
+                />
               ) : (
                 <p className="text-sm text-slate-400 dark:text-slate-500">
                   Empty page — click Edit.
