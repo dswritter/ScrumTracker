@@ -102,7 +102,20 @@ export function KnowledgeBase() {
     setEditing(false)
   }
 
-  if (!user || !ctx) return null
+  if (!user) {
+    return (
+      <div className="mx-auto max-w-md p-8 text-center text-sm text-slate-600 dark:text-slate-400">
+        Sign in to view team knowledge.
+      </div>
+    )
+  }
+  if (!ctx) {
+    return (
+      <div className="mx-auto max-w-md p-8 text-center text-sm text-slate-600 dark:text-slate-400">
+        Loading team…
+      </div>
+    )
+  }
 
   if (pages.length === 0) {
     return (

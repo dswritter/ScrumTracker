@@ -1,5 +1,6 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { RootErrorBoundary } from './components/RootErrorBoundary'
 import './index.css'
 import App from './App.tsx'
 import { registerAuthStorageSync } from './lib/authStorageSync'
@@ -19,6 +20,8 @@ if (import.meta.env.DEV) {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <RootErrorBoundary>
+      <App />
+    </RootErrorBoundary>
   </StrictMode>,
 )

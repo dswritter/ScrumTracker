@@ -492,9 +492,8 @@ export function Dashboard() {
     setSearchParams(sp)
   }
 
-  if (!user) return null
   if (!storeHydrated) return <DashboardPageSkeleton />
-  if (!ctx) return null
+  if (!user || !ctx) return <DashboardPageSkeleton />
 
   const titleLinkCls =
     'font-semibold text-indigo-800 hover:text-indigo-950 hover:underline dark:text-slate-100 dark:hover:text-white'
