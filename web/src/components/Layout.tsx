@@ -128,7 +128,14 @@ export function Layout() {
           </div>
           {user && teamCtx ? (
             <div className="flex min-w-0 w-full flex-1 justify-start lg:mx-auto lg:max-w-xl">
-              <div className="flex w-full max-w-lg min-w-0 items-stretch overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm ring-1 ring-slate-200/70 dark:border-slate-600 dark:bg-slate-900/85 dark:ring-slate-700/80">
+              <div
+                className={[
+                  'flex min-w-0 items-stretch overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm ring-1 ring-slate-200/70 dark:border-slate-600 dark:bg-slate-900/85 dark:ring-slate-700/80',
+                  kbSearchExpanded
+                    ? 'w-full max-w-lg'
+                    : 'w-max max-w-full',
+                ].join(' ')}
+              >
                 <NavLink
                   to="/kb"
                   className={({ isActive }) =>
