@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { JiraDailyAutoSync } from './JiraDailyAutoSync'
 import { JiraHeaderSyncButton } from './JiraHeaderSyncButton'
@@ -40,6 +40,11 @@ export function Layout() {
   const teamCtx = useTeamContextNullable()
   const chatUnread = useChatUnreadTotal()
   const [kbSearchExpanded, setKbSearchExpanded] = useState(false)
+  const kbSearchExpandedRef = useRef(false)
+  const setKbExpanded = useCallback((next: boolean) => {
+    kbSearchExpandedRef.current = next
+    setKbSearchExpanded(next)
+  }, [])
   const rollIncompleteWorkItems = useTrackerStore(
     (s) => s.rollIncompleteWorkItems,
   )
@@ -50,63 +55,60 @@ export function Layout() {
   }, [teamCtx?.teamId, rollIncompleteWorkItems])
 
   useEffect(() => {
-    const onExpand = () => setKbSearchExpanded(true)
-    const onCollapse = () => setKbSearchExpanded(false)
+    const onExpand = () => setKbExpanded(true)
+    const onCollapse = () => setKbExpanded(false)
     window.addEventListener('kb-search-expand', onExpand)
     window.addEventListener('kb-search-collapse', onCollapse)
     return () => {
       window.removeEventListener('kb-search-expand', onExpand)
       window.removeEventListener('kb-search-collapse', onCollapse)
     }
-  }, [])
+  }, [setKbExpanded])
 
   useEffect(() => {
-    if (!kbSearchExpanded) return
     const onKey = (e: KeyboardEvent) => {
+      if (e.key === '.' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const t = e.target
+        if (t instanceof HTMLTextAreaElement || t instanceof HTMLInputElement)
+          return
+        if (t instanceof HTMLElement && t.isContentEditable) return
+        const active = document.activeElement
+        if (active instanceof HTMLTextAreaElement || active instanceof HTMLInputElement)
+          return
+        if (
+          active instanceof HTMLElement &&
+          active.closest('[contenteditable="true"]')
+        )
+          return
+        e.preventDefault()
+        setKbExpanded(true)
+        requestAnimationFrame(() => {
+          document.getElementById('kb-knowledge-search-input')?.focus()
+        })
+        return
+      }
+
       if (e.key !== 'Escape') return
+
       const t = e.target
       if (t instanceof HTMLElement && t.closest('[role="dialog"]')) return
       if (document.querySelector('.w-md-editor-fullscreen')) return
-      setKbSearchExpanded(false)
-      e.preventDefault()
-    }
-    window.addEventListener('keydown', onKey, true)
-    return () => window.removeEventListener('keydown', onKey, true)
-  }, [kbSearchExpanded])
 
-  useEffect(() => {
-    const focusKnowledgeSearch = (e: KeyboardEvent) => {
-      if (e.key !== '.' || e.ctrlKey || e.metaKey || e.altKey) return
-      const t = e.target
-      if (t instanceof HTMLTextAreaElement || t instanceof HTMLInputElement) return
-      if (t instanceof HTMLElement && t.isContentEditable) return
-      const active = document.activeElement
-      if (active instanceof HTMLTextAreaElement || active instanceof HTMLInputElement)
+      if (kbSearchExpandedRef.current) {
+        setKbExpanded(false)
+        document.getElementById('kb-knowledge-search-input')?.blur()
+        e.preventDefault()
         return
-      if (active instanceof HTMLElement && active.closest('[contenteditable="true"]'))
-        return
-      e.preventDefault()
-      window.dispatchEvent(new CustomEvent('kb-search-expand'))
-      requestAnimationFrame(() => {
-        document.getElementById('kb-knowledge-search-input')?.focus()
-      })
-    }
-    window.addEventListener('keydown', focusKnowledgeSearch, true)
-    return () => window.removeEventListener('keydown', focusKnowledgeSearch, true)
-  }, [])
+      }
 
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return
       const el = document.activeElement
       if (!el || !(el instanceof HTMLElement)) return
-      if (el.closest('[role="dialog"]')) return
       e.preventDefault()
       el.blur()
     }
-    window.addEventListener('keydown', onKeyDown, true)
-    return () => window.removeEventListener('keydown', onKeyDown, true)
-  }, [])
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [setKbExpanded])
 
   const nav = user && isAdmin(user) ? adminNav : memberNav
   const dashboardMain = pathname === '/' || pathname === '/index.html'
@@ -146,16 +148,16 @@ export function Layout() {
                 />
                 <div
                   className={[
-                    'min-h-0 min-w-0 overflow-hidden transition-[max-width] duration-300 ease-in-out',
+                    'min-h-0 overflow-hidden transition-[max-width] duration-300 ease-in-out',
                     kbSearchExpanded
-                      ? 'max-w-[min(32rem,calc(100vw-2rem))] flex-1'
-                      : 'max-w-[2.75rem] shrink-0',
+                      ? 'w-0 min-w-0 flex-1 max-w-[min(32rem,calc(100vw-2rem))]'
+                      : 'w-11 max-w-11 shrink-0',
                   ].join(' ')}
                 >
                   <KnowledgeHeaderSearch
                     fused
                     expanded={kbSearchExpanded}
-                    onExpandedChange={setKbSearchExpanded}
+                    onExpandedChange={setKbExpanded}
                   />
                 </div>
               </div>
