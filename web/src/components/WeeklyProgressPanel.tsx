@@ -460,8 +460,8 @@ export function WeeklyProgressPanel({
               className="m-0 flex min-w-0 flex-1 list-none flex-col gap-3 p-0"
             >
               {col.map(({ item: b, index: idx }) => {
-                const expanded =
-                  personExpand[b.id] ?? b.tasks.length < COLLAPSE_WHEN_TASKS_GTE
+                /** Long lists still get a collapse control, but default to expanded. */
+                const expanded = personExpand[b.id] !== false
                 const toggleExpand = () => {
                   setPersonExpand((m) => ({
                     ...m,
@@ -608,7 +608,7 @@ export function WeeklyProgressPanel({
                   </div>
                   ) : (
                     <p className="mt-3 text-center text-xs text-slate-500 dark:text-slate-400">
-                      {b.tasks.length} tasks hidden — click header to expand
+                      {b.tasks.length} tasks hidden — click header to show
                     </p>
                   )}
                 </li>
