@@ -697,85 +697,87 @@ export function Dashboard() {
   }
 
   const chartAside = (
-    <aside className="order-2 w-full max-w-full space-y-3 xl:order-1 xl:sticky xl:top-24 xl:z-0 xl:max-h-[calc(100vh-6rem)] xl:w-full xl:max-w-[20rem] xl:shrink-0 xl:overflow-y-auto xl:overscroll-contain xl:self-start xl:pr-1">
+    <aside className="order-2 w-full max-w-full space-y-3 xl:order-1 xl:flex xl:max-w-[20rem] xl:flex-col xl:gap-3 xl:space-y-0 xl:self-start xl:pr-1">
       {sortedSprints.length > 0 ? (
-        <div className="hidden xl:block">{renderScopeCard('sidebar')}</div>
+        <div className="hidden shrink-0 xl:block">{renderScopeCard('sidebar')}</div>
       ) : null}
-      <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
-        <h3 className="mb-0.5 text-center text-[10px] font-bold uppercase tracking-wide text-[#007a3d] dark:text-emerald-300">
-          Team progress
-        </h3>
-        <MetabuildStatusPie
-          data={teamPieSlices}
-          compact
-          totalItems={total}
-          onSliceClick={onPieSliceNavigate}
-          onTotalClick={() => navigate(buildItemsHref(scope))}
-        />
-      </div>
-      <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
-        <h3 className="mb-0.5 text-center text-[10px] font-bold uppercase tracking-wide text-[#007a3d] dark:text-emerald-300">
-          Section (done %)
-        </h3>
-        <MetabuildSectionBars rows={sectionBarRows} compact />
-      </div>
-      {isAdmin(user) ? (
+      <div className="space-y-3 xl:sticky xl:top-24 xl:z-0 xl:max-h-[calc(100vh-6rem)] xl:min-h-0 xl:overflow-y-auto xl:overscroll-contain">
         <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
           <h3 className="mb-0.5 text-center text-[10px] font-bold uppercase tracking-wide text-[#007a3d] dark:text-emerald-300">
-            Done % by person
+            Team progress
           </h3>
-          <MetabuildAssigneeBars rows={assigneeBarRows} compact />
+          <MetabuildStatusPie
+            data={teamPieSlices}
+            compact
+            totalItems={total}
+            onSliceClick={onPieSliceNavigate}
+            onTotalClick={() => navigate(buildItemsHref(scope))}
+          />
         </div>
-      ) : null}
-      {!isAdmin(user) && teammateNames.length > 0 ? (
-        <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
-          <h3 className="mb-2 text-center text-[10px] font-bold uppercase tracking-wide text-[#007a3d] dark:text-emerald-300">
-            Teammates
+        <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
+          <h3 className="mb-0.5 text-center text-[10px] font-bold uppercase tracking-wide text-[#007a3d] dark:text-emerald-300">
+            Section (done %)
           </h3>
-          <ul className="flex flex-col items-stretch gap-3">
-            {teammateNames.map((name) => {
-              const href = personDetailHref(name, scope)
-              const slackUrl = resolveSlackDmUrl(
-                name,
-                ctx.slackDmUrlByDisplayName,
-                ctx.teamUsers,
-              )
-              return (
-                <li key={name} className="flex items-center gap-2">
-                  <Link
-                    to={href}
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#00B050] to-emerald-700 text-xs font-bold text-white shadow-md ring-2 ring-white hover:ring-[#00B050]/40"
-                    title={name}
-                  >
-                    {displayInitials(name)}
-                  </Link>
-                  <div className="flex min-w-0 flex-1 items-center gap-1.5">
+          <MetabuildSectionBars rows={sectionBarRows} compact />
+        </div>
+        {isAdmin(user) ? (
+          <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
+            <h3 className="mb-0.5 text-center text-[10px] font-bold uppercase tracking-wide text-[#007a3d] dark:text-emerald-300">
+              Done % by person
+            </h3>
+            <MetabuildAssigneeBars rows={assigneeBarRows} compact />
+          </div>
+        ) : null}
+        {!isAdmin(user) && teammateNames.length > 0 ? (
+          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
+            <h3 className="mb-2 text-center text-[10px] font-bold uppercase tracking-wide text-[#007a3d] dark:text-emerald-300">
+              Teammates
+            </h3>
+            <ul className="flex flex-col items-stretch gap-3">
+              {teammateNames.map((name) => {
+                const href = personDetailHref(name, scope)
+                const slackUrl = resolveSlackDmUrl(
+                  name,
+                  ctx.slackDmUrlByDisplayName,
+                  ctx.teamUsers,
+                )
+                return (
+                  <li key={name} className="flex items-center gap-2">
                     <Link
                       to={href}
-                      className="truncate text-xs font-medium text-slate-800 hover:text-[#007a3d] hover:underline dark:text-slate-100 dark:hover:text-white"
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#00B050] to-emerald-700 text-xs font-bold text-white shadow-md ring-2 ring-white hover:ring-[#00B050]/40"
+                      title={name}
                     >
-                      {name}
+                      {displayInitials(name)}
                     </Link>
-                    {slackUrl ? (
-                      <a
-                        href={slackUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-[#4A154B] hover:bg-purple-50 dark:text-[#ecb22e] dark:hover:bg-white/10"
-                        title={`Slack: ${name}`}
-                        aria-label={`Open Slack for ${name}`}
-                        onClick={(e) => e.stopPropagation()}
+                    <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                      <Link
+                        to={href}
+                        className="truncate text-xs font-medium text-slate-800 hover:text-[#007a3d] hover:underline dark:text-slate-100 dark:hover:text-white"
                       >
-                        <i className="fa-brands fa-slack text-sm" aria-hidden />
-                      </a>
-                    ) : null}
-                  </div>
-                </li>
-              )
-            })}
-          </ul>
-        </div>
-      ) : null}
+                        {name}
+                      </Link>
+                      {slackUrl ? (
+                        <a
+                          href={slackUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-[#4A154B] hover:bg-purple-50 dark:text-[#ecb22e] dark:hover:bg-white/10"
+                          title={`Slack: ${name}`}
+                          aria-label={`Open Slack for ${name}`}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <i className="fa-brands fa-slack text-sm" aria-hidden />
+                        </a>
+                      ) : null}
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        ) : null}
+      </div>
     </aside>
   )
 
@@ -824,7 +826,7 @@ export function Dashboard() {
       ) : null}
 
       <div className="relative flex flex-col gap-4 xl:grid xl:grid-cols-[min(20rem,calc(100vw-3rem))_1fr] xl:items-start xl:gap-5">
-        <div className="order-1 min-w-0 space-y-2 xl:order-2">
+        <div className="order-1 min-w-0 space-y-2 xl:order-2 xl:min-w-0 xl:self-start">
           {sortedSprints.length === 0 ? emptySprintsCallout : null}
 
       {sortedSprints.length > 0 && weeklyOpen ? (
