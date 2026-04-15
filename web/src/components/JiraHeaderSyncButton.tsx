@@ -39,24 +39,24 @@ export function JiraHeaderSyncButton() {
   const navigate = useNavigate()
 
   const hasSyncServer = isTrackerSyncEnabled()
-  const ready = Boolean(ctx && hasSyncServer && user)
+  if (!ctx || !hasSyncServer || !user) return null
 
-  const teamId = ctx?.teamId ?? ''
+  const teamId = ctx.teamId
   const admin = isAdmin(user)
 
-  const syncCtx = useMemo(() => {
-    if (!ready || !user) return null
-    return admin
-      ? { teamId, syncMode: 'admin' as const }
-      : {
-          teamId,
-          syncMode: 'individual' as const,
-          trackerUsername: user.username,
-        }
-  }, [ready, admin, teamId, user])
+  const syncCtx = useMemo(
+    () =>
+      admin
+        ? { teamId, syncMode: 'admin' as const }
+        : {
+            teamId,
+            syncMode: 'individual' as const,
+            trackerUsername: user.username,
+          },
+    [admin, teamId, user.username],
+  )
 
   const doSync = async (): Promise<void> => {
-    if (!ready || !user) return
     const r = await runJiraSyncFromStore(
       exportSnapshotJson,
       importSnapshotJson,
@@ -76,7 +76,6 @@ export function JiraHeaderSyncButton() {
   const ensurePatForHub = useCallback(async (): Promise<
     'ok' | 'needPat' | 'navigate'
   > => {
-    if (!ready || !user) return 'ok'
     if (admin) {
       const tokenPayload = await fetchJiraTokenStatusPayload()
       if (!jiraTokenStatusAllowsSync(tokenPayload)) {
@@ -90,10 +89,9 @@ export function JiraHeaderSyncButton() {
       return 'needPat'
     }
     return 'ok'
-  }, [ready, admin, navigate, user])
+  }, [admin, navigate, user.username])
 
   const openCreateHub = async () => {
-    if (!ready) return
     setMenuOpen(false)
     const gate = await ensurePatForHub()
     if (gate === 'navigate') return
@@ -106,7 +104,6 @@ export function JiraHeaderSyncButton() {
   }
 
   const openLinkHub = async () => {
-    if (!ready) return
     setMenuOpen(false)
     const gate = await ensurePatForHub()
     if (gate === 'navigate') return
@@ -119,7 +116,7 @@ export function JiraHeaderSyncButton() {
   }
 
   useEffect(() => {
-    if (!ready || !menuOpen) return
+    if (!menuOpen) return
     const fn = (e: MouseEvent) => {
       if (hubRef.current && !hubRef.current.contains(e.target as Node)) {
         setMenuOpen(false)
@@ -127,9 +124,7 @@ export function JiraHeaderSyncButton() {
     }
     document.addEventListener('mousedown', fn)
     return () => document.removeEventListener('mousedown', fn)
-  }, [ready, menuOpen])
-
-  if (!ready || !syncCtx || !user || !ctx) return null
+  }, [menuOpen])
 
   return (
     <div ref={hubRef} className="relative inline-flex items-center">

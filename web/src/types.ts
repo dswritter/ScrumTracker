@@ -66,16 +66,6 @@ export interface TrackerTeam {
   name: string
 }
 
-/** One playbook page (Git, Jira, setup, URLs, etc.); order is array order. */
-export interface TeamKnowledgePage {
-  id: string
-  title: string
-  body: string
-  createdAt: string
-  updatedAt: string
-  authorDisplayName: string
-}
-
 export interface TrackerTeamData {
   sprints: Sprint[]
   workItems: WorkItem[]
@@ -98,8 +88,6 @@ export interface TrackerTeamData {
    * Same thread is shared for both participants.
    */
   teamChatThreads?: Record<string, TeamChatMessage[]>
-  /** Team playbook pages; syncs with team snapshot. */
-  teamKnowledgePages?: TeamKnowledgePage[]
 }
 
 /**

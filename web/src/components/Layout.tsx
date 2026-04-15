@@ -2,7 +2,6 @@ import { useEffect } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { JiraDailyAutoSync } from './JiraDailyAutoSync'
 import { JiraHeaderSyncButton } from './JiraHeaderSyncButton'
-import { KnowledgeHeaderSearch } from './KnowledgeHeaderSearch'
 import { UserMenu } from './UserMenu'
 import { useChatUnreadTotal } from '../hooks/useChatUnreadTotal'
 import { useCurrentUser } from '../hooks/useCurrentUser'
@@ -22,7 +21,6 @@ const adminNav = [
   { to: '/', label: 'Dashboard', end: true },
   { to: '/me', label: 'My page' },
   { to: '/items', label: 'Work items' },
-  { to: '/kb', label: 'Knowledge' },
   { to: '/chat', label: 'Chat' },
   { to: '/people', label: 'People' },
   { to: '/matrix', label: 'Matrix' },
@@ -32,7 +30,6 @@ const memberNav = [
   { to: '/', label: 'Dashboard', end: true },
   { to: '/me', label: 'My page' },
   { to: '/items', label: 'Work items' },
-  { to: '/kb', label: 'Knowledge' },
   { to: '/chat', label: 'Chat' },
 ]
 
@@ -50,19 +47,6 @@ export function Layout() {
     rollIncompleteWorkItems(teamCtx.teamId)
   }, [teamCtx?.teamId, rollIncompleteWorkItems])
 
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return
-      const el = document.activeElement
-      if (!el || !(el instanceof HTMLElement)) return
-      if (el.closest('[role="dialog"]')) return
-      e.preventDefault()
-      el.blur()
-    }
-    window.addEventListener('keydown', onKeyDown, true)
-    return () => window.removeEventListener('keydown', onKeyDown, true)
-  }, [])
-
   const nav = user && isAdmin(user) ? adminNav : memberNav
   const dashboardMain = pathname === '/' || pathname === '/index.html'
 
@@ -70,8 +54,8 @@ export function Layout() {
     <div className="flex min-h-svh flex-col">
       <JiraDailyAutoSync />
       <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/90 shadow-sm backdrop-blur-md dark:border-slate-700 dark:bg-slate-900/90">
-        <div className="mx-auto flex w-full max-w-none flex-col gap-3 px-4 py-3 lg:flex-row lg:items-center lg:gap-4 lg:px-8">
-          <div className="text-left lg:shrink-0">
+        <div className="mx-auto flex w-full max-w-none flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
+          <div className="text-left">
             <p className="text-xs font-semibold uppercase tracking-wider text-[#007a3d] dark:text-[#4ade80]">
               Scrum tracker
             </p>
@@ -79,12 +63,7 @@ export function Layout() {
               {teamCtx?.teamName ?? 'Scrum tracker'}
             </h1>
           </div>
-          {user && teamCtx ? (
-            <div className="min-w-0 w-full flex-1 lg:mx-auto lg:max-w-md">
-              <KnowledgeHeaderSearch />
-            </div>
-          ) : null}
-          <nav className="flex flex-wrap items-center gap-1 lg:shrink-0 lg:justify-end">
+          <nav className="flex flex-wrap items-center gap-1">
             {nav.map(({ to, label, end }) => (
               <NavLink key={to} to={to} end={Boolean(end)} className={linkClass}>
                 <span className="inline-flex items-center gap-1.5">

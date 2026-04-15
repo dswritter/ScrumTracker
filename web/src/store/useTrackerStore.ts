@@ -3,7 +3,6 @@ import { persist, createJSONStorage } from 'zustand/middleware'
 import type {
   Sprint,
   TeamChatMessage,
-  TeamKnowledgePage,
   TrackerSnapshot,
   TrackerTeam,
   TrackerTeamData,
@@ -217,37 +216,6 @@ function ensureSeedColorGraphicsAdmin(
   return [normalizeUser(seedAdmin, SEED_TEAM_ID), ...users]
 }
 
-function normalizeTeamKnowledgePages(
-  raw: unknown,
-): TeamKnowledgePage[] | undefined {
-  if (!Array.isArray(raw)) return undefined
-  const out: TeamKnowledgePage[] = []
-  for (const item of raw) {
-    if (!item || typeof item !== 'object') continue
-    const o = item as Record<string, unknown>
-    const titleRaw = typeof o.title === 'string' ? o.title.trim() : ''
-    const body = typeof o.body === 'string' ? o.body : ''
-    if (!titleRaw && !body.trim()) continue
-    const id =
-      typeof o.id === 'string' && o.id.trim() ? o.id.trim() : newId('kb')
-    const now = new Date().toISOString()
-    out.push({
-      id,
-      title: titleRaw || 'Untitled',
-      body,
-      createdAt:
-        typeof o.createdAt === 'string' && o.createdAt ? o.createdAt : now,
-      updatedAt:
-        typeof o.updatedAt === 'string' && o.updatedAt ? o.updatedAt : now,
-      authorDisplayName:
-        typeof o.authorDisplayName === 'string' && o.authorDisplayName.trim()
-          ? o.authorDisplayName.trim()
-          : 'Unknown',
-    })
-  }
-  return out.length ? out : undefined
-}
-
 function normalizeTeamData(raw: unknown): TrackerTeamData {
   const o = raw as Record<string, unknown>
   const base: TrackerTeamData = {
@@ -292,7 +260,6 @@ function normalizeTeamData(raw: unknown): TrackerTeamData {
       !Array.isArray(o.teamChatThreads)
         ? normalizeTeamChatThreads(o.teamChatThreads as Record<string, unknown>)
         : undefined,
-    teamKnowledgePages: normalizeTeamKnowledgePages(o.teamKnowledgePages),
   }
   return stripAutoPlaceholderSprints(base)
 }
@@ -553,19 +520,6 @@ export interface TrackerState {
     editorDisplayName: string,
     newBody: string,
   ) => { ok: true } | { ok: false; error: string }
-
-  addKnowledgePage: (
-    teamId: string,
-    input: { title: string; body: string; authorDisplayName: string },
-  ) => string
-
-  updateKnowledgePage: (
-    teamId: string,
-    id: string,
-    patch: Partial<Pick<TeamKnowledgePage, 'title' | 'body'>>,
-  ) => void
-
-  deleteKnowledgePage: (teamId: string, id: string) => void
 }
 
 const defaultWorkItem = (): WorkItem => ({
@@ -714,65 +668,6 @@ export const useTrackerStore = create<TrackerState>()(
           ? { ok: true as const }
           : { ok: false as const, error: 'Could not edit this message.' }
       },
-
-      addKnowledgePage: (teamId, input) => {
-        const title = input.title.trim()
-        const body = input.body
-        const author = input.authorDisplayName.trim() || 'Unknown'
-        const id = newId('kb')
-        const now = new Date().toISOString()
-        const page: TeamKnowledgePage = {
-          id,
-          title: title || 'Untitled',
-          body,
-          createdAt: now,
-          updatedAt: now,
-          authorDisplayName: author,
-        }
-        set((s) => {
-          const d = getSlice(s, teamId)
-          const prev = d.teamKnowledgePages ?? []
-          return {
-            teamsData: patchSlice(s, teamId, {
-              teamKnowledgePages: [...prev, page],
-            }),
-          }
-        })
-        return id
-      },
-
-      updateKnowledgePage: (teamId, id, patch) =>
-        set((s) => {
-          const d = getSlice(s, teamId)
-          const prev = d.teamKnowledgePages ?? []
-          const next = prev.map((p) => {
-            if (p.id !== id) return p
-            const title =
-              patch.title !== undefined ? patch.title.trim() : p.title
-            const nextBody = patch.body !== undefined ? patch.body : p.body
-            return {
-              ...p,
-              title: title || 'Untitled',
-              body: nextBody,
-              updatedAt: new Date().toISOString(),
-            }
-          })
-          return {
-            teamsData: patchSlice(s, teamId, { teamKnowledgePages: next }),
-          }
-        }),
-
-      deleteKnowledgePage: (teamId, id) =>
-        set((s) => {
-          const d = getSlice(s, teamId)
-          const prev = d.teamKnowledgePages ?? []
-          const next = prev.filter((p) => p.id !== id)
-          return {
-            teamsData: patchSlice(s, teamId, {
-              teamKnowledgePages: next.length ? next : undefined,
-            }),
-          }
-        }),
 
       deleteComment: (teamId, itemId, commentId) =>
         set((s) => {

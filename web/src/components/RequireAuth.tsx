@@ -1,15 +1,13 @@
 import { matchPath, Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuthHydrated } from '../hooks/useAuthHydrated'
 import { useCurrentUser } from '../hooks/useCurrentUser'
-import { useTrackerPersistHydrated } from '../hooks/useTrackerPersistHydrated'
 
 export function RequireAuth() {
   const authHydrated = useAuthHydrated()
-  const trackerHydrated = useTrackerPersistHydrated()
   const user = useCurrentUser()
   const loc = useLocation()
 
-  if (!authHydrated || !trackerHydrated) {
+  if (!authHydrated) {
     return (
       <div className="flex min-h-svh items-center justify-center bg-slate-50 dark:bg-slate-950">
         <p className="text-sm text-slate-500 dark:text-slate-400">Loading…</p>

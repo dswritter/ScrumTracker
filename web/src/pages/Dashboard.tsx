@@ -4,6 +4,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
@@ -16,7 +17,6 @@ import { WorkItemTitleLink } from '../components/WorkItemTitleLink'
 import { StatusBadge } from '../components/StatusBadge'
 import { useCurrentUser } from '../hooks/useCurrentUser'
 import { useTeamContextNullable } from '../hooks/useTeamContext'
-import { useTrackerPersistHydrated } from '../hooks/useTrackerPersistHydrated'
 import { isAdmin } from '../lib/permissions'
 import {
   buildItemsHref,
@@ -58,6 +58,7 @@ import {
   parseMondayKey,
   weekMondayOffsets,
 } from '../lib/weeklyProgress'
+import { useTrackerStore } from '../store/useTrackerStore'
 import type { WorkItem } from '../types'
 
 function displayInitials(name: string): string {
@@ -99,7 +100,12 @@ export function Dashboard() {
   const navigate = useNavigate()
   const user = useCurrentUser()
   const ctx = useTeamContextNullable()
-  const storeHydrated = useTrackerPersistHydrated()
+  const storeHydrated = useSyncExternalStore(
+    (onStoreChange) =>
+      useTrackerStore.persist.onFinishHydration(onStoreChange),
+    () => useTrackerStore.persist.hasHydrated(),
+    () => true,
+  )
 
   const scopeSelectRef = useRef<HTMLSelectElement>(null)
   const weeklySearchInputRef = useRef<HTMLInputElement>(null)
