@@ -1,9 +1,9 @@
-import { useLayoutEffect, useMemo, useRef } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import type { TeamKnowledgePage } from '../types'
 
-/** Matches article width + dial container in KnowledgeBase */
-export const KB_PAGE_WIDTH_CLASS = 'mx-auto w-[min(100%,85vw)]'
+/** Matches article width + dial container in KnowledgeBase (~85vw + 15%). */
+export const KB_PAGE_WIDTH_CLASS = 'mx-auto w-[min(100%,97.75vw)]'
 
 function previewSnippet(body: string, max = 120): string {
   const t = body.replace(/\s+/g, ' ').trim()
@@ -35,7 +35,6 @@ export function KnowledgePageDialNav({
   )
   const activeRef = useRef<HTMLDivElement | null>(null)
   const scrollerRef = useRef<HTMLDivElement | null>(null)
-  const wheelAccumRef = useRef(0)
 
   const windowSlice = useMemo(() => {
     if (idx < 0 || pages.length <= 1) return []
@@ -62,27 +61,50 @@ export function KnowledgePageDialNav({
     return () => window.cancelAnimationFrame(id)
   }, [currentId, windowSlice])
 
-  if (pages.length <= 1 || idx < 0 || windowSlice.length === 0) return null
+  useEffect(() => {
+    const el = scrollerRef.current
+    if (!el || !onHorizontalStep) return
 
-  const onWheel = (e: React.WheelEvent<HTMLDivElement>) => {
-    if (!onHorizontalStep) return
-    const dx = e.deltaX
-    const dy = e.deltaY
-    const dominant =
-      Math.abs(dx) > Math.abs(dy) ? dx : e.shiftKey ? dy : 0
-    if (Math.abs(dominant) < 1) return
-    wheelAccumRef.current += dominant
-    const threshold = 45
-    if (wheelAccumRef.current > threshold) {
-      wheelAccumRef.current = 0
-      onHorizontalStep(1)
-      e.preventDefault()
-    } else if (wheelAccumRef.current < -threshold) {
-      wheelAccumRef.current = 0
-      onHorizontalStep(-1)
-      e.preventDefault()
+    let accum = 0
+    let cooldownUntil = 0
+    const COOLDOWN_MS = 480
+    const THRESHOLD = 95
+
+    const onWheel = (e: WheelEvent) => {
+      const now = performance.now()
+      if (now < cooldownUntil) {
+        e.preventDefault()
+        accum = 0
+        return
+      }
+
+      const dx = e.deltaX
+      const dy = e.deltaY
+      const horizontalIntent =
+        Math.abs(dx) > Math.abs(dy) * 1.15 && Math.abs(dx) > 1.5
+      const shiftVertical = e.shiftKey && Math.abs(dy) > Math.abs(dx) * 1.2
+      const dominant = horizontalIntent ? dx : shiftVertical ? dy : 0
+      if (Math.abs(dominant) < 0.5) return
+
+      accum += dominant
+      if (accum > THRESHOLD) {
+        accum = 0
+        cooldownUntil = now + COOLDOWN_MS
+        onHorizontalStep(1)
+        e.preventDefault()
+      } else if (accum < -THRESHOLD) {
+        accum = 0
+        cooldownUntil = now + COOLDOWN_MS
+        onHorizontalStep(-1)
+        e.preventDefault()
+      }
     }
-  }
+
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [onHorizontalStep, currentId, pages.length])
+
+  if (pages.length <= 1 || idx < 0 || windowSlice.length === 0) return null
 
   return (
     <nav
@@ -99,7 +121,6 @@ export function KnowledgePageDialNav({
         <div
           ref={scrollerRef}
           className="kb-dial-scroll flex snap-x snap-mandatory items-end justify-center gap-3 overflow-x-auto overflow-y-visible py-1 [scrollbar-width:thin]"
-          onWheel={onWheel}
         >
           {windowSlice.map(({ page, indexInTeam }) => {
             const dist = Math.abs(indexInTeam - idx)

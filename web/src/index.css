@@ -46,6 +46,11 @@ body {
   }
 }
 
+/* Split editor: sensible minimum width when the KB wrapper is content-sized (w-fit). */
+.kb-md-editor.w-fit .w-md-editor {
+  min-width: min(42rem, 100%);
+}
+
 /* Knowledge base: editor textarea closer to preview (sans, readable line height). */
 .kb-md-editor .w-md-editor-text-pre code.w-md-editor-text-input {
   font-family: var(--font-sans) !important;

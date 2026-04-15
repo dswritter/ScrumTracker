@@ -9,6 +9,7 @@ import {
 import MDEditor, {
   type ExecuteState,
   type ICommand,
+  type RefMDEditor,
   type TextAreaTextApi,
 } from '@uiw/react-md-editor'
 import '@uiw/react-md-editor/markdown-editor.css'
@@ -118,11 +119,16 @@ export function KnowledgeBase() {
   const [draftBody, setDraftBody] = useState('')
   const [imageModalOpen, setImageModalOpen] = useState(false)
   const [tableModalOpen, setTableModalOpen] = useState(false)
+  const [tableModalNonce, setTableModalNonce] = useState(0)
   const [imageUrl, setImageUrl] = useState('')
   const [imageAlt, setImageAlt] = useState('')
   const imageApiRef = useRef<TextAreaTextApi | null>(null)
   const tableApiRef = useRef<TextAreaTextApi | null>(null)
   const editorSurfaceRef = useRef<HTMLDivElement | null>(null)
+  const mdEditorRef = useRef<RefMDEditor>(null)
+  const titleInputRef = useRef<HTMLInputElement | null>(null)
+  const focusTitleOnEditRef = useRef(false)
+  const pendingNewPageIdRef = useRef<string | null>(null)
 
   const idx = useMemo(
     () => (pageId ? pages.findIndex((p) => p.id === pageId) : -1),
@@ -244,6 +250,7 @@ export function KnowledgeBase() {
       ...command,
       execute: (_state: ExecuteState, api: TextAreaTextApi) => {
         tableApiRef.current = api
+        setTableModalNonce((n) => n + 1)
         setTableModalOpen(true)
       },
     }
@@ -287,10 +294,18 @@ export function KnowledgeBase() {
 
   const startEdit = useCallback(() => {
     if (!page) return
+    if (pendingNewPageIdRef.current && pendingNewPageIdRef.current !== page.id) {
+      pendingNewPageIdRef.current = null
+    }
     setDraftTitle(page.title)
     setDraftBody(page.body)
     setEditing(true)
   }, [page])
+
+  const startEditFromTitle = useCallback(() => {
+    focusTitleOnEditRef.current = true
+    startEdit()
+  }, [startEdit])
 
   const isPristineUnusedNewPage = useCallback(() => {
     if (!page) return false
@@ -303,7 +318,24 @@ export function KnowledgeBase() {
   }, [page, draftTitle, draftBody])
 
   const cancelEdit = useCallback(() => {
+    const discardBlankNew =
+      teamId &&
+      page &&
+      pendingNewPageIdRef.current === page.id &&
+      !draftBody.trim()
+
+    if (discardBlankNew) {
+      pendingNewPageIdRef.current = null
+      const dest = pages[idx + 1] ?? pages[idx - 1]
+      deleteKnowledgePage(teamId, page.id)
+      if (dest) navigatePreservingKbParams(`/kb/${dest.id}`)
+      else navigate('/kb')
+      setEditing(false)
+      return
+    }
+
     if (teamId && page && isPristineUnusedNewPage()) {
+      pendingNewPageIdRef.current = null
       const dest = pages[idx + 1] ?? pages[idx - 1]
       deleteKnowledgePage(teamId, page.id)
       if (dest) navigatePreservingKbParams(`/kb/${dest.id}`)
@@ -317,6 +349,7 @@ export function KnowledgeBase() {
     page,
     pages,
     idx,
+    draftBody,
     deleteKnowledgePage,
     navigate,
     navigatePreservingKbParams,
@@ -325,6 +358,7 @@ export function KnowledgeBase() {
 
   const saveEdit = useCallback(() => {
     if (!teamId || !page) return
+    pendingNewPageIdRef.current = null
     updateKnowledgePage(teamId, page.id, {
       title: draftTitle,
       body: draftBody,
@@ -339,6 +373,7 @@ export function KnowledgeBase() {
       body: '',
       authorDisplayName: user.displayName,
     })
+    pendingNewPageIdRef.current = id
     navigate(`/kb/${id}`)
     setDraftTitle(DEFAULT_NEW_TITLE)
     setDraftBody('')
@@ -353,6 +388,9 @@ export function KnowledgeBase() {
       )
     ) {
       return
+    }
+    if (pendingNewPageIdRef.current === page.id) {
+      pendingNewPageIdRef.current = null
     }
     const dest = pages[idx + 1] ?? pages[idx - 1]
     deleteKnowledgePage(teamId, page.id)
@@ -421,6 +459,35 @@ export function KnowledgeBase() {
     },
     [applyPastedOrDroppedImage],
   )
+
+  useEffect(() => {
+    if (!editing) return
+    if (focusTitleOnEditRef.current) {
+      focusTitleOnEditRef.current = false
+      requestAnimationFrame(() => {
+        titleInputRef.current?.focus()
+        titleInputRef.current?.select()
+      })
+    }
+  }, [editing])
+
+  useEffect(() => {
+    if (!editing) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      const surface = editorSurfaceRef.current
+      const fs =
+        surface?.querySelector('.w-md-editor-fullscreen') != null ||
+        mdEditorRef.current?.fullscreen
+      if (fs) {
+        mdEditorRef.current?.dispatch?.({ fullscreen: false })
+        e.preventDefault()
+        e.stopPropagation()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown, true)
+    return () => window.removeEventListener('keydown', onKeyDown, true)
+  }, [editing])
 
   useEffect(() => {
     if (!editing) return
@@ -529,7 +596,7 @@ export function KnowledgeBase() {
   )
 
   return (
-    <div className={`${KB_PAGE_WIDTH_CLASS} pb-24`}>
+    <div className={`${KB_PAGE_WIDTH_CLASS} flex flex-col items-center pb-24`}>
       {imageModalOpen ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
@@ -601,6 +668,7 @@ export function KnowledgeBase() {
       ) : null}
 
       <KnowledgeTableModal
+        key={tableModalNonce}
         open={tableModalOpen}
         onClose={() => {
           setTableModalOpen(false)
@@ -632,13 +700,14 @@ export function KnowledgeBase() {
         />
       ) : null}
 
-      <article className="rounded-xl border border-emerald-200/70 bg-[#E8F5E9]/95 shadow-sm dark:border-emerald-900/55 dark:bg-emerald-950/40">
+      <article className="w-max max-w-[min(100%,97.75vw)] rounded-xl border border-emerald-200/70 bg-[#E8F5E9]/95 shadow-sm dark:border-emerald-900/55 dark:bg-emerald-950/40">
         {editing ? (
           <div className="space-y-4 p-5">
             <div className="flex flex-wrap items-start gap-3">
               <label className="block min-w-0 flex-1 text-xs font-semibold text-slate-600 dark:text-slate-400">
                 Title
                 <input
+                  ref={titleInputRef}
                   value={draftTitle}
                   onChange={(e) => setDraftTitle(e.target.value)}
                   className="mt-1 w-full max-w-xl rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
@@ -646,30 +715,33 @@ export function KnowledgeBase() {
               </label>
               {headerActions}
             </div>
-            <div
-              ref={editorSurfaceRef}
-              data-color-mode={mdColorMode}
-              className="kb-md-editor min-h-0"
-              onDragOver={onEditorDragOver}
-              onDrop={onEditorDrop}
-            >
-              <MDEditor
-                value={draftBody}
-                onChange={(v) =>
-                  setDraftBody(sanitizeTableCellsInMarkdown(v ?? ''))
-                }
-                preview="preview"
-                height={520}
-                visibleDragbar
-                autoFocus
-                textareaProps={{
-                  spellCheck: true,
-                  'aria-label': 'Markdown content',
-                  onPaste: onEditorPaste,
-                }}
-                commandsFilter={commandsFilter}
-                previewOptions={previewOptions}
-              />
+            <div className="flex w-full justify-center">
+              <div
+                ref={editorSurfaceRef}
+                data-color-mode={mdColorMode}
+                className="kb-md-editor min-h-0 w-fit max-w-full"
+                onDragOver={onEditorDragOver}
+                onDrop={onEditorDrop}
+              >
+                <MDEditor
+                  ref={mdEditorRef}
+                  value={draftBody}
+                  onChange={(v) =>
+                    setDraftBody(sanitizeTableCellsInMarkdown(v ?? ''))
+                  }
+                  preview="live"
+                  height={520}
+                  visibleDragbar
+                  autoFocus
+                  textareaProps={{
+                    spellCheck: true,
+                    'aria-label': 'Markdown content',
+                    onPaste: onEditorPaste,
+                  }}
+                  commandsFilter={commandsFilter}
+                  previewOptions={previewOptions}
+                />
+              </div>
             </div>
             <div className="flex flex-wrap gap-2">
               <button
@@ -691,10 +763,21 @@ export function KnowledgeBase() {
         ) : (
           <>
             <header className="flex flex-wrap items-start gap-3 border-b border-emerald-200/50 px-5 py-4 dark:border-emerald-900/40">
-              <div className="min-w-0 flex-1 pr-2">
-                <h2 className="truncate text-lg font-bold text-slate-900 dark:text-slate-100">
-                  {page.title}
-                </h2>
+              <div className="group/title min-w-0 flex-1 pr-2">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <h2 className="min-w-0 truncate text-lg font-bold text-slate-900 dark:text-slate-100">
+                    {page.title}
+                  </h2>
+                  <button
+                    type="button"
+                    onClick={startEditFromTitle}
+                    className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 opacity-0 shadow-sm transition-opacity hover:border-[#00B050]/50 hover:text-[#007a3d] group-hover/title:opacity-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-emerald-500/50 dark:hover:text-emerald-300"
+                    title="Edit title"
+                    aria-label="Edit title"
+                  >
+                    <i className="fa-solid fa-pen text-xs" aria-hidden />
+                  </button>
+                </div>
                 <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                   Updated {new Date(page.updatedAt).toLocaleString()} ·{' '}
                   {page.authorDisplayName}
