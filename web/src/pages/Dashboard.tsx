@@ -104,7 +104,7 @@ export function Dashboard() {
     (onStoreChange) =>
       useTrackerStore.persist.onFinishHydration(onStoreChange),
     () => useTrackerStore.persist.hasHydrated(),
-    () => true,
+    () => false,
   )
 
   const scopeSelectRef = useRef<HTMLSelectElement>(null)

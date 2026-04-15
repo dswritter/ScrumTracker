@@ -29,7 +29,7 @@ export function Login() {
     (onStoreChange) =>
       useTrackerStore.persist.onFinishHydration(onStoreChange),
     () => useTrackerStore.persist.hasHydrated(),
-    () => true,
+    () => false,
   )
 
   if (!authHydrated || !storeHydrated) {
