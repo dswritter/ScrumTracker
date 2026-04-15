@@ -74,6 +74,8 @@ export interface TeamKnowledgePage {
   createdAt: string
   updatedAt: string
   authorDisplayName: string
+  /** Display name of the user who last changed title/body (defaults to owner). */
+  lastEditedByDisplayName: string
   /** Page discussion; same shape as work-item comments. */
   comments: WorkComment[]
 }

@@ -258,6 +258,10 @@ function normalizeTeamKnowledgePages(
     const id =
       typeof o.id === 'string' && o.id.trim() ? o.id.trim() : newId('kb')
     const now = new Date().toISOString()
+    const authorDisplayName =
+      typeof o.authorDisplayName === 'string' && o.authorDisplayName.trim()
+        ? o.authorDisplayName.trim()
+        : 'Unknown'
     out.push({
       id,
       title: titleRaw || 'Untitled',
@@ -266,10 +270,12 @@ function normalizeTeamKnowledgePages(
         typeof o.createdAt === 'string' && o.createdAt ? o.createdAt : now,
       updatedAt:
         typeof o.updatedAt === 'string' && o.updatedAt ? o.updatedAt : now,
-      authorDisplayName:
-        typeof o.authorDisplayName === 'string' && o.authorDisplayName.trim()
-          ? o.authorDisplayName.trim()
-          : 'Unknown',
+      authorDisplayName,
+      lastEditedByDisplayName:
+        typeof o.lastEditedByDisplayName === 'string' &&
+        o.lastEditedByDisplayName.trim()
+          ? o.lastEditedByDisplayName.trim()
+          : authorDisplayName,
       comments: normalizeKnowledgePageComments(o.comments),
     })
   }
@@ -590,7 +596,9 @@ export interface TrackerState {
   updateKnowledgePage: (
     teamId: string,
     id: string,
-    patch: Partial<Pick<TeamKnowledgePage, 'title' | 'body'>>,
+    patch: Partial<
+      Pick<TeamKnowledgePage, 'title' | 'body' | 'lastEditedByDisplayName'>
+    >,
   ) => void
 
   deleteKnowledgePage: (teamId: string, id: string) => void
@@ -763,6 +771,7 @@ export const useTrackerStore = create<TrackerState>()(
           createdAt: now,
           updatedAt: now,
           authorDisplayName: author,
+          lastEditedByDisplayName: author,
           comments: [],
         }
         set((s) => {
@@ -783,14 +792,24 @@ export const useTrackerStore = create<TrackerState>()(
           const prev = d.teamKnowledgePages ?? []
           const next = prev.map((p) => {
             if (p.id !== id) return p
-            const title =
-              patch.title !== undefined ? patch.title.trim() : p.title
-            const nextBody = patch.body !== undefined ? patch.body : p.body
+            const titleIn = patch.title !== undefined
+            const bodyIn = patch.body !== undefined
+            if (!titleIn && !bodyIn) return p
+            const nextTitle = titleIn ? patch.title!.trim() : p.title
+            const nextBody = bodyIn ? patch.body! : p.body
+            const editor =
+              patch.lastEditedByDisplayName !== undefined
+                ? patch.lastEditedByDisplayName.trim()
+                : ''
+            const prevEditor =
+              p.lastEditedByDisplayName ?? p.authorDisplayName
             return {
               ...p,
-              title: title || 'Untitled',
-              body: nextBody,
+              title: (titleIn ? nextTitle : p.title) || 'Untitled',
+              body: bodyIn ? nextBody : p.body,
               updatedAt: new Date().toISOString(),
+              lastEditedByDisplayName:
+                editor || prevEditor || p.authorDisplayName,
             }
           })
           return {

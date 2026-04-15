@@ -19,6 +19,7 @@ import rehypeRaw from 'rehype-raw'
 import rehypeSanitize from 'rehype-sanitize'
 import { KnowledgeFindPanel } from '../components/KnowledgeFindPanel'
 import { KnowledgeMarkdown } from '../components/KnowledgeMarkdown'
+import { KnowledgePageAttribution } from '../components/KnowledgePageAttribution'
 import { KnowledgePageComments } from '../components/KnowledgePageComments'
 import {
   KB_PAGE_WIDTH_CLASS,
@@ -419,16 +420,17 @@ export function KnowledgeBase() {
   ])
 
   const saveEdit = useCallback(() => {
-    if (!teamId || !page) return
+    if (!teamId || !page || !user) return
     pendingNewPageIdRef.current = null
     setTableModalOpen(false)
     tableApiRef.current = null
     updateKnowledgePage(teamId, page.id, {
       title: draftTitle.trim() || DEFAULT_NEW_TITLE,
       body: draftBody,
+      lastEditedByDisplayName: user.displayName,
     })
     setEditing(false)
-  }, [teamId, page, draftTitle, draftBody, updateKnowledgePage])
+  }, [teamId, page, user, draftTitle, draftBody, updateKnowledgePage])
 
   const onAddPage = useCallback(() => {
     if (!teamId || !user) return
@@ -465,10 +467,13 @@ export function KnowledgeBase() {
 
   const onReadTaskChange = useCallback(
     (nextBody: string) => {
-      if (!teamId || !page) return
-      updateKnowledgePage(teamId, page.id, { body: nextBody })
+      if (!teamId || !page || !user) return
+      updateKnowledgePage(teamId, page.id, {
+        body: nextBody,
+        lastEditedByDisplayName: user.displayName,
+      })
     },
-    [teamId, page, updateKnowledgePage],
+    [teamId, page, user, updateKnowledgePage],
   )
 
   const previewOptions = useMemo(
@@ -665,7 +670,7 @@ export function KnowledgeBase() {
 
   return (
     <div
-      className={`${editing ? 'mx-auto w-full min-w-0 max-w-none' : KB_PAGE_WIDTH_CLASS} flex min-h-0 flex-col pb-24 ${editing ? 'items-stretch' : 'items-center'}`}
+      className={`${editing ? 'mx-auto w-full min-w-0 max-w-none' : KB_PAGE_WIDTH_CLASS} flex min-h-0 flex-col pb-24 items-stretch`}
     >
       {imageModalOpen ? (
         <div
@@ -750,7 +755,7 @@ export function KnowledgeBase() {
         className={
           editing
             ? 'w-full max-w-none flex-1 rounded-xl border border-emerald-200/70 bg-[#E8F5E9]/95 shadow-sm dark:border-emerald-900/55 dark:bg-emerald-950/40'
-            : 'w-max max-w-[min(100%,97.75vw)] rounded-xl border border-emerald-200/70 bg-[#E8F5E9]/95 shadow-sm dark:border-emerald-900/55 dark:bg-emerald-950/40'
+            : 'w-full min-w-0 rounded-xl border border-emerald-200/70 bg-[#E8F5E9]/95 shadow-sm dark:border-emerald-900/55 dark:bg-emerald-950/40'
         }
       >
         {editing ? (
@@ -866,11 +871,10 @@ export function KnowledgeBase() {
                 comments={page.comments ?? []}
                 currentDisplayName={user.displayName}
               />
-              <p className="mt-3 text-right text-[10px] leading-snug text-slate-500 dark:text-slate-500">
-                Owner {page.authorDisplayName} · Created{' '}
-                {new Date(page.createdAt).toLocaleString()} · Last edited{' '}
-                {new Date(page.updatedAt).toLocaleString()}
-              </p>
+              <KnowledgePageAttribution
+                page={page}
+                comments={page.comments ?? []}
+              />
             </footer>
           </div>
         )}
