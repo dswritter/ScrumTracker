@@ -24,14 +24,14 @@ export function TrackerRemoteSync() {
     let cancelled = false
     let applyingRemote = false
     let lastRev = readPersistedTrackerServerRev()
-    let pushTimer: ReturnType<typeof setTimeout> | null = null
+    let pushTimer: number | null = null
     let pulling = false
     let wsLive = false
-    let fallbackPollId: ReturnType<typeof setInterval> | null = null
+    let fallbackPollId: number | null = null
     let ws: WebSocket | null = null
-    let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+    let reconnectTimer: number | null = null
     let reconnectAttempt = 0
-    let wsPullDebounce: ReturnType<typeof setTimeout> | null = null
+    let wsPullDebounce: number | null = null
     /** After PUT/GET errors or WS drop, next pull flushes local state with an immediate PUT (no debounce). */
     let pendingReconnectFlush = false
 
@@ -77,7 +77,7 @@ export function TrackerRemoteSync() {
 
     const schedulePush = () => {
       if (pushTimer) clearTimeout(pushTimer)
-      pushTimer = setTimeout(async () => {
+      pushTimer = window.setTimeout(async () => {
         pushTimer = null
         if (cancelled || applyingRemote) return
         try {

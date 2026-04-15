@@ -1,6 +1,17 @@
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { Link } from 'react-router-dom'
 import { itemDetailPath } from '../lib/workItemRoutes'
+import {
+  downloadWeeklyProgressDocx,
+  downloadWeeklyProgressPdf,
+} from '../lib/weeklyReportExport'
 import {
   buildBulletTree,
   bundleWeeklyProgressByPerson,
@@ -161,18 +172,93 @@ function authorLineVisible(authorRaw: string, personName: string): boolean {
   return chunks[0] !== personName.trim()
 }
 
+function WeeklyReportExportMenu({
+  disabled,
+  onExportDocx,
+  onExportPdf,
+}: {
+  disabled: boolean
+  onExportDocx: () => Promise<void>
+  onExportPdf: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const wrapRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onDoc = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [open])
+
+  return (
+    <div className="relative shrink-0" ref={wrapRef}>
+      <button
+        type="button"
+        disabled={disabled}
+        className="inline-flex h-7 w-7 items-center justify-center rounded text-white hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-40"
+        aria-label="Export weekly report"
+        aria-expanded={open}
+        aria-haspopup="true"
+        onClick={() => setOpen((o) => !o)}
+      >
+        <i className="fa-solid fa-file-export text-xs" aria-hidden />
+      </button>
+      {open && !disabled ? (
+        <div
+          className="absolute right-0 top-[calc(100%+4px)] z-50 min-w-[11rem] rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-600 dark:bg-slate-900"
+          role="menu"
+        >
+          <button
+            type="button"
+            role="menuitem"
+            className="block w-full px-3 py-2 text-left text-xs font-medium text-slate-800 hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-slate-800"
+            onClick={() => {
+              setOpen(false)
+              void onExportDocx()
+            }}
+          >
+            Word (.docx)
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="block w-full px-3 py-2 text-left text-xs font-medium text-slate-800 hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-slate-800"
+            onClick={() => {
+              setOpen(false)
+              onExportPdf()
+            }}
+          >
+            PDF (.pdf)
+          </button>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 export function WeeklyProgressPanel({
   cards,
   peopleOptions,
   weekChoices,
   weekKey,
   onWeekKeyChange,
+  showReportHeader = false,
+  reportTeamName,
+  reportScopeLabel,
 }: {
   cards: WeeklyProgressCard[]
   peopleOptions: string[]
   weekChoices: { key: string; label: string }[]
   weekKey: string
   onWeekKeyChange: (key: string) => void
+  showReportHeader?: boolean
+  reportTeamName?: string
+  reportScopeLabel?: string
 }) {
   const [person, setPerson] = useState('')
   const [project, setProject] = useState('')
@@ -216,8 +302,52 @@ export function WeeklyProgressPanel({
     [bundles, columnCount],
   )
 
+  const weekLabel = useMemo(
+    () => weekChoices.find((w) => w.key === weekKey)?.label ?? weekKey,
+    [weekChoices, weekKey],
+  )
+
+  const handleExportDocx = useCallback(async () => {
+    await downloadWeeklyProgressDocx(
+      bundles,
+      {
+        weekLabel,
+        teamName: reportTeamName,
+        scopeLabel: reportScopeLabel,
+      },
+      window.location.origin,
+      weekKey,
+    )
+  }, [bundles, weekLabel, reportTeamName, reportScopeLabel, weekKey])
+
+  const handleExportPdf = useCallback(() => {
+    downloadWeeklyProgressPdf(
+      bundles,
+      {
+        weekLabel,
+        teamName: reportTeamName,
+        scopeLabel: reportScopeLabel,
+      },
+      window.location.origin,
+      weekKey,
+    )
+  }, [bundles, weekLabel, reportTeamName, reportScopeLabel, weekKey])
+
   return (
-    <div className="space-y-4">
+    <>
+      {showReportHeader ? (
+        <div className="flex items-center justify-between gap-2 border-b border-[#00B050]/30 bg-[#00B050] px-3 py-2 dark:bg-[#00B050]/90">
+          <h3 className="min-w-0 text-sm font-bold text-white">
+            Weekly progress
+          </h3>
+          <WeeklyReportExportMenu
+            disabled={bundles.length === 0}
+            onExportDocx={handleExportDocx}
+            onExportPdf={handleExportPdf}
+          />
+        </div>
+      ) : null}
+      <div className={`space-y-4 ${showReportHeader ? 'p-4' : ''}`}>
       <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-600 dark:bg-slate-900/50 sm:flex-row sm:flex-wrap sm:items-end">
         <label className="flex min-w-[10rem] flex-1 flex-col gap-1 text-[11px] font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
           Person
@@ -405,6 +535,7 @@ export function WeeklyProgressPanel({
           ))}
         </div>
       )}
-    </div>
+      </div>
+    </>
   )
 }

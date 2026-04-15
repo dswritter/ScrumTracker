@@ -627,18 +627,16 @@ export function Dashboard() {
 
       {weeklyOpen ? (
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
-          <div className="border-b border-[#00B050]/30 bg-[#00B050] px-3 py-2 dark:bg-[#00B050]/90">
-            <h3 className="text-sm font-bold text-white">Weekly progress</h3>
-          </div>
-          <div className="p-4">
-            <WeeklyProgressPanel
-              cards={weeklyCards}
-              peopleOptions={weeklyPersonRoster}
-              weekChoices={weekChoices}
-              weekKey={weeklyWeekKey}
-              onWeekKeyChange={setWeeklyWeekKey}
-            />
-          </div>
+          <WeeklyProgressPanel
+            cards={weeklyCards}
+            peopleOptions={weeklyPersonRoster}
+            weekChoices={weekChoices}
+            weekKey={weeklyWeekKey}
+            onWeekKeyChange={setWeeklyWeekKey}
+            showReportHeader
+            reportTeamName={ctx?.teamName}
+            reportScopeLabel={scopeShortLabel(scope, sortedSprints)}
+          />
         </div>
       ) : (
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
