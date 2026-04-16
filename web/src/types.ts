@@ -53,6 +53,8 @@ export interface WorkItem {
    * sprint window but is not on a Jira sprint that maps to the tracker’s active sprint.
    * Admins can add the sprint in Jira, then re-sync.
    */
+  /** Jira workflow status name from last sync (e.g. "In Progress"). */
+  jiraStatusName?: string
   jiraNeedsSprintLabel?: boolean
   /**
    * Personal item: only `privateOwnerUserId` sees it until they set `isPrivate: false`

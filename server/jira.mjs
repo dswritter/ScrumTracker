@@ -24,6 +24,42 @@ function daysBetween(a, b) {
   return Math.floor((b - a) / (24 * 60 * 60 * 1000))
 }
 
+function trackerReachedDone(prevStatus, nextStatus) {
+  return prevStatus !== 'done' && nextStatus === 'done'
+}
+
+function hasJiraResolvedStamp(comments, issueKey) {
+  const id = `jira-sys-resolved-${issueKey}`
+  return (comments || []).some((c) => c && c.id === id)
+}
+
+/** When Jira moves to done/resolved, add a dated line so weekly view shows it even with no comments. */
+function appendJiraResolvedStamp(comments, issueKey, statusName, resolutionOrUpdatedIso) {
+  const id = `jira-sys-resolved-${issueKey}`
+  if ((comments || []).some((c) => c && c.id === id)) return comments || []
+  const createdAt =
+    typeof resolutionOrUpdatedIso === 'string' && resolutionOrUpdatedIso
+      ? resolutionOrUpdatedIso
+      : new Date().toISOString()
+  const stamp = {
+    id,
+    authorName: 'Jira',
+    body: `Issue resolved in Jira — status: **${statusName || 'Done'}**. (Recorded automatically when the issue reached a resolved state; add comments in Jira anytime.)`,
+    createdAt,
+  }
+  return [...(comments || []), stamp].sort((a, b) =>
+    a.createdAt.localeCompare(b.createdAt),
+  )
+}
+
+function resolutionTimestampFromFields(fields) {
+  if (!fields || typeof fields !== 'object') return null
+  if (typeof fields.resolutiondate === 'string' && fields.resolutiondate)
+    return fields.resolutiondate
+  if (typeof fields.updated === 'string' && fields.updated) return fields.updated
+  return null
+}
+
 function mapJiraStatus(name) {
   if (!name || typeof name !== 'string') return 'todo'
   const n = name.trim().toLowerCase()
@@ -487,12 +523,25 @@ function upsertWorkItemFromIssue(
 
   if (idx >= 0) {
     const w = workItems[idx]
-    const comments = mergeJiraCommentsIntoWorkItem(w.comments, jiraComments)
+    let comments = mergeJiraCommentsIntoWorkItem(w.comments, jiraComments)
+    const resTs = resolutionTimestampFromFields(fields)
+    if (
+      trackerReachedDone(w.status, status) &&
+      !hasJiraResolvedStamp(comments, key)
+    ) {
+      comments = appendJiraResolvedStamp(
+        comments,
+        key,
+        statusName,
+        resTs,
+      )
+    }
     const sprintIds = mergeSprintIds(w.sprintIds, jiraSprintIds, syncSprintsFromJira)
     const next = {
       ...w,
       title: summary || w.title,
       status,
+      jiraStatusName: statusName || undefined,
       assignees: assignees.length > 0 ? assignees : w.assignees,
       comments,
       sprintIds,
@@ -502,6 +551,20 @@ function upsertWorkItemFromIssue(
   }
 
   const id = `wi-jira-${key.replace(/[^a-zA-Z0-9_-]/g, '')}`
+  let createdComments = mergeJiraCommentsIntoWorkItem([], jiraComments)
+  const resTsNew = resolutionTimestampFromFields(fields)
+  if (
+    status === 'done' &&
+    !hasJiraResolvedStamp(createdComments, key) &&
+    jiraComments.length === 0
+  ) {
+    createdComments = appendJiraResolvedStamp(
+      createdComments,
+      key,
+      statusName,
+      resTsNew,
+    )
+  }
   const created = {
     id,
     section: 'JIRA',
@@ -510,9 +573,10 @@ function upsertWorkItemFromIssue(
     eta: '',
     assignees,
     status,
+    jiraStatusName: statusName || undefined,
     sprintIds: syncSprintsFromJira ? [...jiraSprintIds] : [],
     jiraKeys: [key],
-    comments: mergeJiraCommentsIntoWorkItem([], jiraComments),
+    comments: createdComments,
     jiraNeedsSprintLabel,
   }
   return [created, ...workItems]
@@ -1010,7 +1074,16 @@ export function registerJiraRoutes(app, opts) {
         : defaultJiraBase
 
     try {
-      const searchFields = ['key', 'summary', 'assignee', 'status', 'reporter', 'created']
+      const searchFields = [
+        'key',
+        'summary',
+        'assignee',
+        'status',
+        'reporter',
+        'created',
+        'resolutiondate',
+        'updated',
+      ]
       if (sprintFieldRaw) searchFields.push(sprintFieldRaw)
 
       const todayYmd = new Date().toISOString().slice(0, 10)

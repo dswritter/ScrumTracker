@@ -696,7 +696,7 @@ export function Dashboard() {
       <div className="space-y-3 xl:sticky xl:top-24 xl:z-0 xl:max-h-[calc(100vh-6rem)] xl:min-h-0 xl:overflow-y-auto xl:overscroll-contain">
         <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
           <h3 className="mb-0.5 text-center text-[10px] font-bold uppercase tracking-wide text-[#007a3d] dark:text-emerald-300">
-            Team progress
+            {isAdmin(user) ? 'Team progress' : 'My progress'}
           </h3>
           <MetabuildStatusPie
             data={teamPieSlices}

@@ -17,6 +17,7 @@ import {
   buildBulletTree,
   bundleWeeklyProgressByPerson,
   isCommentSeparator,
+  workStatusLabel,
   type WeeklyProgressCard,
   type WeeklyProgressPersonBundle,
   type BulletTreeNode,
@@ -260,6 +261,8 @@ function filterWeeklyCards(
       c.personName,
       c.authorRaw,
       c.itemTitle,
+      workStatusLabel(c.itemStatus),
+      c.jiraStatusName ?? '',
       ...c.bulletLines.map((bl) =>
         isCommentSeparator(bl) ? '' : bl.text,
       ),
@@ -567,6 +570,24 @@ export function WeeklyProgressPanel({
                             </span>
                           )}
                         </div>
+                        <p className="mt-1.5 text-[10px] text-slate-600 dark:text-slate-400">
+                          <span className="font-semibold text-slate-700 dark:text-slate-300">
+                            Status:
+                          </span>{' '}
+                          Tracker{' '}
+                          <span className="font-medium text-slate-800 dark:text-slate-200">
+                            {workStatusLabel(c.itemStatus)}
+                          </span>
+                          {c.jiraStatusName ? (
+                            <>
+                              {' '}
+                              · Jira{' '}
+                              <span className="font-medium text-slate-800 dark:text-slate-200">
+                                {c.jiraStatusName}
+                              </span>
+                            </>
+                          ) : null}
+                        </p>
                         <p className="mt-2 text-[11px] text-slate-600 dark:text-slate-300">
                           Task:{' '}
                           <Link

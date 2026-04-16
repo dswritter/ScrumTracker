@@ -82,6 +82,8 @@ function normalizeWorkItem(raw: unknown): WorkItem {
       ? (o.jiraKeys as string[]).map(String)
       : [],
     jiraNeedsSprintLabel: o.jiraNeedsSprintLabel === true,
+    jiraStatusName:
+      typeof o.jiraStatusName === 'string' ? o.jiraStatusName : undefined,
     isPrivate: o.isPrivate === true,
     privateOwnerUserId:
       typeof o.privateOwnerUserId === 'string'

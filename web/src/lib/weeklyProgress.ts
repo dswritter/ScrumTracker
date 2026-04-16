@@ -1,4 +1,16 @@
-import type { TrackerUserAccount, WorkItem } from '../types'
+import type { TrackerUserAccount, WorkItem, WorkStatus } from '../types'
+
+export function workStatusLabel(s: WorkStatus): string {
+  const m: Record<WorkStatus, string> = {
+    done: 'Done',
+    in_progress: 'In progress',
+    to_test: 'To test',
+    to_track: 'To track',
+    blocked: 'Blocked',
+    todo: 'Todo',
+  }
+  return m[s] ?? s
+}
 
 /** One line in a comment body (nested bullets use `depth` > 0). */
 export type CommentBulletLine =
@@ -23,6 +35,10 @@ export type WeeklyProgressCard = {
   section: string
   itemTitle: string
   itemId: string
+  /** Tracker status on the work item (synced from Jira when linked). */
+  itemStatus: WorkStatus
+  /** Jira workflow name from last sync, when available. */
+  jiraStatusName?: string
   jiraLinks: { key: string; href: string }[]
   source: 'jira' | 'tracker' | 'mixed'
 }
@@ -291,6 +307,8 @@ function mergeWeeklyCardsForItemAndPerson(
     let source: WeeklyProgressCard['source'] = ex.source
     if (ex.source !== c.source) source = 'mixed'
     const latest = ex.createdAt >= c.createdAt ? ex : c
+    const jiraStatusName =
+      latest.jiraStatusName || ex.jiraStatusName || c.jiraStatusName
     map.set(key, {
       ...ex,
       id: `${c.itemId}:${c.personName}:week`,
@@ -299,6 +317,8 @@ function mergeWeeklyCardsForItemAndPerson(
       createdAt: latest.createdAt,
       dateKey: latest.dateKey,
       dateLabel: latest.dateLabel,
+      itemStatus: latest.itemStatus,
+      jiraStatusName,
       jiraLinks: mergedLinks,
       source,
     })
@@ -363,8 +383,13 @@ export function buildWeeklyProgressCards(
         section: item.section.trim() || 'General',
         itemTitle: item.title.trim() || '(untitled)',
         itemId: item.id,
+        itemStatus: item.status,
+        jiraStatusName: item.jiraStatusName,
         jiraLinks,
-        source: c.id.startsWith('jira-cmt-') ? 'jira' : 'tracker',
+        source:
+          c.id.startsWith('jira-cmt-') || c.id.startsWith('jira-sys-resolved-')
+            ? 'jira'
+            : 'tracker',
       })
     }
   }

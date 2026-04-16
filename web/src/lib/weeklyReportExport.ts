@@ -11,6 +11,7 @@ import { itemDetailPath } from './workItemRoutes'
 import {
   buildBulletTree,
   isCommentSeparator,
+  workStatusLabel,
   type BulletTreeNode,
   type WeeklyProgressCard,
   type WeeklyProgressPersonBundle,
@@ -175,6 +176,16 @@ export async function downloadWeeklyProgressDocx(
         }),
       )
 
+      const statusBits = [
+        `Tracker: ${workStatusLabel(c.itemStatus)}`,
+        c.jiraStatusName ? `Jira: ${c.jiraStatusName}` : '',
+      ].filter(Boolean)
+      children.push(
+        new Paragraph({
+          children: [new TextRun({ text: `Status: ${statusBits.join(' · ')}` })],
+        }),
+      )
+
       const taskUrl = workItemUrl(origin, c.itemId)
       children.push(
         new Paragraph({
@@ -301,6 +312,11 @@ export function downloadWeeklyProgressPdf(
         `Section: ${c.section || '—'} · ${sourceLabel(c)}`,
         { size: 10 },
       )
+      const statusBits = [
+        `Tracker: ${workStatusLabel(c.itemStatus)}`,
+        c.jiraStatusName ? `Jira: ${c.jiraStatusName}` : '',
+      ].filter(Boolean)
+      addParagraph(`Status: ${statusBits.join(' · ')}`, { size: 9 })
       const taskUrl = workItemUrl(origin, c.itemId)
       addParagraph(`Task: ${c.itemTitle.trim() || '(untitled)'}`, {
         bold: true,
