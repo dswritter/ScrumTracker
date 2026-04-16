@@ -6,21 +6,17 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import { WebSocketServer, WebSocket as WsWebSocket } from 'ws'
 import { registerJiraRoutes } from './jira.mjs'
+import { readTrackerStore, writeTrackerStore } from './splitJsonStore.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const DATA_DIR = path.join(__dirname, 'data')
-const DATA_FILE = path.join(DATA_DIR, 'tracker-state.json')
 
 const PORT = Number(process.env.PORT || 3847)
 const HOST = process.env.HOST || '0.0.0.0'
 
 function readStore() {
   try {
-    const raw = fs.readFileSync(DATA_FILE, 'utf8')
-    const o = JSON.parse(raw)
-    const rev = typeof o.rev === 'number' ? o.rev : 0
-    const snapshot = typeof o.snapshot === 'string' ? o.snapshot : null
-    return { rev, snapshot }
+    return readTrackerStore(DATA_DIR)
   } catch {
     return { rev: 0, snapshot: null }
   }
@@ -28,11 +24,7 @@ function readStore() {
 
 function writeStore(rev, snapshot) {
   fs.mkdirSync(DATA_DIR, { recursive: true })
-  fs.writeFileSync(
-    DATA_FILE,
-    JSON.stringify({ rev, snapshot }, null, 0),
-    'utf8',
-  )
+  writeTrackerStore(DATA_DIR, rev, snapshot)
 }
 
 /** @type {import('ws').WebSocketServer | null} */
@@ -85,7 +77,13 @@ app.put('/api/tracker', (req, res) => {
     return
   }
   const rev = Date.now()
-  writeStore(rev, snapshot)
+  try {
+    writeStore(rev, snapshot)
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Failed to persist snapshot'
+    res.status(400).json({ error: msg })
+    return
+  }
   broadcastTrackerRev(rev)
   res.json({ ok: true, rev })
 })
@@ -134,7 +132,9 @@ server.listen(PORT, HOST, () => {
   )
   console.log(`  Static (if built): web/dist — open this port in the browser (or tunnel it with ngrok)`)
   console.log(`  GET  /api/tracker  — fetch shared snapshot + revision (ETag / If-None-Match)`)
-  console.log(`  PUT  /api/tracker  — push full snapshot (JSON string body.snapshot)`)
+  console.log(
+    `  PUT  /api/tracker  — push full snapshot (JSON string); stored split under data/teams/<id>/`,
+  )
   console.log(`  WS   /ws/tracker — push { type: 'tracker_rev', rev } when snapshot changes`)
   console.log(
     `  JIRA: …/sync, …/create-issue, GET …/meta/*, …/lookup-issue, …/issue-suggest`,
