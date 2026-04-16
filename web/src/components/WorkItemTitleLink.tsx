@@ -150,7 +150,7 @@ export function WorkItemTitleLink({
   return (
     <span
       ref={anchorRef}
-      className="inline-flex min-w-0 max-w-full"
+      className="inline-flex w-full min-w-0 max-w-full"
       onMouseEnter={onEnterAnchor}
       onMouseLeave={scheduleHide}
     >

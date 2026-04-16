@@ -77,30 +77,32 @@ export function Matrix() {
                     return (
                       <td
                         key={sp.id}
-                        className="align-top px-2 py-2 text-slate-700 dark:text-slate-200"
+                        className="min-w-0 max-w-[14rem] align-top px-2 py-2 text-slate-700 dark:text-slate-200"
                       >
                         {cellItems.length === 0 ? (
                           <span className="text-slate-400 dark:text-slate-500">
                             —
                           </span>
                         ) : (
-                          <ul className="list-inside list-disc space-y-1 marker:text-[#00B050] dark:marker:text-emerald-400">
+                          <ul className="list-outside list-disc space-y-1 pl-4 marker:text-[#00B050] dark:marker:text-emerald-400">
                             {cellItems.map((w) => (
                               <li
                                 key={w.id}
-                                className="max-w-[200px] truncate text-sm font-semibold text-slate-900 dark:text-slate-100"
+                                className="min-w-0 py-0.5 text-sm text-slate-900 dark:text-slate-100"
                               >
-                                <WorkItemTitleLink
-                                  item={w}
-                                  jiraBaseUrl={ctx.jiraBaseUrl}
-                                  showCommentHover
-                                  maxPreviewComments={3}
-                                  sprintCommentWindow={{
-                                    start: sp.start,
-                                    end: sp.end,
-                                  }}
-                                  className="font-semibold text-indigo-800 hover:text-indigo-950 hover:underline dark:text-sky-100 dark:hover:text-white"
-                                />
+                                <div className="min-w-0 truncate">
+                                  <WorkItemTitleLink
+                                    item={w}
+                                    jiraBaseUrl={ctx.jiraBaseUrl}
+                                    showCommentHover
+                                    maxPreviewComments={3}
+                                    sprintCommentWindow={{
+                                      start: sp.start,
+                                      end: sp.end,
+                                    }}
+                                    className="block min-w-0 truncate font-semibold text-indigo-800 hover:text-indigo-950 hover:underline dark:text-sky-100 dark:hover:text-white"
+                                  />
+                                </div>
                               </li>
                             ))}
                           </ul>
