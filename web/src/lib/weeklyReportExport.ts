@@ -204,6 +204,34 @@ export async function downloadWeeklyProgressDocx(
         }),
       )
 
+      if (c.jiraResolvedStampKey) {
+        const j = c.jiraLinks.find((x) => x.key === c.jiraResolvedStampKey)
+        if (j?.href && j.href !== '#') {
+          children.push(
+            new Paragraph({
+              children: [
+                new TextRun({ text: 'Jira closed · ' }),
+                new ExternalHyperlink({
+                  link: j.href,
+                  children: [
+                    new TextRun({ text: j.key, style: 'Hyperlink' }),
+                  ],
+                }),
+              ],
+            }),
+          )
+        } else {
+          children.push(
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: `Jira closed · ${c.jiraResolvedStampKey}`,
+                }),
+              ],
+            }),
+          )
+        }
+      }
       const segments = segmentsFromBulletLines(c.bulletLines)
       for (let si = 0; si < segments.length; si++) {
         if (si > 0) {
@@ -323,6 +351,14 @@ export function downloadWeeklyProgressPdf(
       })
       addParagraph(taskUrl, { size: 9 })
 
+      if (c.jiraResolvedStampKey) {
+        const j = c.jiraLinks.find((x) => x.key === c.jiraResolvedStampKey)
+        const line =
+          j?.href && j.href !== '#'
+            ? `Jira closed · ${j.key} — ${j.href}`
+            : `Jira closed · ${c.jiraResolvedStampKey}`
+        addParagraph(line, { size: 10 })
+      }
       const segments = segmentsFromBulletLines(c.bulletLines)
       for (let si = 0; si < segments.length; si++) {
         if (si > 0) {

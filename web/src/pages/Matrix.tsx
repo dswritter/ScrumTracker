@@ -92,6 +92,7 @@ export function Matrix() {
                               >
                                 <WorkItemTitleLink
                                   item={w}
+                                  jiraBaseUrl={ctx.jiraBaseUrl}
                                   showCommentHover
                                   maxPreviewComments={3}
                                   sprintCommentWindow={{

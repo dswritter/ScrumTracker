@@ -346,6 +346,7 @@ function Row({
       <td className="px-2 py-2">
         <CommentsCell
           item={item}
+          jiraBaseUrl={jiraBaseUrl}
           canAdd={canComment}
           currentName={commentAuthorLabel(user)}
           onAdd={(body) =>

@@ -172,6 +172,7 @@ export function PersonDetail() {
             >
               <WorkItemTitleLink
                 item={w}
+                jiraBaseUrl={ctx.jiraBaseUrl}
                 showCommentHover={viewingSelf && isAdmin(viewer)}
                 className="min-w-0 flex-1 font-medium text-indigo-700 hover:text-indigo-900 dark:text-slate-100 dark:hover:text-white"
               />

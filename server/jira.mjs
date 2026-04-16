@@ -34,7 +34,7 @@ function hasJiraResolvedStamp(comments, issueKey) {
 }
 
 /** When Jira moves to done/resolved, add a dated line so weekly view shows it even with no comments. */
-function appendJiraResolvedStamp(comments, issueKey, statusName, resolutionOrUpdatedIso) {
+function appendJiraResolvedStamp(comments, issueKey, _statusName, resolutionOrUpdatedIso) {
   const id = `jira-sys-resolved-${issueKey}`
   if ((comments || []).some((c) => c && c.id === id)) return comments || []
   const createdAt =
@@ -44,7 +44,8 @@ function appendJiraResolvedStamp(comments, issueKey, statusName, resolutionOrUpd
   const stamp = {
     id,
     authorName: 'Jira',
-    body: `Issue resolved in Jira — status: **${statusName || 'Done'}**. (Recorded automatically when the issue reached a resolved state; add comments in Jira anytime.)`,
+    /** Short plain text; UI uses `id` for compact “Jira closed” + clickable key. */
+    body: 'Jira closed',
     createdAt,
   }
   return [...(comments || []), stamp].sort((a, b) =>

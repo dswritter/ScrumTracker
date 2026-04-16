@@ -41,6 +41,8 @@ export type WeeklyProgressCard = {
   jiraStatusName?: string
   jiraLinks: { key: string; href: string }[]
   source: 'jira' | 'tracker' | 'mixed'
+  /** Synthetic `jira-sys-resolved-*` row — compact line + link in weekly UI / exports */
+  jiraResolvedStampKey?: string
 }
 
 /** One UI card per teammate: nested tasks are merged item+person rows from the week. */
@@ -321,6 +323,7 @@ function mergeWeeklyCardsForItemAndPerson(
       jiraStatusName,
       jiraLinks: mergedLinks,
       source,
+      jiraResolvedStampKey: ex.jiraResolvedStampKey || c.jiraResolvedStampKey,
     })
   }
   return [...map.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
@@ -372,6 +375,11 @@ export function buildWeeklyProgressCards(
         ? keys.map((key) => ({ key, href: jiraHref(base, key) }))
         : keys.map((key) => ({ key, href: '#' }))
 
+      const isResolvedStamp = c.id.startsWith('jira-sys-resolved-')
+      const jiraResolvedStampKey = isResolvedStamp
+        ? c.id.slice('jira-sys-resolved-'.length) || undefined
+        : undefined
+
       out.push({
         id: `${item.id}:${c.id}`,
         personName: person,
@@ -379,7 +387,7 @@ export function buildWeeklyProgressCards(
         dateKey,
         dateLabel,
         createdAt: c.createdAt,
-        bulletLines: bulletLinesFromBody(c.body),
+        bulletLines: isResolvedStamp ? [] : bulletLinesFromBody(c.body),
         section: item.section.trim() || 'General',
         itemTitle: item.title.trim() || '(untitled)',
         itemId: item.id,
@@ -390,6 +398,7 @@ export function buildWeeklyProgressCards(
           c.id.startsWith('jira-cmt-') || c.id.startsWith('jira-sys-resolved-')
             ? 'jira'
             : 'tracker',
+        jiraResolvedStampKey,
       })
     }
   }

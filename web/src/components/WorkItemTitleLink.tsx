@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { formatIsoDateTime } from '../lib/formatIso'
 import { itemDetailPath } from '../lib/workItemRoutes'
 import type { WorkItem } from '../types'
+import { WorkCommentBody } from './WorkCommentBody'
 
 const HOVER_HIDE_MS = 120
 
@@ -16,6 +17,7 @@ export type SprintCommentWindow = { start: string; end: string }
  */
 export function WorkItemTitleLink({
   item,
+  jiraBaseUrl = '',
   className = '',
   showCommentHover = false,
   disableLink = false,
@@ -23,6 +25,8 @@ export function WorkItemTitleLink({
   sprintCommentWindow = null,
 }: {
   item: WorkItem
+  /** For Jira “resolved” system comment stamps in the hover panel */
+  jiraBaseUrl?: string
   className?: string
   showCommentHover?: boolean
   /** When true, title is plain text (e.g. read-only teammate profile). */
@@ -129,7 +133,9 @@ export function WorkItemTitleLink({
                   key={c.id}
                   className="border-b border-slate-100 pb-2 last:border-b-0 last:pb-0 dark:border-slate-700"
                 >
-                  <span className="block font-medium leading-snug">{c.body}</span>
+                  <span className="block font-medium leading-snug">
+                    <WorkCommentBody comment={c} jiraBaseUrl={jiraBaseUrl} />
+                  </span>
                   <span className="mt-0.5 block text-[10px] text-slate-500 dark:text-slate-400">
                     {c.authorName} · {formatIsoDateTime(c.createdAt)}
                   </span>

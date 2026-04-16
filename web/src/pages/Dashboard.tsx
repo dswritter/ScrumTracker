@@ -839,6 +839,7 @@ export function Dashboard() {
             showReportHeader
             reportTeamName={ctx.teamName}
             reportScopeLabel={scopeShortLabel(scope, sortedSprints)}
+            jiraBaseUrl={ctx.jiraBaseUrl}
           />
         </div>
       ) : null}
@@ -931,6 +932,7 @@ export function Dashboard() {
                         <td className="max-w-[14rem] px-3 py-2 align-top">
                           <WorkItemTitleLink
                             item={w}
+                            jiraBaseUrl={ctx.jiraBaseUrl}
                             showCommentHover
                             maxPreviewComments={3}
                             sprintCommentWindow={sprintCommentWindow}

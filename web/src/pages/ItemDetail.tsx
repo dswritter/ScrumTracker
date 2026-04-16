@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { JiraPerItemIssueActions } from '../components/JiraPerItemIssueActions'
 import { StatusBadge } from '../components/StatusBadge'
+import { WorkCommentBody } from '../components/WorkCommentBody'
 import { WorkItemTitleLink } from '../components/WorkItemTitleLink'
 import { useCurrentUser } from '../hooks/useCurrentUser'
 import { useTeamContextNullable } from '../hooks/useTeamContext'
@@ -274,7 +275,7 @@ export function ItemDetail() {
                 className="group relative text-sm pr-8"
               >
                 <p className="font-medium text-slate-900 dark:text-slate-100">
-                  {c.body}
+                  <WorkCommentBody comment={c} jiraBaseUrl={jiraBaseUrl} />
                 </p>
                 <p className="mt-1 text-xs text-slate-500">
                   {c.authorName} · {formatIsoDateTime(c.createdAt)}
@@ -350,6 +351,7 @@ export function ItemDetail() {
               >
                 <WorkItemTitleLink
                   item={w}
+                  jiraBaseUrl={jiraBaseUrl}
                   showCommentHover={isAdmin(user)}
                   className="min-w-0 flex-1 font-medium text-indigo-700 hover:text-indigo-900 dark:text-slate-100 dark:hover:text-white"
                 />

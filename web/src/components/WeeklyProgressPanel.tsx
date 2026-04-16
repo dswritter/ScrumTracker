@@ -263,6 +263,7 @@ function filterWeeklyCards(
       c.itemTitle,
       workStatusLabel(c.itemStatus),
       c.jiraStatusName ?? '',
+      c.jiraResolvedStampKey ?? '',
       ...c.bulletLines.map((bl) =>
         isCommentSeparator(bl) ? '' : bl.text,
       ),
@@ -290,6 +291,7 @@ export function WeeklyProgressPanel({
   showReportHeader = false,
   reportTeamName,
   reportScopeLabel,
+  jiraBaseUrl = '',
 }: {
   cards: WeeklyProgressCard[]
   peopleOptions: string[]
@@ -306,6 +308,8 @@ export function WeeklyProgressPanel({
   showReportHeader?: boolean
   reportTeamName?: string
   reportScopeLabel?: string
+  /** For compact Jira resolved-stamp links in cards */
+  jiraBaseUrl?: string
 }) {
   const [personExpand, setPersonExpand] = useState<Record<string, boolean>>({})
 
@@ -597,7 +601,26 @@ export function WeeklyProgressPanel({
                             {c.itemTitle}
                           </Link>
                         </p>
-                        <div className="mt-2">
+                        <div className="mt-2 space-y-2">
+                          {c.jiraResolvedStampKey ? (
+                            <p className="text-sm leading-relaxed text-slate-800 dark:text-slate-100">
+                              Jira closed ·{' '}
+                              {jiraBaseUrl.trim() ? (
+                                <a
+                                  href={`${jiraBaseUrl.trim().replace(/\/$/, '')}/${c.jiraResolvedStampKey}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="font-mono font-semibold text-indigo-800 hover:underline dark:text-sky-300"
+                                >
+                                  {c.jiraResolvedStampKey}
+                                </a>
+                              ) : (
+                                <span className="font-mono font-semibold">
+                                  {c.jiraResolvedStampKey}
+                                </span>
+                              )}
+                            </p>
+                          ) : null}
                           <WeeklyCommentBody lines={c.bulletLines} />
                         </div>
                         {c.jiraLinks.length > 0 ? (

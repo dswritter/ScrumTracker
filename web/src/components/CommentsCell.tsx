@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react'
 import { useDismissOnEscape } from '../hooks/useDismissOnEscape'
 import type { WorkItem } from '../types'
+import { WorkCommentBody } from './WorkCommentBody'
 
 function formatDate(iso: string): string {
   try {
@@ -16,6 +17,7 @@ function formatDate(iso: string): string {
 
 export function CommentsCell({
   item,
+  jiraBaseUrl,
   canAdd,
   currentName,
   onAdd,
@@ -23,6 +25,7 @@ export function CommentsCell({
   onDeleteComment,
 }: {
   item: WorkItem
+  jiraBaseUrl: string
   canAdd: boolean
   currentName: string
   onAdd: (body: string) => void
@@ -52,7 +55,7 @@ export function CommentsCell({
           <ul className="mt-1 line-clamp-2 list-disc pl-3 text-[10px] text-slate-500">
             {preview.map((c) => (
               <li key={c.id} className="truncate">
-                {c.body}
+                <WorkCommentBody comment={c} jiraBaseUrl={jiraBaseUrl} />
               </li>
             ))}
           </ul>
@@ -74,7 +77,7 @@ export function CommentsCell({
                 className="list-inside list-disc marker:text-indigo-500 dark:marker:text-sky-300"
               >
                 <span className="font-medium text-slate-900 dark:text-slate-100">
-                  {c.body}
+                  <WorkCommentBody comment={c} jiraBaseUrl={jiraBaseUrl} />
                 </span>
                 <span className="mt-0.5 block pl-3 text-slate-500">
                   {c.authorName} · {formatDate(c.createdAt)}
@@ -116,7 +119,7 @@ export function CommentsCell({
                   className="group relative list-inside list-disc pr-7 text-slate-800 marker:text-indigo-500 dark:text-slate-100 dark:marker:text-sky-300"
                 >
                   <span className="font-medium text-slate-900 dark:text-slate-100">
-                    {c.body}
+                    <WorkCommentBody comment={c} jiraBaseUrl={jiraBaseUrl} />
                   </span>
                   <span className="mt-0.5 block text-xs text-slate-500">
                     {c.authorName} · {formatDate(c.createdAt)}
