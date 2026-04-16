@@ -52,6 +52,7 @@ export function AddWorkItemModal({
         : [],
   )
   const [jiraDraft, setJiraDraft] = useState('')
+  const [privateOnly, setPrivateOnly] = useState(false)
 
   const isAdmin = user.role === 'admin'
 
@@ -71,6 +72,12 @@ export function AddWorkItemModal({
     const t = title.trim()
     if (!t) return
     const jiraKeys = parseJiraKeys(jiraDraft)
+    const selfName = user.displayName.trim()
+    const assigneeList = privateOnly
+      ? [selfName].filter(Boolean)
+      : isAdmin
+        ? [...assignees]
+        : [selfName].filter(Boolean)
     onCreate({
       section: section.trim(),
       component: component.trim(),
@@ -78,8 +85,11 @@ export function AddWorkItemModal({
       eta: eta.trim(),
       status,
       sprintIds: [...sprintIds],
-      assignees: isAdmin ? [...assignees] : [user.displayName.trim()].filter(Boolean),
+      assignees: assigneeList,
       jiraKeys,
+      ...(privateOnly && selfName
+        ? { isPrivate: true, privateOwnerUserId: user.id }
+        : {}),
     })
     onClose()
   }
@@ -174,6 +184,22 @@ export function AddWorkItemModal({
             </select>
           </div>
 
+          <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 dark:border-slate-600 dark:bg-slate-800/50">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={privateOnly}
+              onChange={(e) => setPrivateOnly(e.target.checked)}
+            />
+            <span className="text-xs text-slate-700 dark:text-slate-200">
+              <span className="font-semibold text-slate-900 dark:text-slate-50">
+                Private (self)
+              </span>{' '}
+              — visible only to you until you choose &quot;Make visible to team&quot; on
+              the item. Admins and teammates cannot see it while private.
+            </span>
+          </label>
+
           <div>
             <span className="text-xs font-semibold text-slate-600">Sprints</span>
             <div className="mt-1 max-h-36 space-y-1 overflow-y-auto rounded-lg border border-slate-200 p-2">
@@ -203,21 +229,27 @@ export function AddWorkItemModal({
           {isAdmin ? (
             <div>
               <span className="text-xs font-semibold text-slate-600">Assignees</span>
-              <div className="mt-1 flex flex-wrap gap-1">
-                {teamMembers.map((m) => (
-                  <label
-                    key={m}
-                    className="flex cursor-pointer items-center gap-1 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] text-slate-700"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={assignees.includes(m)}
-                      onChange={() => toggleAssignee(m)}
-                    />
-                    {m}
-                  </label>
-                ))}
-              </div>
+              {privateOnly ? (
+                <p className="mt-1 text-xs text-slate-600">
+                  You only — private items stay assigned to the creator.
+                </p>
+              ) : (
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {teamMembers.map((m) => (
+                    <label
+                      key={m}
+                      className="flex cursor-pointer items-center gap-1 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] text-slate-700"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={assignees.includes(m)}
+                        onChange={() => toggleAssignee(m)}
+                      />
+                      {m}
+                    </label>
+                  ))}
+                </div>
+              )}
             </div>
           ) : (
             <p className="text-xs text-slate-600">

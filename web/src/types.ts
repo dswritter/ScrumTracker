@@ -54,6 +54,13 @@ export interface WorkItem {
    * Admins can add the sprint in Jira, then re-sync.
    */
   jiraNeedsSprintLabel?: boolean
+  /**
+   * Personal item: only `privateOwnerUserId` sees it until they set `isPrivate: false`
+   * (cannot return to private).
+   */
+  isPrivate?: boolean
+  /** Login user id of the creator / owner while `isPrivate` is true. */
+  privateOwnerUserId?: string
   comments: WorkComment[]
   /** Legacy field; migrated into `comments` on load. */
   notes?: string

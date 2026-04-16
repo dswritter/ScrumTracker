@@ -14,6 +14,7 @@ import {
   canViewWorkItemDetail,
   isAdmin,
 } from '../lib/permissions'
+import { isPrivateWorkItem } from '../lib/workItemPrivacy'
 import { otherItemsSharingAssignees } from '../lib/stats'
 import { useTrackerStore } from '../store/useTrackerStore'
 import type { Sprint } from '../types'
@@ -90,7 +91,12 @@ export function ItemDetail() {
 
   const readOnly = !canEditWorkItem(user, item)
   const canComment = !readOnly && canAddComment(user, item)
-  const canRemoveComment = !readOnly && canDeleteComment(user)
+  const canRemoveComment = !readOnly && canDeleteComment(user, item)
+  const canPromotePrivate =
+    isPrivateWorkItem(item) && user.id === item.privateOwnerUserId
+  const canStripJiraKey =
+    isAdmin(user) ||
+    (isPrivateWorkItem(item) && user.id === item.privateOwnerUserId)
   const teamId = ctx.teamId
   const { sprints, jiraBaseUrl } = ctx
 
@@ -103,10 +109,46 @@ export function ItemDetail() {
         </p>
       ) : null}
 
+      {isPrivateWorkItem(item) ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+          <span className="font-semibold">Private</span> — only you can see this
+          work item. It is not visible to admins or teammates until you publish it.
+          {canPromotePrivate ? (
+            <span className="mt-2 block">
+              <button
+                type="button"
+                className="font-semibold text-indigo-800 underline hover:text-indigo-950 dark:text-indigo-300 dark:hover:text-indigo-200"
+                onClick={() => {
+                  if (
+                    confirm(
+                      'Make this visible to everyone on the team? You cannot make it private again.',
+                    )
+                  ) {
+                    updateWorkItem(teamId, item.id, {
+                      isPrivate: false,
+                      privateOwnerUserId: undefined,
+                    })
+                  }
+                }}
+              >
+                Make visible to team
+              </button>
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
-          {item.title || '(untitled)'}
-        </h1>
+        <div className="flex flex-wrap items-center gap-2">
+          {isPrivateWorkItem(item) ? (
+            <span className="rounded-md bg-amber-100 px-2 py-0.5 text-xs font-bold uppercase text-amber-950 dark:bg-amber-950/60 dark:text-amber-100">
+              Private
+            </span>
+          ) : null}
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
+            {item.title || '(untitled)'}
+          </h1>
+        </div>
         <div className="mt-3 flex flex-wrap items-center gap-2 gap-y-2">
           <StatusBadge status={item.status} />
           {item.section ? (
@@ -187,10 +229,10 @@ export function ItemDetail() {
                     ) : (
                       k
                     )}
-                    {isAdmin(user) ? (
+                    {canStripJiraKey ? (
                       <button
                         type="button"
-                        title="Remove Jira link (admin)"
+                        title="Remove Jira link"
                         className="absolute -right-1 -top-1 z-20 flex h-4 w-4 items-center justify-center rounded-full bg-slate-800 text-[10px] font-bold text-white opacity-0 shadow-sm transition-opacity group-hover:opacity-100 hover:bg-rose-600"
                         onClick={() =>
                           updateWorkItem(teamId, item.id, {

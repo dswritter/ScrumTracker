@@ -31,6 +31,7 @@ import {
 } from '../lib/passwords'
 import { generateId } from '../lib/ids'
 import { mergeRemoteSnapshotTeamsAndData } from '../lib/mergeRemoteTrackerSnapshot'
+import { sanitizeWorkItemUpdate } from '../lib/workItemPrivacy'
 import { normalizeLoginUsername } from '../lib/username'
 import { mergeBundledSlackDefaults } from '../data/defaultSlackDmUrls'
 import { DEFAULT_NEW_TEAM_JIRA_SPRINT_FIELD_ID } from '../data/jiraDefaults'
@@ -81,6 +82,11 @@ function normalizeWorkItem(raw: unknown): WorkItem {
       ? (o.jiraKeys as string[]).map(String)
       : [],
     jiraNeedsSprintLabel: o.jiraNeedsSprintLabel === true,
+    isPrivate: o.isPrivate === true,
+    privateOwnerUserId:
+      typeof o.privateOwnerUserId === 'string'
+        ? o.privateOwnerUserId
+        : undefined,
     comments,
   }
 }
@@ -640,9 +646,28 @@ export const useTrackerStore = create<TrackerState>()(
       addWorkItem: (teamId, partial) =>
         set((s) => {
           const d = getSlice(s, teamId)
+          const base = { ...defaultWorkItem(), ...partial }
+          let row = base
+          if (base.isPrivate === true) {
+            const ownerId = base.privateOwnerUserId
+            if (!ownerId) {
+              row = {
+                ...base,
+                isPrivate: false,
+                privateOwnerUserId: undefined,
+              }
+            } else {
+              const owner = get().users.find((u) => u.id === ownerId)
+              const nm = owner?.displayName.trim()
+              row = {
+                ...base,
+                assignees: nm ? [nm] : base.assignees,
+              }
+            }
+          }
           return {
             teamsData: patchSlice(s, teamId, {
-              workItems: [{ ...defaultWorkItem(), ...partial }, ...d.workItems],
+              workItems: [row, ...d.workItems],
             }),
           }
         }),
@@ -650,10 +675,30 @@ export const useTrackerStore = create<TrackerState>()(
       updateWorkItem: (teamId, id, patch) =>
         set((s) => {
           const d = getSlice(s, teamId)
+          const w = d.workItems.find((x) => x.id === id)
+          if (!w) return {}
+          let nextPatch = sanitizeWorkItemUpdate(w, patch)
+          if (
+            w.isPrivate === true &&
+            Array.isArray(nextPatch.assignees) &&
+            w.privateOwnerUserId
+          ) {
+            const owner = get().users.find((u) => u.id === w.privateOwnerUserId)
+            const nm = owner?.displayName.trim()
+            const valid =
+              nm &&
+              nextPatch.assignees.length === 1 &&
+              nextPatch.assignees[0].trim() === nm
+            if (!valid) {
+              const clone = { ...nextPatch }
+              delete clone.assignees
+              nextPatch = clone
+            }
+          }
           return {
             teamsData: patchSlice(s, teamId, {
-              workItems: d.workItems.map((w) =>
-                w.id === id ? { ...w, ...patch } : w,
+              workItems: d.workItems.map((row) =>
+                row.id === id ? { ...row, ...nextPatch } : row,
               ),
             }),
           }

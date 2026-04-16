@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { useCurrentUser } from './useCurrentUser'
+import { filterWorkItemsForViewer } from '../lib/workItemPrivacy'
 import { useTrackerStore } from '../store/useTrackerStore'
 import type { TrackerTeamData, TrackerUserAccount } from '../types'
 
@@ -41,7 +42,7 @@ export function useTeamContextNullable(): TeamContext | null {
       teamName: meta?.name ?? 'Team',
       teamUsers,
       sprints: d.sprints,
-      workItems: d.workItems,
+      workItems: filterWorkItemsForViewer(d.workItems, user),
       teamMembers: d.teamMembers,
       jiraBaseUrl: d.jiraBaseUrl,
       jiraSyncJql: d.jiraSyncJql,

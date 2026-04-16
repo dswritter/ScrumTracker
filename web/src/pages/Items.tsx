@@ -22,6 +22,7 @@ import {
   filterWorkItemsByScope,
   scopeShortLabel,
 } from '../lib/dashboardScope'
+import { isPrivateWorkItem } from '../lib/workItemPrivacy'
 import {
   filterWorkItemsView,
   formerAssigneesOnItem,
@@ -179,10 +180,15 @@ function Row({
   const deleteComment = useTrackerStore((s) => s.deleteComment)
 
   const canEdit = canEditWorkItem(user, item)
-  const canDel = canDeleteWorkItem(user)
-  const assigneeAdmin = canChangeAssignees(user)
+  const canDel = canDeleteWorkItem(user, item)
+  const assigneeAdmin = canChangeAssignees(user, item)
   const canComment = canAddComment(user, item)
-  const canRemoveComment = canDeleteComment(user)
+  const canRemoveComment = canDeleteComment(user, item)
+  const canPromotePrivate =
+    isPrivateWorkItem(item) && user.id === item.privateOwnerUserId
+  const canStripJiraKey =
+    isAdmin(user) ||
+    (isPrivateWorkItem(item) && user.id === item.privateOwnerUserId)
 
   const former = formerAssigneesOnItem(item, teamMembers)
 
@@ -212,14 +218,46 @@ function Row({
         />
       </td>
       <td className="px-2 py-2">
-        <input
-          className={`min-w-0 w-full max-w-[min(100%,320px)] font-semibold text-slate-950 dark:text-slate-50 ${inputCls}`}
-          disabled={!canEdit}
-          value={item.title}
-          onChange={(e) =>
-            updateWorkItem(teamId, item.id, { title: e.target.value })
-          }
-        />
+        <div className="flex min-w-0 max-w-[min(100%,320px)] flex-col gap-1">
+          <div className="flex min-w-0 items-start gap-1">
+            {isPrivateWorkItem(item) ? (
+              <span
+                className="mt-0.5 shrink-0 rounded bg-amber-100 px-1 py-0.5 text-[9px] font-bold uppercase text-amber-950 dark:bg-amber-950/70 dark:text-amber-100"
+                title="Only you can see this until you make it visible to the team."
+              >
+                Private
+              </span>
+            ) : null}
+            <input
+              className={`min-w-0 flex-1 font-semibold text-slate-950 dark:text-slate-50 ${inputCls}`}
+              disabled={!canEdit}
+              value={item.title}
+              onChange={(e) =>
+                updateWorkItem(teamId, item.id, { title: e.target.value })
+              }
+            />
+          </div>
+          {canPromotePrivate ? (
+            <button
+              type="button"
+              className="self-start text-left text-[10px] font-semibold text-indigo-700 underline hover:text-indigo-900 dark:text-indigo-300 dark:hover:text-indigo-200"
+              onClick={() => {
+                if (
+                  confirm(
+                    'Make this work item visible to everyone on the team (including admins)? You cannot make it private again.',
+                  )
+                ) {
+                  updateWorkItem(teamId, item.id, {
+                    isPrivate: false,
+                    privateOwnerUserId: undefined,
+                  })
+                }
+              }}
+            >
+              Make visible to team
+            </button>
+          ) : null}
+        </div>
       </td>
       {showAssigneesColumn ? (
         <td className="px-2 py-2">
@@ -291,7 +329,7 @@ function Row({
           item={item}
           jiraBaseUrl={jiraBaseUrl}
           canEdit={canEdit}
-          allowRemoveJiraKey={isAdmin(user)}
+          allowRemoveJiraKey={canStripJiraKey}
           onChangeKeys={(jiraKeys) =>
             updateWorkItem(teamId, item.id, { jiraKeys })
           }

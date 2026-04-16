@@ -70,6 +70,13 @@ function mergeWorkItems(remoteList: WorkItem[], localList: WorkItem[]): WorkItem
 
   for (const [id, rw] of remoteById) {
     const lw = localById.get(id)
+    if (lw?.isPrivate === true && lw.privateOwnerUserId) {
+      merged.set(id, {
+        ...lw,
+        comments: mergeWorkComments(rw.comments ?? [], lw.comments),
+      })
+      continue
+    }
     merged.set(
       id,
       lw
