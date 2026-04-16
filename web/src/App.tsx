@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AdminRoute } from './components/AdminRoute'
 import { Layout } from './components/Layout'
 import { TrackerRemoteSync } from './components/TrackerRemoteSync'
+import { WorkItemConflictBanner } from './components/WorkItemConflictBanner'
 import { RequireAuth } from './components/RequireAuth'
 import { ChangePassword } from './pages/ChangePassword'
 import { Chat } from './pages/Chat'
@@ -21,6 +22,7 @@ export default function App() {
   return (
     <BrowserRouter basename={import.meta.env.BASE_URL}>
       <TrackerRemoteSync />
+      <WorkItemConflictBanner />
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<RegisterTeam />} />

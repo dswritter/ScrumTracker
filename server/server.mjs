@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url'
 import { WebSocketServer, WebSocket as WsWebSocket } from 'ws'
 import { registerJiraRoutes } from './jira.mjs'
 import { readTrackerStore, writeTrackerStore } from './splitJsonStore.mjs'
+import { patchWorkItemInSnapshot } from './workItemPatch.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const DATA_DIR = path.join(__dirname, 'data')
@@ -31,8 +32,12 @@ function writeStore(rev, snapshot) {
 let trackerWss = null
 
 function broadcastTrackerRev(rev) {
+  broadcastWsPayload({ type: 'tracker_rev', rev })
+}
+
+function broadcastWsPayload(payload) {
   if (!trackerWss) return
-  const msg = JSON.stringify({ type: 'tracker_rev', rev })
+  const msg = JSON.stringify(payload)
   for (const client of trackerWss.clients) {
     if (client.readyState === WsWebSocket.OPEN) client.send(msg)
   }
@@ -45,7 +50,7 @@ app.use(
   cors({
     origin: true,
     credentials: true,
-    methods: ['GET', 'HEAD', 'PUT', 'POST', 'DELETE', 'OPTIONS'],
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
     allowedHeaders: [
       'Content-Type',
       'Authorization',
@@ -86,6 +91,48 @@ app.put('/api/tracker', (req, res) => {
   }
   broadcastTrackerRev(rev)
   res.json({ ok: true, rev })
+})
+
+app.patch('/api/tracker/teams/:teamId/work-items/:itemId', (req, res) => {
+  const teamId = req.params.teamId
+  const itemId = req.params.itemId
+  const { snapshot } = readStore()
+  if (!snapshot) {
+    res.status(404).json({ error: 'No tracker snapshot on server' })
+    return
+  }
+  let parsed
+  try {
+    parsed = JSON.parse(snapshot)
+  } catch {
+    res.status(500).json({ error: 'Corrupt snapshot' })
+    return
+  }
+  const result = patchWorkItemInSnapshot(parsed, teamId, itemId, req.body ?? {})
+  if (!result.ok) {
+    if (result.status === 409) {
+      res.status(409).json(result.body)
+      return
+    }
+    res.status(result.status).json({ error: result.error })
+    return
+  }
+  const rev = Date.now()
+  try {
+    writeStore(rev, JSON.stringify(result.snapshot))
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Failed to persist snapshot'
+    res.status(500).json({ error: msg })
+    return
+  }
+  broadcastWsPayload({
+    type: 'work_item_updated',
+    rev,
+    teamId,
+    workItem: result.workItem,
+  })
+  broadcastTrackerRev(rev)
+  res.json({ ok: true, rev, workItem: result.workItem })
 })
 
 app.get('/api/health', (_req, res) => {
@@ -135,7 +182,12 @@ server.listen(PORT, HOST, () => {
   console.log(
     `  PUT  /api/tracker  — push full snapshot (JSON string); stored split under data/teams/<id>/`,
   )
-  console.log(`  WS   /ws/tracker — push { type: 'tracker_rev', rev } when snapshot changes`)
+  console.log(
+    `  PATCH /api/tracker/teams/:teamId/work-items/:itemId — mergeable field PATCH + WS work_item_updated`,
+  )
+  console.log(
+    `  WS   /ws/tracker — { type: 'tracker_rev', rev } and optional { type: 'work_item_updated', … }`,
+  )
   console.log(
     `  JIRA: …/sync, …/create-issue, GET …/meta/*, …/lookup-issue, …/issue-suggest`,
   )

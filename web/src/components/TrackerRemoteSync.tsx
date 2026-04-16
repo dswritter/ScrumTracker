@@ -5,6 +5,7 @@ import {
 } from '../lib/trackerSyncRev'
 import { isTrackerSyncEnabled } from '../lib/syncConfigured'
 import { syncApiBaseUrl, syncFetch, syncTrackerWebSocketUrl } from '../lib/syncFetch'
+import type { WorkItem } from '../types'
 import { useTrackerStore } from '../store/useTrackerStore'
 
 /**
@@ -238,7 +239,26 @@ export function TrackerRemoteSync() {
       ws.onmessage = (ev) => {
         if (cancelled) return
         try {
-          const j = JSON.parse(String(ev.data)) as { type?: string; rev?: number }
+          const j = JSON.parse(String(ev.data)) as {
+            type?: string
+            rev?: number
+            teamId?: string
+            workItem?: WorkItem
+          }
+          if (j.type === 'work_item_updated' && j.workItem && j.teamId) {
+            if (typeof j.rev === 'number' && j.rev > lastRev) {
+              lastRev = j.rev
+              writePersistedTrackerServerRev(lastRev)
+            }
+            applyingRemote = true
+            useTrackerStore
+              .getState()
+              .applyWorkItemFromPatch(j.teamId, j.workItem)
+            queueMicrotask(() => {
+              applyingRemote = false
+            })
+            return
+          }
           if (j.type !== 'tracker_rev' || typeof j.rev !== 'number') return
           if (j.rev <= lastRev) return
           schedulePullFromWs()

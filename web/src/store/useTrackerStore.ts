@@ -10,6 +10,7 @@ import type {
   TrackerUserAccount,
   WorkComment,
   WorkItem,
+  WorkItemSyncConflictState,
   WorkStatus,
 } from '../types'
 import { TRACKER_SCHEMA_VERSION } from '../types'
@@ -30,7 +31,11 @@ import {
   seedPasswordFromKey,
 } from '../lib/passwords'
 import { generateId } from '../lib/ids'
-import { mergeRemoteSnapshotTeamsAndData } from '../lib/mergeRemoteTrackerSnapshot'
+import {
+  mergeRemoteSnapshotTeamsAndData,
+  mergeWorkComments,
+} from '../lib/mergeRemoteTrackerSnapshot'
+import { scheduleRemoteWorkItemPatch } from '../lib/syncWorkItemPatch'
 import { sanitizeWorkItemUpdate } from '../lib/workItemPrivacy'
 import { normalizeLoginUsername } from '../lib/username'
 import { mergeBundledSlackDefaults } from '../data/defaultSlackDmUrls'
@@ -84,6 +89,14 @@ function normalizeWorkItem(raw: unknown): WorkItem {
     jiraNeedsSprintLabel: o.jiraNeedsSprintLabel === true,
     jiraStatusName:
       typeof o.jiraStatusName === 'string' ? o.jiraStatusName : undefined,
+    rev:
+      typeof o.rev === 'number' && Number.isFinite(o.rev) ? o.rev : 0,
+    updated_at:
+      typeof o.updated_at === 'string' ? o.updated_at : undefined,
+    field_updates:
+      o.field_updates && typeof o.field_updates === 'object'
+        ? { ...(o.field_updates as Record<string, string>) }
+        : undefined,
     isPrivate: o.isPrivate === true,
     privateOwnerUserId:
       typeof o.privateOwnerUserId === 'string'
@@ -470,6 +483,8 @@ export interface TrackerState {
   teams: TrackerTeam[]
   teamsData: Record<string, TrackerTeamData>
   users: TrackerUserAccount[]
+  /** Transient: HTTP PATCH409 — not persisted. */
+  workItemSyncConflict: WorkItemSyncConflictState | null
 
   addWorkItem: (teamId: string, partial?: Partial<WorkItem>) => void
   updateWorkItem: (
@@ -477,6 +492,11 @@ export interface TrackerState {
     id: string,
     patch: Partial<WorkItem>,
   ) => void
+  /** Apply server row after granular PATCH or WS; keeps union of comments. */
+  applyWorkItemFromPatch: (teamId: string, workItem: WorkItem) => void
+  setWorkItemSyncConflict: (c: WorkItemSyncConflictState | null) => void
+  clearWorkItemSyncConflict: () => void
+  resolveWorkItemSyncConflict: (choice: 'server' | 'merged') => void
   deleteWorkItem: (teamId: string, id: string) => void
 
   addComment: (
@@ -630,6 +650,7 @@ const defaultWorkItem = (): WorkItem => ({
   sprintIds: [],
   jiraKeys: [],
   comments: [],
+  rev: 0,
 })
 
 const initialTeams: TrackerTeam[] = [SEED_TEAM_META]
@@ -644,6 +665,7 @@ export const useTrackerStore = create<TrackerState>()(
       teams: initialTeams,
       teamsData: initialTeamsData,
       users: initialUsers,
+      workItemSyncConflict: null,
 
       addWorkItem: (teamId, partial) =>
         set((s) => {
@@ -697,6 +719,7 @@ export const useTrackerStore = create<TrackerState>()(
               nextPatch = clone
             }
           }
+          scheduleRemoteWorkItemPatch(teamId, id, w, nextPatch)
           return {
             teamsData: patchSlice(s, teamId, {
               workItems: d.workItems.map((row) =>
@@ -705,6 +728,40 @@ export const useTrackerStore = create<TrackerState>()(
             }),
           }
         }),
+
+      applyWorkItemFromPatch: (teamId, workItem) =>
+        set((s) => {
+          const d = getSlice(s, teamId)
+          const prev = d.workItems.find((x) => x.id === workItem.id)
+          if (!prev) return {}
+          const mergedComments = mergeWorkComments(
+            workItem.comments ?? [],
+            prev.comments ?? [],
+          )
+          const nextRow = { ...workItem, comments: mergedComments }
+          return {
+            teamsData: patchSlice(s, teamId, {
+              workItems: d.workItems.map((row) =>
+                row.id === workItem.id ? nextRow : row,
+              ),
+            }),
+          }
+        }),
+
+      setWorkItemSyncConflict: (c) => set({ workItemSyncConflict: c }),
+
+      clearWorkItemSyncConflict: () => set({ workItemSyncConflict: null }),
+
+      resolveWorkItemSyncConflict: (choice) => {
+        const c = get().workItemSyncConflict
+        if (!c) return
+        if (choice === 'server' && c.serverItem) {
+          get().applyWorkItemFromPatch(c.teamId, c.serverItem)
+        } else if (choice === 'merged' && c.mergedPartial) {
+          get().applyWorkItemFromPatch(c.teamId, c.mergedPartial)
+        }
+        set({ workItemSyncConflict: null })
+      },
 
       deleteWorkItem: (teamId, id) =>
         set((s) => {

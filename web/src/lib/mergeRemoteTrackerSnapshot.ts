@@ -49,7 +49,7 @@ function mergeKnowledgePages(
   return merged.length ? merged : undefined
 }
 
-function mergeWorkComments(
+export function mergeWorkComments(
   remote: WorkComment[],
   local: WorkComment[],
 ): WorkComment[] {
@@ -77,12 +77,28 @@ function mergeWorkItems(remoteList: WorkItem[], localList: WorkItem[]): WorkItem
       })
       continue
     }
-    merged.set(
-      id,
-      lw
-        ? { ...rw, comments: mergeWorkComments(rw.comments, lw.comments) }
-        : rw,
-    )
+    if (lw) {
+      const rRev = rw.rev ?? 0
+      const lRev = lw.rev ?? 0
+      if (rRev > lRev) {
+        merged.set(id, {
+          ...rw,
+          comments: mergeWorkComments(rw.comments, lw.comments),
+        })
+      } else if (lRev > rRev) {
+        merged.set(id, {
+          ...lw,
+          comments: mergeWorkComments(rw.comments, lw.comments),
+        })
+      } else {
+        merged.set(id, {
+          ...rw,
+          comments: mergeWorkComments(rw.comments, lw.comments),
+        })
+      }
+    } else {
+      merged.set(id, rw)
+    }
   }
   for (const [id, lw] of localById) {
     if (!merged.has(id)) merged.set(id, lw)

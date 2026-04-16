@@ -66,6 +66,21 @@ export interface WorkItem {
   comments: WorkComment[]
   /** Legacy field; migrated into `comments` on load. */
   notes?: string
+  /** Server merge revision; incremented on successful granular PATCH. */
+  rev?: number
+  /** ISO time of last successful merged write (server or PATCH). */
+  updated_at?: string
+  /** Per-field ISO timestamps when that field was last written on server. */
+  field_updates?: Partial<Record<string, string>>
+}
+
+/** Active HTTP sync conflict for a work item (409 from PATCH). */
+export interface WorkItemSyncConflictState {
+  teamId: string
+  itemId: string
+  conflicts: string[]
+  serverItem: WorkItem
+  mergedPartial?: WorkItem
 }
 
 export type UserRole = 'admin' | 'member'
