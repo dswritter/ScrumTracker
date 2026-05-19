@@ -1325,7 +1325,7 @@ export const useTrackerStore = create<TrackerState>()(
           }
         }),
 
-      setUserRole: (teamId, id, role) =>
+      setUserRole: (_teamId, id, role) =>
         set((s) => {
           const target = s.users.find((u) => u.id === id)
           if (!target) return s
