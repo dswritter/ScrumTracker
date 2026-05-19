@@ -161,13 +161,13 @@ export function OrgSettings() {
         )}
         <AddUserRow
           available={availableUsers.filter((u) =>
-            u.role === 'manager' || u.role === 'director',
+            u.role === 'manager' || u.role === 'director' || u.role === 'admin',
           )}
           search={userSearch}
           onSearch={setUserSearch}
           onAdd={(uid) => linkUser(uid, 'manager')}
           label="Add sub-manager"
-          emptyLabel="No unlinked managers found"
+          emptyLabel="No unlinked managers or team admins found"
         />
       </Section>
 
@@ -187,14 +187,12 @@ export function OrgSettings() {
         )}
         {/* Link existing unlinked user */}
         <AddUserRow
-          available={availableUsers.filter(
-            (u) => u.role === 'admin' || u.role === 'member',
-          )}
+          available={availableUsers.filter((u) => u.role === 'member')}
           search={userSearch}
           onSearch={setUserSearch}
           onAdd={(uid) => linkUser(uid, 'member')}
-          label="Link existing user"
-          emptyLabel="No unlinked users found"
+          label="Link existing member"
+          emptyLabel="No unlinked members found"
         />
         {/* Create brand-new IC account */}
         <div className="mt-3 rounded-lg border border-dashed border-zinc-300 bg-zinc-50 p-3">
