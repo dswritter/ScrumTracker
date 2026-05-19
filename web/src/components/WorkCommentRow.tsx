@@ -45,17 +45,13 @@ export function WorkCommentRow({
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 20 20"
+              viewBox="0 0 24 24"
               fill="currentColor"
               className="h-4 w-4"
               aria-hidden
             >
-              <path
-                fillRule="evenodd"
-                d="M10 2.5a.75.75 0 0 1 .75.75v7.19l2.22-2.22a.75.75 0 1 1 1.06 1.06l-3.5 3.5a.75.75 0 0 1-1.06 0l-3.5-3.5a.75.75 0 1 1 1.06-1.06l2.22 2.22V3.25A.75.75 0 0 1 10 2.5Z"
-                clipRule="evenodd"
-              />
-              <path d="M4.75 12.5a.75.75 0 0 0-1.5 0v2.75c0 .69.56 1.25 1.25 1.25h11a1.25 1.25 0 0 0 1.25-1.25v-2.75a.75.75 0 0 0-1.5 0v2a.25.25 0 0 1-.25.25h-11a.25.25 0 0 1-.25-.25v-2Z" />
+              <path d="M12 4.5 7 10h3.25v7.25h3.5V10H17L12 4.5z" />
+              <path d="M4.5 20.25c0-.41.34-.75.75-.75h13.5c.41 0 .75.34.75.75v.5H4.5v-.5z" />
             </svg>
           </button>
         ) : null}
