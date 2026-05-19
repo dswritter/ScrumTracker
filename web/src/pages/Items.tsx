@@ -28,6 +28,8 @@ import {
   formerAssigneesOnItem,
   sortWorkItemsByNewestSprintFirst,
 } from '../lib/stats'
+import { postTrackerCommentToJiraIfRequested } from '../lib/submitCommentToJira'
+import { isTrackerSyncEnabled } from '../lib/syncConfigured'
 import { useTrackerStore, STATUS_OPTIONS } from '../store/useTrackerStore'
 import type { Sprint, TrackerUserAccount, WorkItem, WorkStatus } from '../types'
 
@@ -177,7 +179,10 @@ function Row({
   const updateWorkItem = useTrackerStore((s) => s.updateWorkItem)
   const deleteWorkItem = useTrackerStore((s) => s.deleteWorkItem)
   const addComment = useTrackerStore((s) => s.addComment)
+  const retagCommentWithJiraId = useTrackerStore((s) => s.retagCommentWithJiraId)
   const deleteComment = useTrackerStore((s) => s.deleteComment)
+
+  const syncJiraComments = isTrackerSyncEnabled()
 
   const canEdit = canEditWorkItem(user, item)
   const canDel = canDeleteWorkItem(user, item)
@@ -349,11 +354,33 @@ function Row({
           jiraBaseUrl={jiraBaseUrl}
           canAdd={canComment}
           currentName={commentAuthorLabel(user)}
-          onAdd={(body) =>
-            addComment(teamId, item.id, commentAuthorLabel(user), body)
-          }
+          onAdd={(body, jiraOpts) => {
+            const newId = addComment(
+              teamId,
+              item.id,
+              commentAuthorLabel(user),
+              body,
+            )
+            if (!newId) return
+            void postTrackerCommentToJiraIfRequested({
+              newCommentId: newId,
+              bodyPlain: body,
+              alsoToJira: Boolean(
+                jiraOpts?.alsoToJira &&
+                  syncJiraComments &&
+                  item.jiraKeys.some((k) => String(k).trim()),
+              ),
+              issueKey: jiraOpts?.issueKey,
+              teamId,
+              itemId: item.id,
+              user,
+              retagCommentWithJiraId,
+            })
+          }}
           canDeleteComment={canRemoveComment}
           onDeleteComment={(cid) => deleteComment(teamId, item.id, cid)}
+          syncJiraComments={syncJiraComments}
+          user={user}
         />
       </td>
       <td className="px-2 py-2">

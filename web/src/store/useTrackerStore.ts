@@ -40,10 +40,7 @@ import { sanitizeWorkItemUpdate } from '../lib/workItemPrivacy'
 import { normalizeLoginUsername } from '../lib/username'
 import { mergeBundledSlackDefaults } from '../data/defaultSlackDmUrls'
 import { DEFAULT_NEW_TEAM_JIRA_SPRINT_FIELD_ID } from '../data/jiraDefaults'
-import { postJiraIssueComment } from '../lib/jiraApi'
-import { isAdmin } from '../lib/permissions'
 import { parseSlackDmUrlInput } from '../lib/slackDm'
-import { isTrackerSyncEnabled } from '../lib/syncConfigured'
 import { dmThreadKey } from '../lib/teamChat'
 import { useAuthStore } from './useAuthStore'
 
@@ -502,11 +499,20 @@ export interface TrackerState {
   resolveWorkItemSyncConflict: (choice: 'server' | 'merged') => void
   deleteWorkItem: (teamId: string, id: string) => void
 
+  /** Returns new comment id, or null if body was empty. */
   addComment: (
     teamId: string,
     itemId: string,
     authorName: string,
     body: string,
+  ) => string | null
+
+  /** After a Jira REST comment is created, map local id to jira-cmt-* for sync dedupe. */
+  retagCommentWithJiraId: (
+    teamId: string,
+    itemId: string,
+    localCommentId: string,
+    jiraCommentId: string,
   ) => void
 
   deleteComment: (teamId: string, itemId: string, commentId: string) => void
@@ -778,16 +784,10 @@ export const useTrackerStore = create<TrackerState>()(
 
       addComment: (teamId, itemId, authorName, body) => {
         const t = body.trim()
-        if (!t) return
-        const state = get()
-        const d = getSlice(state, teamId)
-        const item = d.workItems.find((w) => w.id === itemId)
-        const jiraKeys = (item?.jiraKeys ?? [])
-          .map((k) => String(k).trim())
-          .filter(Boolean)
-
+        if (!t) return null
+        const entryId = newId('comment')
         const entry: WorkComment = {
-          id: newId('comment'),
+          id: entryId,
           authorName: authorName.trim() || 'Unknown',
           body: t,
           createdAt: new Date().toISOString(),
@@ -804,65 +804,30 @@ export const useTrackerStore = create<TrackerState>()(
             }),
           }
         })
+        return entryId
+      },
 
-        if (!jiraKeys.length || !isTrackerSyncEnabled()) return
-
-        const uid = useAuthStore.getState().currentUserId
-        const user = state.users.find((u) => u.id === uid)
-        if (!user) return
-
-        const issueKey = jiraKeys[0].toUpperCase()
-        const jiraBody = `${authorName.trim() || 'Unknown'} (via ScrumTracker):\n\n${t}`
-        const syncMode = isAdmin(user) ? ('admin' as const) : ('individual' as const)
-        const trackerUsername = isAdmin(user) ? undefined : user.username
-
-        void (async () => {
-          try {
-            const res = await postJiraIssueComment({
-              teamId,
-              issueKey,
-              body: jiraBody,
-              syncMode,
-              ...(trackerUsername ? { trackerUsername } : {}),
-            })
-            if (!res.ok) {
-              const msg = await res.text()
-              if (typeof window !== 'undefined') {
-                window.alert(
-                  `Comment saved in the tracker but could not be posted to Jira (${issueKey}): ${msg.slice(0, 500)}`,
-                )
-              }
-              return
-            }
-            const data = (await res.json()) as { jiraCommentId?: string }
-            if (data.jiraCommentId && typeof window !== 'undefined') {
-              set((s) => {
-                const slice = getSlice(s, teamId)
+      retagCommentWithJiraId: (teamId, itemId, localCommentId, jiraCommentId) => {
+        const jid = String(jiraCommentId).trim()
+        if (!jid) return
+        set((s) => {
+          const slice = getSlice(s, teamId)
+          return {
+            teamsData: patchSlice(s, teamId, {
+              workItems: slice.workItems.map((w) => {
+                if (w.id !== itemId) return w
                 return {
-                  teamsData: patchSlice(s, teamId, {
-                    workItems: slice.workItems.map((w) => {
-                      if (w.id !== itemId) return w
-                      return {
-                        ...w,
-                        comments: w.comments.map((c) =>
-                          c.id === entry.id
-                            ? { ...c, id: `jira-cmt-${data.jiraCommentId}` }
-                            : c,
-                        ),
-                      }
-                    }),
-                  }),
+                  ...w,
+                  comments: w.comments.map((c) =>
+                    c.id === localCommentId
+                      ? { ...c, id: `jira-cmt-${jid}` }
+                      : c,
+                  ),
                 }
-              })
-            }
-          } catch (e) {
-            if (typeof window !== 'undefined') {
-              window.alert(
-                `Comment saved in the tracker but Jira request failed (${issueKey}): ${e instanceof Error ? e.message : String(e)}`,
-              )
-            }
+              }),
+            }),
           }
-        })()
+        })
       },
 
       appendTeamChatMessage: (teamId, authorDisplayName, peerDisplayName, body) => {

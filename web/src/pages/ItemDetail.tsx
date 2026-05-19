@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
+import { CommentJiraPostOptions } from '../components/CommentJiraPostOptions'
 import { JiraPerItemIssueActions } from '../components/JiraPerItemIssueActions'
 import { StatusBadge } from '../components/StatusBadge'
 import { WorkCommentBody } from '../components/WorkCommentBody'
@@ -17,6 +18,8 @@ import {
 } from '../lib/permissions'
 import { isPrivateWorkItem } from '../lib/workItemPrivacy'
 import { otherItemsSharingAssignees } from '../lib/stats'
+import { postTrackerCommentToJiraIfRequested } from '../lib/submitCommentToJira'
+import { isTrackerSyncEnabled } from '../lib/syncConfigured'
 import { useTrackerStore } from '../store/useTrackerStore'
 import type { Sprint } from '../types'
 
@@ -35,6 +38,7 @@ export function ItemDetail() {
   const user = useCurrentUser()
   const ctx = useTeamContextNullable()
   const addComment = useTrackerStore((s) => s.addComment)
+  const retagCommentWithJiraId = useTrackerStore((s) => s.retagCommentWithJiraId)
   const deleteComment = useTrackerStore((s) => s.deleteComment)
   const updateWorkItem = useTrackerStore((s) => s.updateWorkItem)
   const rawParam = useParams<{ itemId: string }>().itemId ?? ''
@@ -47,11 +51,28 @@ export function ItemDetail() {
   }, [rawParam])
 
   const [draft, setDraft] = useState('')
+  const [alsoToJira, setAlsoToJira] = useState(false)
+  const [selectedIssueKey, setSelectedIssueKey] = useState('')
 
   const item = useMemo(
-    () => ctx?.workItems.find((w) => w.id === itemId) ?? null,
+    () => ctx?.workItems?.find((w) => w.id === itemId) ?? null,
     [ctx, itemId],
   )
+
+  const jiraKeysTrim = useMemo(
+    () =>
+      (item?.jiraKeys ?? [])
+        .map((k) => String(k).trim())
+        .filter(Boolean),
+    [item],
+  )
+
+  useEffect(() => {
+    setAlsoToJira(false)
+    setSelectedIssueKey(jiraKeysTrim[0] ?? '')
+  }, [item?.id, jiraKeysTrim])
+
+  const syncJira = isTrackerSyncEnabled()
 
   const sortedComments = useMemo(
     () =>
@@ -316,15 +337,44 @@ export function ItemDetail() {
               placeholder="Write an update…"
               onChange={(e) => setDraft(e.target.value)}
             />
+            {syncJira && jiraKeysTrim.length > 0 ? (
+              <CommentJiraPostOptions
+                jiraKeys={jiraKeysTrim}
+                alsoToJira={alsoToJira}
+                onAlsoToJiraChange={setAlsoToJira}
+                selectedIssueKey={selectedIssueKey}
+                onSelectedIssueKeyChange={setSelectedIssueKey}
+              />
+            ) : null}
             <div className="mt-2 flex justify-end">
               <button
                 type="button"
                 className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-indigo-700"
                 onClick={() => {
                   const t = draft.trim()
-                  if (!t) return
-                  addComment(teamId, item.id, commentAuthorLabel(user), t)
+                  if (!t || !user) return
+                  const newId = addComment(
+                    teamId,
+                    item.id,
+                    commentAuthorLabel(user),
+                    t,
+                  )
                   setDraft('')
+                  if (!newId) return
+                  const issueKey =
+                    jiraKeysTrim.length === 1
+                      ? jiraKeysTrim[0]
+                      : selectedIssueKey.trim()
+                  void postTrackerCommentToJiraIfRequested({
+                    newCommentId: newId,
+                    bodyPlain: t,
+                    alsoToJira: syncJira && jiraKeysTrim.length > 0 && alsoToJira,
+                    issueKey,
+                    teamId,
+                    itemId: item.id,
+                    user,
+                    retagCommentWithJiraId,
+                  })
                 }}
               >
                 Add comment

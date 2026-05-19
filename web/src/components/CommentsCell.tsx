@@ -1,6 +1,7 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useDismissOnEscape } from '../hooks/useDismissOnEscape'
-import type { WorkItem } from '../types'
+import type { TrackerUserAccount, WorkItem } from '../types'
+import { CommentJiraPostOptions } from './CommentJiraPostOptions'
 import { WorkCommentBody } from './WorkCommentBody'
 
 function formatDate(iso: string): string {
@@ -23,20 +24,43 @@ export function CommentsCell({
   onAdd,
   canDeleteComment = false,
   onDeleteComment,
+  syncJiraComments = false,
+  user: commentUser,
 }: {
   item: WorkItem
   jiraBaseUrl: string
   canAdd: boolean
   currentName: string
-  onAdd: (body: string) => void
+  onAdd: (
+    body: string,
+    jiraOpts?: { alsoToJira: boolean; issueKey?: string },
+  ) => void
   /** Admin: show hover ✕ to remove one comment */
   canDeleteComment?: boolean
   onDeleteComment?: (commentId: string) => void
+  /** When true and item has linked Jira keys, show “Also post to Jira” before adding. */
+  syncJiraComments?: boolean
+  user?: TrackerUserAccount | null
 }) {
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState('')
+  const [alsoToJira, setAlsoToJira] = useState(false)
+  const [selectedIssueKey, setSelectedIssueKey] = useState('')
   const comments = item.comments
   const close = useCallback(() => setOpen(false), [])
+
+  const jiraKeysTrim = item.jiraKeys
+    .map((k) => String(k).trim())
+    .filter(Boolean)
+  const showJiraOpts = Boolean(
+    syncJiraComments && commentUser && jiraKeysTrim.length > 0,
+  )
+
+  useEffect(() => {
+    if (!open) return
+    setAlsoToJira(false)
+    setSelectedIssueKey(jiraKeysTrim[0] ?? '')
+  }, [open, item.id, jiraKeysTrim.join('|')])
   useDismissOnEscape(open, close)
 
   const preview = comments.slice(-2).reverse()
@@ -162,6 +186,15 @@ export function CommentsCell({
                   placeholder="Write an update…"
                   onChange={(e) => setDraft(e.target.value)}
                 />
+                {showJiraOpts ? (
+                  <CommentJiraPostOptions
+                    jiraKeys={jiraKeysTrim}
+                    alsoToJira={alsoToJira}
+                    onAlsoToJiraChange={setAlsoToJira}
+                    selectedIssueKey={selectedIssueKey}
+                    onSelectedIssueKeyChange={setSelectedIssueKey}
+                  />
+                ) : null}
                 <div className="mt-2 flex justify-end gap-2">
                   <button
                     type="button"
@@ -176,7 +209,17 @@ export function CommentsCell({
                     onClick={() => {
                       const t = draft.trim()
                       if (!t) return
-                      onAdd(t)
+                      if (showJiraOpts) {
+                        onAdd(t, {
+                          alsoToJira,
+                          issueKey:
+                            jiraKeysTrim.length === 1
+                              ? jiraKeysTrim[0]
+                              : selectedIssueKey.trim() || undefined,
+                        })
+                      } else {
+                        onAdd(t)
+                      }
                       setDraft('')
                     }}
                   >
