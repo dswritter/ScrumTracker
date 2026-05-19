@@ -232,6 +232,16 @@ function normalizeUser(
   return finalizePasswordPolicy(base)
 }
 
+/** 6-char uppercase alphanumeric join code for sharing team links securely. */
+function generateJoinCode(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  let code = ''
+  const arr = new Uint8Array(6)
+  crypto.getRandomValues(arr)
+  for (const b of arr) code += chars[b % chars.length]
+  return code
+}
+
 function normalizeTeam(raw: unknown): TrackerTeam | null {
   if (!raw || typeof raw !== 'object') return null
   const o = raw as Record<string, unknown>
@@ -240,9 +250,14 @@ function normalizeTeam(raw: unknown): TrackerTeam | null {
     typeof o.parentManagerId === 'string' && o.parentManagerId.trim()
       ? o.parentManagerId.trim()
       : undefined
+  const joinCode =
+    typeof o.joinCode === 'string' && o.joinCode.trim()
+      ? o.joinCode.trim()
+      : generateJoinCode()
   return {
     id: o.id.trim(),
     name: typeof o.name === 'string' ? o.name.trim() : o.id.trim(),
+    joinCode,
     ...(parentManagerId ? { parentManagerId } : {}),
   }
 }
@@ -698,6 +713,21 @@ export interface TrackerState {
     entityId: string,
     managerId: string | null,
   ) => void
+
+  /** Link a team to a manager by join code (6-char code shown in team Settings). */
+  addTeamByJoinCode: (
+    code: string,
+    managerId: string,
+  ) => { ok: true; teamName: string } | { ok: false; error: string }
+
+  /**
+   * Manager creates a new IC account that reports directly to them.
+   * Account has `teamId: ''` and `parentManagerId` set to managerId.
+   */
+  createDirectIcAccount: (
+    managerId: string,
+    input: { displayName: string; username: string },
+  ) => { ok: true; generatedPassword: string; userId: string } | { ok: false; error: string }
 
   importSnapshotJson: (json: string) => { ok: true } | { ok: false; error: string }
   /** HTTP sync pull: merge remote into local so offline comments/chat are not wiped. */
@@ -1626,7 +1656,7 @@ export const useTrackerStore = create<TrackerState>()(
           password: input.adminPassword,
           mustChangePassword: false,
         }
-        const team: TrackerTeam = { id: teamId, name: teamName }
+        const team: TrackerTeam = { id: teamId, name: teamName, joinCode: generateJoinCode() }
         const empty: TrackerTeamData = {
           sprints: [],
           workItems: [],
@@ -1688,6 +1718,49 @@ export const useTrackerStore = create<TrackerState>()(
             ),
           }
         }),
+
+      addTeamByJoinCode: (code, managerId) => {
+        const normalized = code.trim().toUpperCase()
+        if (!normalized) return { ok: false, error: 'Enter a join code.' }
+        const s = get()
+        const team = s.teams.find((t) => t.joinCode === normalized)
+        if (!team) return { ok: false, error: 'No team found with that code.' }
+        if (team.parentManagerId && team.parentManagerId !== managerId) {
+          return { ok: false, error: 'This team is already linked to another manager.' }
+        }
+        set({
+          teams: s.teams.map((t) =>
+            t.id === team.id ? { ...t, parentManagerId: managerId } : t,
+          ),
+        })
+        return { ok: true, teamName: team.name }
+      },
+
+      createDirectIcAccount: (managerId, input) => {
+        const username = normalizeLoginUsername(input.username)
+        const displayName = input.displayName.trim()
+        if (!username || !displayName) {
+          return { ok: false, error: 'Username and display name are required.' }
+        }
+        const s = get()
+        if (s.users.some((x) => x.username === username)) {
+          return { ok: false, error: 'Username already exists.' }
+        }
+        const generatedPassword = generateMasterPassword8().trim()
+        const userId = newId('user')
+        const acc: TrackerUserAccount = {
+          id: userId,
+          teamId: '',
+          username,
+          displayName,
+          role: 'member',
+          password: generatedPassword,
+          mustChangePassword: true,
+          parentManagerId: managerId,
+        }
+        set({ users: [...s.users, acc] })
+        return { ok: true, generatedPassword, userId }
+      },
 
       importSnapshotJson: (json) => {
         try {

@@ -10,6 +10,7 @@ import {
   getFullOrgScope,
 } from '../lib/permissions'
 import type { TrackerTeam, TrackerUserAccount } from '../types'
+import { copyTextToClipboard } from '../lib/copyToClipboard'
 
 export function OrgSettings() {
   const user = useCurrentUser()
@@ -17,9 +18,16 @@ export function OrgSettings() {
   const users = useTrackerStore((s) => s.users)
   const setParentManager = useTrackerStore((s) => s.setParentManager)
   const setUserRole = useTrackerStore((s) => s.setUserRole)
+  const addTeamByJoinCode = useTrackerStore((s) => s.addTeamByJoinCode)
+  const createDirectIcAccount = useTrackerStore((s) => s.createDirectIcAccount)
 
-  const [teamSearch, setTeamSearch] = useState('')
+  const [joinCodeInput, setJoinCodeInput] = useState('')
+  const [joinCodeMsg, setJoinCodeMsg] = useState<string | null>(null)
   const [userSearch, setUserSearch] = useState('')
+  const [newIcUsername, setNewIcUsername] = useState('')
+  const [newIcDisplay, setNewIcDisplay] = useState('')
+  const [newIcMsg, setNewIcMsg] = useState<string | null>(null)
+  const [newIcCredentials, setNewIcCredentials] = useState<{ displayName: string; generatedPassword: string } | null>(null)
 
   if (!user) return <Navigate to="/login" replace />
   if (!isUpperManagement(user)) return <Navigate to="/me" replace />
@@ -31,15 +39,6 @@ export function OrgSettings() {
       u.parentManagerId === user.id &&
       u.role !== 'manager' &&
       u.role !== 'director',
-  )
-
-  // Teams available to add: not yet under this manager AND not under any other manager
-  // (or already under this manager — prevents duplicates).
-  const availableTeams = teams.filter(
-    (t) =>
-      !t.parentManagerId &&
-      t.id !== '' &&
-      t.name.toLowerCase().includes(teamSearch.toLowerCase()),
   )
 
   // Users available to add as direct IC or sub-manager: not yet in my scope.
@@ -57,12 +56,31 @@ export function OrgSettings() {
       u.displayName.toLowerCase().includes(userSearch.toLowerCase()),
   )
 
-  function linkTeam(teamId: string) {
-    setParentManager('team', teamId, user!.id)
+  function handleAddTeamByCode() {
+    const r = addTeamByJoinCode(joinCodeInput, user!.id)
+    if (r.ok) {
+      setJoinCodeMsg(`✓ Team "${r.teamName}" linked successfully.`)
+      setJoinCodeInput('')
+    } else {
+      setJoinCodeMsg(r.error)
+    }
   }
 
   function unlinkTeam(teamId: string) {
     setParentManager('team', teamId, null)
+  }
+
+  function handleCreateIc() {
+    const r = createDirectIcAccount(user!.id, { displayName: newIcDisplay, username: newIcUsername })
+    if (r.ok) {
+      setNewIcCredentials({ displayName: newIcDisplay.trim(), generatedPassword: r.generatedPassword })
+      setNewIcMsg(null)
+      setNewIcUsername('')
+      setNewIcDisplay('')
+    } else {
+      setNewIcMsg(r.error)
+      setNewIcCredentials(null)
+    }
   }
 
   function linkUser(userId: string, role: 'manager' | 'member') {
@@ -95,12 +113,36 @@ export function OrgSettings() {
             ))}
           </ul>
         )}
-        <AddTeamRow
-          available={availableTeams}
-          search={teamSearch}
-          onSearch={setTeamSearch}
-          onAdd={linkTeam}
-        />
+        <div className="mt-3 rounded-lg border border-dashed border-zinc-300 bg-zinc-50 p-3">
+          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500">
+            Add team by join code
+          </p>
+          <p className="mb-2 text-xs text-zinc-400">
+            Ask the team admin to share their 6-character join code (found in team Settings).
+          </p>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder="e.g. AB3X7K"
+              value={joinCodeInput}
+              onChange={(e) => { setJoinCodeInput(e.target.value.toUpperCase()); setJoinCodeMsg(null) }}
+              maxLength={6}
+              className="w-32 rounded-md border border-zinc-200 px-3 py-1.5 font-mono text-sm uppercase tracking-widest outline-none focus:ring-2 focus:ring-indigo-300"
+            />
+            <button
+              onClick={handleAddTeamByCode}
+              disabled={joinCodeInput.trim().length < 4}
+              className="rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-40"
+            >
+              Link Team
+            </button>
+          </div>
+          {joinCodeMsg && (
+            <p className={`mt-1 text-xs ${joinCodeMsg.startsWith('✓') ? 'text-emerald-600' : 'text-rose-500'}`}>
+              {joinCodeMsg}
+            </p>
+          )}
+        </div>
       </Section>
 
       {/* Sub-managers */}
@@ -143,6 +185,7 @@ export function OrgSettings() {
             ))}
           </ul>
         )}
+        {/* Link existing unlinked user */}
         <AddUserRow
           available={availableUsers.filter(
             (u) => u.role === 'admin' || u.role === 'member',
@@ -150,9 +193,67 @@ export function OrgSettings() {
           search={userSearch}
           onSearch={setUserSearch}
           onAdd={(uid) => linkUser(uid, 'member')}
-          label="Add direct IC"
+          label="Link existing user"
           emptyLabel="No unlinked users found"
         />
+        {/* Create brand-new IC account */}
+        <div className="mt-3 rounded-lg border border-dashed border-zinc-300 bg-zinc-50 p-3">
+          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500">
+            Create new IC account
+          </p>
+          {newIcCredentials ? (
+            <div className="space-y-2">
+              <p className="text-sm text-emerald-700">
+                Account created for <strong>{newIcCredentials.displayName}</strong>.
+                Share the temporary password below — they must change it on first login.
+              </p>
+              <div className="flex items-center gap-2">
+                <span className="rounded border border-zinc-200 bg-white px-3 py-1.5 font-mono text-sm">
+                  {newIcCredentials.generatedPassword}
+                </span>
+                <button
+                  onClick={() => copyTextToClipboard(newIcCredentials.generatedPassword)}
+                  className="text-xs text-indigo-600 hover:text-indigo-800"
+                >
+                  Copy
+                </button>
+              </div>
+              <button
+                onClick={() => setNewIcCredentials(null)}
+                className="text-xs text-zinc-500 hover:text-zinc-700"
+              >
+                Create another
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="LDAP / username"
+                  value={newIcUsername}
+                  onChange={(e) => setNewIcUsername(e.target.value)}
+                  className="flex-1 rounded-md border border-zinc-200 px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-indigo-300"
+                />
+                <input
+                  type="text"
+                  placeholder="Full name"
+                  value={newIcDisplay}
+                  onChange={(e) => setNewIcDisplay(e.target.value)}
+                  className="flex-1 rounded-md border border-zinc-200 px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-indigo-300"
+                />
+              </div>
+              {newIcMsg && <p className="text-xs text-rose-500">{newIcMsg}</p>}
+              <button
+                onClick={handleCreateIc}
+                disabled={!newIcUsername.trim() || !newIcDisplay.trim()}
+                className="rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-40"
+              >
+                Create Account
+              </button>
+            </div>
+          )}
+        </div>
       </Section>
 
       {/* Director-only: full manager tree */}
@@ -240,54 +341,6 @@ function UserRow({
   )
 }
 
-function AddTeamRow({
-  available,
-  search,
-  onSearch,
-  onAdd,
-}: {
-  available: TrackerTeam[]
-  search: string
-  onSearch: (v: string) => void
-  onAdd: (id: string) => void
-}) {
-  return (
-    <div className="mt-3 rounded-lg border border-dashed border-zinc-300 bg-zinc-50 p-3">
-      <p className="mb-2 text-xs font-medium text-zinc-500 uppercase tracking-wide">
-        Add a team
-      </p>
-      <input
-        type="text"
-        placeholder="Search teams…"
-        value={search}
-        onChange={(e) => onSearch(e.target.value)}
-        className="mb-2 w-full rounded-md border border-zinc-200 px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-indigo-300"
-      />
-      {available.length === 0 ? (
-        <p className="text-xs text-zinc-400">
-          {search ? 'No teams match' : 'All teams are already linked to a manager'}
-        </p>
-      ) : (
-        <ul className="space-y-1 max-h-48 overflow-y-auto">
-          {available.map((t) => (
-            <li
-              key={t.id}
-              className="flex items-center justify-between rounded-md px-2 py-1 hover:bg-zinc-100"
-            >
-              <span className="text-sm text-zinc-700">{t.name}</span>
-              <button
-                onClick={() => onAdd(t.id)}
-                className="text-xs font-medium text-indigo-600 hover:text-indigo-800"
-              >
-                Add
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  )
-}
 
 function AddUserRow({
   available,

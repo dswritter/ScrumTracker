@@ -144,6 +144,8 @@ export function Settings() {
   const teamName = ctx?.teamName ?? ''
 
   const users = useTrackerStore((s) => s.users)
+  const teams = useTrackerStore((s) => s.teams)
+  const joinCode = teams.find((t) => t.id === teamId)?.joinCode ?? ''
   const importSnapshotJson = useTrackerStore((s) => s.importSnapshotJson)
   const exportSnapshotJson = useTrackerStore((s) => s.exportSnapshotJson)
   const addTeamMemberAccount = useTrackerStore((s) => s.addTeamMemberAccount)
@@ -325,6 +327,29 @@ export function Settings() {
           </button>
         </div>
       </CollapsibleSettingsSection>
+
+      {joinCode && (
+        <CollapsibleSettingsSection
+          title="Team join code"
+          subtitle="Share this code with a manager/director to link this team to their org scope"
+        >
+          <div className="flex items-center gap-3">
+            <span className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 font-mono text-xl font-bold tracking-widest text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
+              {joinCode}
+            </span>
+            <button
+              type="button"
+              className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+              onClick={() => copyTextToClipboard(joinCode)}
+            >
+              Copy
+            </button>
+          </div>
+          <p className="mt-1 text-xs text-slate-500">
+            The manager enters this code in Org Settings → Add Team. Only share with someone you trust to oversee this team.
+          </p>
+        </CollapsibleSettingsSection>
+      )}
 
       <CollapsibleSettingsSection
         title="Accounts & roster"
