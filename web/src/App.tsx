@@ -4,6 +4,7 @@ import { Layout } from './components/Layout'
 import { TrackerRemoteSync } from './components/TrackerRemoteSync'
 import { WorkItemConflictBanner } from './components/WorkItemConflictBanner'
 import { RequireAuth } from './components/RequireAuth'
+import { UpperManagementRoute } from './components/UpperManagementRoute'
 import { ChangePassword } from './pages/ChangePassword'
 import { Chat } from './pages/Chat'
 import { Dashboard } from './pages/Dashboard'
@@ -13,6 +14,8 @@ import { KnowledgeBase } from './pages/KnowledgeBase'
 import { Login } from './pages/Login'
 import { Matrix } from './pages/Matrix'
 import { Me } from './pages/Me'
+import { OrgSettings } from './pages/OrgSettings'
+import { OverviewDashboard } from './pages/OverviewDashboard'
 import { People } from './pages/People'
 import { PersonDetail } from './pages/PersonDetail'
 import { RegisterTeam } from './pages/RegisterTeam'
@@ -42,6 +45,10 @@ export default function App() {
               <Route path="people" element={<People />} />
               <Route path="matrix" element={<Matrix />} />
               <Route path="settings" element={<Settings />} />
+            </Route>
+            <Route element={<UpperManagementRoute />}>
+              <Route path="overview" element={<OverviewDashboard />} />
+              <Route path="org" element={<OrgSettings />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>

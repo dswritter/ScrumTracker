@@ -181,21 +181,38 @@ function finalizePasswordPolicy(u: TrackerUserAccount): TrackerUserAccount {
   }
 }
 
+const VALID_USER_ROLES = new Set<string>([
+  'admin',
+  'member',
+  'manager',
+  'director',
+])
+
 function normalizeUser(
   raw: unknown,
   defaultTeamId: string,
 ): TrackerUserAccount {
   const o = raw as Record<string, unknown>
   const username = normalizeLoginUsername(String(o.username ?? ''))
-  const role = o.role === 'admin' ? 'admin' : 'member'
+  const role: TrackerUserAccount['role'] = VALID_USER_ROLES.has(
+    String(o.role),
+  )
+    ? (o.role as TrackerUserAccount['role'])
+    : 'member'
   const display =
     String(o.displayName ?? username).trim() || username || 'User'
-  const teamId = String(o.teamId ?? defaultTeamId)
+  // Preserve empty string for manager/director accounts with no home team.
+  const teamId =
+    typeof o.teamId === 'string' ? o.teamId : defaultTeamId
   const hasPwd = typeof o.password === 'string' && o.password.length > 0
   const slackRaw =
     typeof o.slackChatUrl === 'string' ? o.slackChatUrl.trim() : ''
   const hintRaw =
     typeof o.passwordHint === 'string' ? o.passwordHint.trim() : ''
+  const parentManagerId =
+    typeof o.parentManagerId === 'string' && o.parentManagerId.trim()
+      ? o.parentManagerId.trim()
+      : undefined
   const base: TrackerUserAccount = {
     id: String(o.id ?? newId('user')),
     teamId,
@@ -210,8 +227,24 @@ function normalizeUser(
     mustChangePassword: Boolean(o.mustChangePassword),
     ...(hintRaw ? { passwordHint: hintRaw } : {}),
     ...(slackRaw ? { slackChatUrl: slackRaw } : {}),
+    ...(parentManagerId ? { parentManagerId } : {}),
   }
   return finalizePasswordPolicy(base)
+}
+
+function normalizeTeam(raw: unknown): TrackerTeam | null {
+  if (!raw || typeof raw !== 'object') return null
+  const o = raw as Record<string, unknown>
+  if (typeof o.id !== 'string' || !o.id.trim()) return null
+  const parentManagerId =
+    typeof o.parentManagerId === 'string' && o.parentManagerId.trim()
+      ? o.parentManagerId.trim()
+      : undefined
+  return {
+    id: o.id.trim(),
+    name: typeof o.name === 'string' ? o.name.trim() : o.id.trim(),
+    ...(parentManagerId ? { parentManagerId } : {}),
+  }
 }
 
 /**
@@ -229,7 +262,10 @@ function mergePersistedTrackerState(
   const p = persistedState as Partial<
     Pick<TrackerState, 'teams' | 'teamsData' | 'users'>
   >
-  const teams = p.teams ?? currentState.teams
+  const rawTeams = p.teams ?? currentState.teams
+  const teams = Array.isArray(rawTeams)
+    ? (rawTeams.map(normalizeTeam).filter(Boolean) as TrackerTeam[])
+    : currentState.teams
   const rawTeamsData = p.teamsData ?? currentState.teamsData
   const teamsData: Record<string, TrackerTeamData> = {}
   for (const [k, v] of Object.entries(rawTeamsData)) {
@@ -416,11 +452,12 @@ function normalizeTeamChatThreads(
   return out
 }
 
+/** Accepts v3 (legacy) or v4 (current) snapshots — both share the same shape. */
 function isSnapshotV3(x: unknown): x is TrackerSnapshot {
   if (!x || typeof x !== 'object') return false
   const o = x as Record<string, unknown>
   return (
-    o.version === TRACKER_SCHEMA_VERSION &&
+    (o.version === 3 || o.version === TRACKER_SCHEMA_VERSION) &&
     Array.isArray(o.teams) &&
     o.teamsData !== null &&
     typeof o.teamsData === 'object' &&
@@ -643,6 +680,24 @@ export interface TrackerState {
     adminUsername: string
     adminPassword: string
   }) => { ok: true } | { ok: false; error: string }
+
+  /** Create a manager or director account with no home team. */
+  registerManagerAccount: (input: {
+    displayName: string
+    username: string
+    password: string
+    role: 'manager' | 'director'
+  }) => { ok: true; userId: string } | { ok: false; error: string }
+
+  /**
+   * Link a team or user to a manager/director in the org hierarchy.
+   * Pass `null` as managerId to unlink.
+   */
+  setParentManager: (
+    entityType: 'team' | 'user',
+    entityId: string,
+    managerId: string | null,
+  ) => void
 
   importSnapshotJson: (json: string) => { ok: true } | { ok: false; error: string }
   /** HTTP sync pull: merge remote into local so offline comments/chat are not wiped. */
@@ -1238,14 +1293,18 @@ export const useTrackerStore = create<TrackerState>()(
           mustChangePassword: true,
           ...(slackChatUrl ? { slackChatUrl } : {}),
         }
-        const d = getSlice(s, teamId)
-        const teamMembers = d.teamMembers.includes(displayName)
-          ? d.teamMembers
-          : [...d.teamMembers, displayName].sort((a, b) => a.localeCompare(b))
-        set({
-          users: [...s.users, acc],
-          teamsData: patchSlice(s, teamId, { teamMembers }),
-        })
+        if (teamId) {
+          const d = getSlice(s, teamId)
+          const teamMembers = d.teamMembers.includes(displayName)
+            ? d.teamMembers
+            : [...d.teamMembers, displayName].sort((a, b) => a.localeCompare(b))
+          set({
+            users: [...s.users, acc],
+            teamsData: patchSlice(s, teamId, { teamMembers }),
+          })
+        } else {
+          set({ users: [...s.users, acc] })
+        }
         return { ok: true, generatedPassword }
       },
 
@@ -1268,19 +1327,21 @@ export const useTrackerStore = create<TrackerState>()(
 
       setUserRole: (teamId, id, role) =>
         set((s) => {
-          const admins = s.users.filter(
-            (u) => u.teamId === teamId && u.role === 'admin',
-          )
-          const target = s.users.find(
-            (u) => u.id === id && u.teamId === teamId,
-          )
+          const target = s.users.find((u) => u.id === id)
           if (!target) return s
-          if (target.role === 'admin' && role === 'member' && admins.length <= 1)
-            return s
+          // Guard against removing the last admin of a team (skip for teamless accounts).
+          if (
+            target.teamId &&
+            target.role === 'admin' &&
+            role !== 'admin'
+          ) {
+            const admins = s.users.filter(
+              (u) => u.teamId === target.teamId && u.role === 'admin',
+            )
+            if (admins.length <= 1) return s
+          }
           return {
-            users: s.users.map((u) =>
-              u.id === id && u.teamId === teamId ? { ...u, role } : u,
-            ),
+            users: s.users.map((u) => (u.id === id ? { ...u, role } : u)),
           }
         }),
 
@@ -1581,6 +1642,53 @@ export const useTrackerStore = create<TrackerState>()(
         return { ok: true }
       },
 
+      registerManagerAccount: (input) => {
+        const displayName = input.displayName.trim()
+        const un = normalizeLoginUsername(input.username)
+        if (!displayName || !un) {
+          return { ok: false, error: 'Display name and username are required.' }
+        }
+        if (!isStrongEnoughPassword(input.password)) {
+          return {
+            ok: false,
+            error: 'Password must be at least 8 characters.',
+          }
+        }
+        const s = get()
+        if (s.users.some((x) => x.username === un)) {
+          return { ok: false, error: 'Username already exists.' }
+        }
+        const userId = newId('user')
+        const acc: TrackerUserAccount = {
+          id: userId,
+          teamId: '',
+          username: un,
+          displayName,
+          role: input.role,
+          password: input.password,
+          mustChangePassword: false,
+        }
+        set({ users: [...s.users, acc] })
+        return { ok: true, userId }
+      },
+
+      setParentManager: (entityType, entityId, managerId) =>
+        set((s) => {
+          const id = managerId?.trim() || undefined
+          if (entityType === 'team') {
+            return {
+              teams: s.teams.map((t) =>
+                t.id === entityId ? { ...t, parentManagerId: id } : t,
+              ),
+            }
+          }
+          return {
+            users: s.users.map((u) =>
+              u.id === entityId ? { ...u, parentManagerId: id } : u,
+            ),
+          }
+        }),
+
       importSnapshotJson: (json) => {
         try {
           const data = JSON.parse(json) as unknown
@@ -1589,16 +1697,15 @@ export const useTrackerStore = create<TrackerState>()(
             for (const [k, v] of Object.entries(data.teamsData)) {
               teamsData[k] = normalizeTeamData(v)
             }
-            const defaultTid = data.teams[0]?.id ?? SEED_TEAM_ID
+            const teams = (data.teams as unknown[])
+              .map(normalizeTeam)
+              .filter(Boolean) as TrackerTeam[]
+            const defaultTid = teams[0]?.id ?? SEED_TEAM_ID
             const sessionId = useAuthStore.getState().currentUserId
             const prevUsers = get().users
             let users = data.users.map((u) => normalizeUser(u, defaultTid))
             users = mergeImportedUsersWithSession(users, sessionId, prevUsers)
-            set({
-              teams: data.teams as TrackerTeam[],
-              teamsData,
-              users,
-            })
+            set({ teams, teamsData, users })
             return { ok: true as const }
           }
           if (isSnapshotV2Flat(data)) {
@@ -1668,7 +1775,7 @@ export const useTrackerStore = create<TrackerState>()(
           if (!isSnapshotV3(data)) {
             return {
               ok: false as const,
-              error: 'Remote snapshot must be schema v3.',
+              error: 'Remote snapshot must be schema v3 or v4.',
             }
           }
           const defaultTid = data.teams[0]?.id ?? SEED_TEAM_ID
@@ -1682,10 +1789,13 @@ export const useTrackerStore = create<TrackerState>()(
             remoteTeamsData[k] = normalizeTeamData(v)
           }
           const s = get()
+          const remoteTeams = (data.teams as unknown[])
+            .map(normalizeTeam)
+            .filter(Boolean) as TrackerTeam[]
           const { teams, teamsData } = mergeRemoteSnapshotTeamsAndData({
             localTeams: s.teams,
             localTeamsData: s.teamsData,
-            remoteTeams: data.teams as TrackerTeam[],
+            remoteTeams,
             remoteTeamsData: remoteTeamsData,
           })
           set({ teams, teamsData, users })
@@ -1731,7 +1841,9 @@ export const useTrackerStore = create<TrackerState>()(
           )) {
             teamsData[k] = stripLegacyBundledSeedSlice(k, normalizeTeamData(v))
           }
-          const teams = (p.teams as TrackerTeam[]) ?? []
+          const teams = Array.isArray(p.teams)
+            ? (p.teams as unknown[]).map(normalizeTeam).filter(Boolean) as TrackerTeam[]
+            : []
           const defaultTid = teams[0]?.id ?? SEED_TEAM_ID
           const usersRaw = p.users
           const users = Array.isArray(usersRaw)

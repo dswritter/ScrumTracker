@@ -6,9 +6,10 @@ import { KnowledgeHeaderSearch } from './KnowledgeHeaderSearch'
 import { UserMenu } from './UserMenu'
 import { useChatUnreadTotal } from '../hooks/useChatUnreadTotal'
 import { useCurrentUser } from '../hooks/useCurrentUser'
-import { isAdmin } from '../lib/permissions'
+import { isAdmin, isUpperManagement } from '../lib/permissions'
 import { useTeamContextNullable } from '../hooks/useTeamContext'
 import { useTrackerStore } from '../store/useTrackerStore'
+import { ViewingModeBanner } from './ViewingModeBanner'
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   [
@@ -110,7 +111,14 @@ export function Layout() {
     return () => window.removeEventListener('keydown', onKey, true)
   }, [setKbExpanded])
 
-  const nav = user && isAdmin(user) ? adminNav : memberNav
+  const isUpper = user && isUpperManagement(user)
+  const nav = user && (isAdmin(user) || isUpper) ? adminNav : memberNav
+  const mgmtNav = isUpper
+    ? [
+        { to: '/overview', label: 'Overview' },
+        { to: '/org', label: 'Org Settings' },
+      ]
+    : []
   const dashboardMain = pathname === '/' || pathname === '/index.html'
 
   return (
@@ -171,6 +179,16 @@ export function Layout() {
             </div>
           ) : null}
           <nav className="flex flex-wrap items-center gap-1 lg:shrink-0 lg:justify-end">
+            {mgmtNav.map(({ to, label }) => (
+              <NavLink key={to} to={to} className={linkClass}>
+                {label}
+              </NavLink>
+            ))}
+            {mgmtNav.length > 0 && (
+              <span className="hidden px-2 text-slate-300 dark:text-slate-600 sm:inline">
+                |
+              </span>
+            )}
             {nav.map(({ to, label, end }) => (
               <NavLink key={to} to={to} end={Boolean(end)} className={linkClass}>
                 <span className="inline-flex items-center gap-1.5">
@@ -195,6 +213,7 @@ export function Layout() {
           </nav>
         </div>
       </header>
+      <ViewingModeBanner />
       <main
         className={
           dashboardMain

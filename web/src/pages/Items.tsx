@@ -15,7 +15,9 @@ import {
   canEditWorkItem,
   canAddComment,
   canDeleteComment,
+  canOverseeTeam,
   isAdmin,
+  isUpperManagement,
 } from '../lib/permissions'
 import {
   parseDashboardScope,
@@ -166,6 +168,7 @@ function Row({
   jiraBaseUrl,
   showAssigneesColumn,
   allWorkItems,
+  overseerOverride = false,
 }: {
   item: WorkItem
   user: TrackerUserAccount
@@ -175,6 +178,7 @@ function Row({
   jiraBaseUrl: string
   showAssigneesColumn: boolean
   allWorkItems: WorkItem[]
+  overseerOverride?: boolean
 }) {
   const updateWorkItem = useTrackerStore((s) => s.updateWorkItem)
   const deleteWorkItem = useTrackerStore((s) => s.deleteWorkItem)
@@ -184,15 +188,16 @@ function Row({
 
   const syncJiraComments = isTrackerSyncEnabled()
 
-  const canEdit = canEditWorkItem(user, item)
-  const canDel = canDeleteWorkItem(user, item)
-  const assigneeAdmin = canChangeAssignees(user, item)
-  const canComment = canAddComment(user, item)
-  const canRemoveComment = canDeleteComment(user, item)
+  const canEdit = canEditWorkItem(user, item, overseerOverride)
+  const canDel = canDeleteWorkItem(user, item, overseerOverride)
+  const assigneeAdmin = canChangeAssignees(user, item, overseerOverride)
+  const canComment = canAddComment(user, item, overseerOverride)
+  const canRemoveComment = canDeleteComment(user, item, overseerOverride)
   const canPromotePrivate =
     isPrivateWorkItem(item) && user.id === item.privateOwnerUserId
   const canStripJiraKey =
     isAdmin(user) ||
+    overseerOverride ||
     (isPrivateWorkItem(item) && user.id === item.privateOwnerUserId)
 
   const former = formerAssigneesOnItem(item, teamMembers)
@@ -407,7 +412,11 @@ function Row({
 export function Items() {
   const user = useCurrentUser()
   const ctx = useTeamContextNullable()
+  const allUsers = useTrackerStore((s) => s.users)
+  const allTeams = useTrackerStore((s) => s.teams)
   const addWorkItem = useTrackerStore((s) => s.addWorkItem)
+  const overseerOverride =
+    user && ctx ? canOverseeTeam(user, ctx.teamId, allUsers, allTeams) : false
   const [searchParams] = useSearchParams()
   const [addOpen, setAddOpen] = useState(false)
   const [addModalKey, setAddModalKey] = useState(0)
@@ -446,7 +455,7 @@ export function Items() {
       status: statusFilter,
       group: groupFilter,
     })
-    if (user && !isAdmin(user)) {
+    if (user && !isAdmin(user) && !isUpperManagement(user)) {
       list = list.filter((w) =>
         w.assignees.some((a) => a.trim() === user.displayName.trim()),
       )
@@ -718,6 +727,7 @@ export function Items() {
                 jiraBaseUrl={jiraBaseUrl}
                 showAssigneesColumn={showAssigneesColumn}
                 allWorkItems={workItems}
+                overseerOverride={overseerOverride}
               />
             ))}
           </tbody>

@@ -87,11 +87,13 @@ export interface WorkItemSyncConflictState {
   mergedPartial?: WorkItem
 }
 
-export type UserRole = 'admin' | 'member'
+export type UserRole = 'admin' | 'member' | 'manager' | 'director'
 
 export interface TrackerTeam {
   id: string
   name: string
+  /** userId of the manager/director who directly oversees this team in the org hierarchy. */
+  parentManagerId?: string
 }
 
 /** One playbook page (Git, Jira, setup, URLs, etc.); order is array order. */
@@ -153,9 +155,11 @@ export interface TrackerUserAccount {
   passwordHint?: string
   /** Optional Slack DM / archive URL (admin-editable; same rules as team map). */
   slackChatUrl?: string
+  /** userId of the manager/director who oversees this user in the org hierarchy. */
+  parentManagerId?: string
 }
 
-export const TRACKER_SCHEMA_VERSION = 3 as const
+export const TRACKER_SCHEMA_VERSION = 4 as const
 
 export interface TrackerSnapshot {
   version: typeof TRACKER_SCHEMA_VERSION

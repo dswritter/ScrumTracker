@@ -2,6 +2,8 @@ import { useMemo } from 'react'
 import { useCurrentUser } from './useCurrentUser'
 import { filterWorkItemsForViewer } from '../lib/workItemPrivacy'
 import { useTrackerStore } from '../store/useTrackerStore'
+import { useAuthStore } from '../store/useAuthStore'
+import { isUpperManagement } from '../lib/permissions'
 import type { TrackerTeamData, TrackerUserAccount } from '../types'
 
 const empty: TrackerTeamData = {
@@ -25,20 +27,28 @@ export type TeamContext = {
 /** Current user's team slice; null if not signed in or missing team. */
 export function useTeamContextNullable(): TeamContext | null {
   const user = useCurrentUser()
+  const viewingTeamId = useAuthStore((s) => s.viewingTeamId)
   const teams = useTrackerStore((s) => s.teams)
   const allUsers = useTrackerStore((s) => s.users)
+
+  // Upper-management users use viewingTeamId when set; others use their own teamId.
+  const effectiveTeamId = useMemo(() => {
+    if (viewingTeamId && user && isUpperManagement(user)) return viewingTeamId
+    return user?.teamId || null
+  }, [viewingTeamId, user])
+
   const slice = useTrackerStore((s) =>
-    user?.teamId ? s.teamsData[user.teamId] : undefined,
+    effectiveTeamId ? s.teamsData[effectiveTeamId] : undefined,
   )
 
   return useMemo(() => {
-    if (!user?.teamId) return null
-    const meta = teams.find((t) => t.id === user.teamId)
+    if (!effectiveTeamId || !user) return null
+    const meta = teams.find((t) => t.id === effectiveTeamId)
     const d = slice ?? empty
-    const teamUsers = allUsers.filter((u) => u.teamId === user.teamId)
+    const teamUsers = allUsers.filter((u) => u.teamId === effectiveTeamId)
     return {
       user,
-      teamId: user.teamId,
+      teamId: effectiveTeamId,
       teamName: meta?.name ?? 'Team',
       teamUsers,
       sprints: d.sprints,
@@ -52,5 +62,5 @@ export function useTeamContextNullable(): TeamContext | null {
       teamChatThreads: d.teamChatThreads,
       teamKnowledgePages: d.teamKnowledgePages,
     }
-    }, [user, teams, slice, allUsers])
+  }, [user, effectiveTeamId, teams, slice, allUsers])
 }

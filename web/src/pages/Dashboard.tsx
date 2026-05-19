@@ -5,7 +5,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   MetabuildAssigneeBars,
   MetabuildSectionBars,
@@ -17,7 +17,7 @@ import { StatusBadge } from '../components/StatusBadge'
 import { useCurrentUser } from '../hooks/useCurrentUser'
 import { useTeamContextNullable } from '../hooks/useTeamContext'
 import { useTrackerPersistHydrated } from '../hooks/useTrackerPersistHydrated'
-import { isAdmin } from '../lib/permissions'
+import { isAdmin, isUpperManagement } from '../lib/permissions'
 import {
   buildItemsHref,
   filterWorkItemsByScope,
@@ -493,6 +493,10 @@ export function Dashboard() {
   }
 
   if (!storeHydrated) return <DashboardPageSkeleton />
+  // Upper-management with no active team view → redirect to overview.
+  if (user && !ctx && isUpperManagement(user)) {
+    return <Navigate to="/overview" replace />
+  }
   if (!user || !ctx) return <DashboardPageSkeleton />
 
   const titleLinkCls =

@@ -13,6 +13,7 @@ import { normalizeLoginUsername } from '../lib/username'
 import type { TrackerUserAccount } from '../types'
 import { useAuthStore } from '../store/useAuthStore'
 import { useTrackerStore } from '../store/useTrackerStore'
+import { isUpperManagement } from '../lib/permissions'
 
 type LoginPhase = 'credentials' | 'optional-hint'
 
@@ -54,7 +55,7 @@ export function Login() {
   }
 
   if (existing && !existing.mustChangePassword) {
-    return <Navigate to="/" replace />
+    return <Navigate to={isUpperManagement(existing) ? '/overview' : '/'} replace />
   }
   if (existing?.mustChangePassword) {
     return <Navigate to="/change-password" replace />
@@ -67,6 +68,10 @@ export function Login() {
     setCurrentUserId(u.id)
     if (u.mustChangePassword) {
       navigate('/change-password', { replace: true })
+      return
+    }
+    if (isUpperManagement(u)) {
+      navigate('/overview', { replace: true })
       return
     }
     const safeFrom =
