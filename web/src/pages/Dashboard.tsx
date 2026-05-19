@@ -100,6 +100,7 @@ export function Dashboard() {
   const user = useCurrentUser()
   const ctx = useTeamContextNullable()
   const storeHydrated = useTrackerPersistHydrated()
+  const actsAsAdmin = isAdmin(user) || isUpperManagement(user)
 
   const scopeSelectRef = useRef<HTMLSelectElement>(null)
   const weeklySearchInputRef = useRef<HTMLInputElement>(null)
@@ -209,7 +210,7 @@ export function Dashboard() {
   )
 
   const filteredItems = useMemo(() => {
-    if (!user || isAdmin(user)) return scopedItems
+    if (!user || actsAsAdmin) return scopedItems
     return scopedItems.filter((w) =>
       w.assignees.some((a) => a.trim() === user.displayName.trim()),
     )
@@ -296,7 +297,7 @@ export function Dashboard() {
   )
 
   const teammateNames = useMemo(() => {
-    if (!user || isAdmin(user)) return []
+    if (!user || actsAsAdmin) return []
     return [...(ctx?.teamMembers ?? [])]
       .filter((n) => n.trim() && n.trim() !== user.displayName.trim())
       .sort((a, b) => a.localeCompare(b))
@@ -407,7 +408,7 @@ export function Dashboard() {
   }, [storeHydrated])
 
   useEffect(() => {
-    if (!user || isAdmin(user) || memberWpersonInitialized.current) return
+    if (!user || actsAsAdmin || memberWpersonInitialized.current) return
     if (searchParams.has('wperson')) {
       memberWpersonInitialized.current = true
       return
@@ -700,7 +701,7 @@ export function Dashboard() {
       <div className="space-y-3 xl:sticky xl:top-24 xl:z-0 xl:max-h-[calc(100vh-6rem)] xl:min-h-0 xl:overflow-y-auto xl:overscroll-contain">
         <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
           <h3 className="mb-0.5 text-center text-[10px] font-bold uppercase tracking-wide text-[#007a3d] dark:text-emerald-300">
-            {isAdmin(user) ? 'Team progress' : 'My progress'}
+            {actsAsAdmin ? 'Team progress' : 'My progress'}
           </h3>
           <MetabuildStatusPie
             data={teamPieSlices}
@@ -716,7 +717,7 @@ export function Dashboard() {
           </h3>
           <MetabuildSectionBars rows={sectionBarRows} compact />
         </div>
-        {isAdmin(user) ? (
+        {actsAsAdmin ? (
           <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
             <h3 className="mb-0.5 text-center text-[10px] font-bold uppercase tracking-wide text-[#007a3d] dark:text-emerald-300">
               Done % by person
@@ -724,7 +725,7 @@ export function Dashboard() {
             <MetabuildAssigneeBars rows={assigneeBarRows} compact />
           </div>
         ) : null}
-        {!isAdmin(user) && teammateNames.length > 0 ? (
+        {!actsAsAdmin && teammateNames.length > 0 ? (
           <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
             <h3 className="mb-2 text-center text-[10px] font-bold uppercase tracking-wide text-[#007a3d] dark:text-emerald-300">
               Teammates
@@ -795,7 +796,7 @@ export function Dashboard() {
         </p>
       </div>
       <div className="flex flex-wrap items-center justify-center gap-2">
-        {isAdmin(user) ? (
+        {actsAsAdmin ? (
           <Link
             to="/settings"
             className="inline-flex items-center gap-2 rounded-lg bg-[#00B050] px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-[#009948]"
@@ -862,7 +863,7 @@ export function Dashboard() {
                   <th className="px-3 py-2 font-bold text-[#0d5c2e] dark:text-emerald-300">
                     Section
                   </th>
-                  {isAdmin(user) ? (
+                  {actsAsAdmin ? (
                     <th className="px-3 py-2 font-bold text-[#0d5c2e] dark:text-emerald-300">
                       Assignees
                     </th>
@@ -881,7 +882,7 @@ export function Dashboard() {
               <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                 {tableItems.length === 0 ? (
                   <tr>
-                    <td colSpan={isAdmin(user) ? 6 : 5} className="px-4 py-10">
+                    <td colSpan={actsAsAdmin ? 6 : 5} className="px-4 py-10">
                       <div className="flex flex-col items-center justify-center gap-3 text-center">
                         <div
                           className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-200/80 text-slate-600 dark:bg-slate-700 dark:text-slate-300"
@@ -893,7 +894,7 @@ export function Dashboard() {
                           No work items in this scope
                         </p>
                         <div className="flex flex-wrap justify-center gap-2">
-                          {isAdmin(user) ? (
+                          {actsAsAdmin ? (
                             <Link
                               to="/settings"
                               className="inline-flex items-center gap-1.5 rounded-lg bg-[#00B050] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#009948]"
@@ -921,7 +922,7 @@ export function Dashboard() {
                         className="bg-[#00B050]/10 dark:bg-[#00B050]/15"
                       >
                         <td
-                          colSpan={isAdmin(user) ? 6 : 5}
+                          colSpan={actsAsAdmin ? 6 : 5}
                           className="px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-[#0d5c2e] dark:text-emerald-300"
                         >
                           {g.name}
@@ -946,7 +947,7 @@ export function Dashboard() {
                         <td className="px-3 py-2 align-top font-medium text-slate-800 dark:text-slate-200">
                           {w.section || '—'}
                         </td>
-                        {isAdmin(user) ? (
+                        {actsAsAdmin ? (
                           <td className="px-3 py-2 align-top text-slate-700 dark:text-slate-200">
                             {w.assignees.length ? w.assignees.join(', ') : '—'}
                           </td>
