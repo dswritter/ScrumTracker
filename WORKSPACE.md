@@ -2,9 +2,9 @@
 
 **Use this repository as the single source of truth:**
 
-`/Users/dharmendras/Cursor_Hackathon/ScrumTracker`
+`/Users/dharmendras/AdobeProjects/ScrumTracker`
 
-Open that path in your editor (e.g. Cursor). An older copy under `~/Downloads/ScrumDoc` may exist; treat it as a duplicate and prefer this tree.
+Open that path in your editor (e.g. Cursor). Older copies under `~/Downloads/ScrumDoc` or `~/projects/ScrumTracker` may exist; treat them as duplicates and prefer this tree.
 
 Untracked, machine-specific, or private files belong in **`local/`** (see `local/README.md`).
 
@@ -18,7 +18,7 @@ This clone uses **personal** author metadata (not your global Adobe email):
 Configured under **local** git config (`.git/config`), so other repos on the machine are unchanged. To re-apply after a fresh clone:
 
 ```bash
-cd /Users/dharmendras/Cursor_Hackathon/ScrumTracker
+cd /Users/dharmendras/AdobeProjects/ScrumTracker
 git config user.name "Dharmendra Singh"
 git config user.email "dswritter@gmail.com"
 ```
