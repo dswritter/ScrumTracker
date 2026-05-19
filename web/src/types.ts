@@ -146,6 +146,11 @@ export interface TrackerUserAccount {
   role: UserRole
   password: string
   mustChangePassword: boolean
+  /**
+   * Optional reminder shown after a wrong password (stored with team data; demo app only).
+   * Never store the actual password here.
+   */
+  passwordHint?: string
   /** Optional Slack DM / archive URL (admin-editable; same rules as team map). */
   slackChatUrl?: string
 }

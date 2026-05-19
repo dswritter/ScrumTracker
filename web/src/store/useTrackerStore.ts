@@ -31,6 +31,7 @@ import {
   seedPasswordFromKey,
 } from '../lib/passwords'
 import { generateId } from '../lib/ids'
+import { isFirstLoginPasswordVerified } from '../lib/firstLoginSession'
 import {
   mergeRemoteSnapshotTeamsAndData,
   mergeWorkComments,
@@ -152,6 +153,12 @@ function mergeImportedUsersWithSession(
           ...u,
           password: local.password,
           mustChangePassword: false,
+          passwordHint: Object.prototype.hasOwnProperty.call(
+            local,
+            'passwordHint',
+          )
+            ? local.passwordHint?.trim() || undefined
+            : u.passwordHint,
         }
       : u,
   )
@@ -187,6 +194,8 @@ function normalizeUser(
   const hasPwd = typeof o.password === 'string' && o.password.length > 0
   const slackRaw =
     typeof o.slackChatUrl === 'string' ? o.slackChatUrl.trim() : ''
+  const hintRaw =
+    typeof o.passwordHint === 'string' ? o.passwordHint.trim() : ''
   const base: TrackerUserAccount = {
     id: String(o.id ?? newId('user')),
     teamId,
@@ -199,6 +208,7 @@ function normalizeUser(
         ? DEMO_SEED_ADMIN_PASSWORD
         : seedPasswordFromKey(`${username}:member`),
     mustChangePassword: Boolean(o.mustChangePassword),
+    ...(hintRaw ? { passwordHint: hintRaw } : {}),
     ...(slackRaw ? { slackChatUrl: slackRaw } : {}),
   }
   return finalizePasswordPolicy(base)
@@ -600,11 +610,15 @@ export interface TrackerState {
     input: { username: string; displayName: string },
   ) => { ok: true } | { ok: false; error: string }
 
+  /** Optional hint for wrong-password help (plain text; demo storage only). */
+  setPasswordHintForUser: (userId: string, hint: string) => void
+
   completeFirstLoginPasswordChange: (
     userId: string,
     masterPassword: string,
     newPassword: string,
     confirmPassword: string,
+    passwordHint?: string,
   ) => { ok: true } | { ok: false; error: string }
 
   /** Voluntary change: must match current login password. */
@@ -1391,11 +1405,23 @@ export const useTrackerStore = create<TrackerState>()(
         return { ok: true }
       },
 
+      setPasswordHintForUser: (userId, hint) => {
+        const t = hint.trim()
+        set((s) => ({
+          users: s.users.map((x) =>
+            x.id === userId
+              ? { ...x, passwordHint: t || undefined }
+              : x,
+          ),
+        }))
+      },
+
       completeFirstLoginPasswordChange: (
         userId,
         masterPassword,
         newPassword,
         confirmPassword,
+        passwordHint,
       ) => {
         if (newPassword.trim() !== confirmPassword.trim()) {
           return { ok: false, error: 'New password and confirmation do not match.' }
@@ -1411,13 +1437,31 @@ export const useTrackerStore = create<TrackerState>()(
         if (!u || !u.mustChangePassword) {
           return { ok: false, error: 'Password change not required.' }
         }
-        if (!passwordsMatch(u.password, masterPassword)) {
-          return { ok: false, error: 'Temporary password is incorrect.' }
+        const sessionOk = isFirstLoginPasswordVerified(userId)
+        if (!sessionOk && !passwordsMatch(u.password, masterPassword)) {
+          if (!String(masterPassword).trim()) {
+            return {
+              ok: false,
+              error:
+                'Sign in from the login page with your temporary password first, or enter your temporary password in the field below.',
+            }
+          }
+          return {
+            ok: false,
+            error: 'Temporary password is incorrect.',
+          }
         }
         set({
           users: s.users.map((x) =>
             x.id === userId
-              ? { ...x, password: newPassword.trim(), mustChangePassword: false }
+              ? {
+                  ...x,
+                  password: newPassword.trim(),
+                  mustChangePassword: false,
+                  ...(passwordHint !== undefined
+                    ? { passwordHint: passwordHint.trim() || undefined }
+                    : {}),
+                }
               : x,
           ),
         })
@@ -1448,7 +1492,11 @@ export const useTrackerStore = create<TrackerState>()(
         set({
           users: s.users.map((x) =>
             x.id === userId
-              ? { ...x, password: newPassword.trim(), mustChangePassword: false }
+              ? {
+                  ...x,
+                  password: newPassword.trim(),
+                  mustChangePassword: false,
+                }
               : x,
           ),
         })
@@ -1479,7 +1527,11 @@ export const useTrackerStore = create<TrackerState>()(
         set({
           users: s.users.map((x) =>
             x.id === userId
-              ? { ...x, password: newPassword.trim(), mustChangePassword: false }
+              ? {
+                  ...x,
+                  password: newPassword.trim(),
+                  mustChangePassword: false,
+                }
               : x,
           ),
         })

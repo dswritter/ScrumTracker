@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { PasswordField } from '../components/PasswordField'
+import { clearFirstLoginPasswordVerified, isFirstLoginPasswordVerified } from '../lib/firstLoginSession'
 import { useCurrentUser } from '../hooks/useCurrentUser'
 import { useTrackerStore } from '../store/useTrackerStore'
 type VoluntaryMode = 'current' | 'master'
@@ -15,13 +16,29 @@ export function ChangePassword() {
   const resetPasswordWithMaster = useTrackerStore(
     (s) => s.resetPasswordWithMaster,
   )
+  const setPasswordHintForUser = useTrackerStore(
+    (s) => s.setPasswordHintForUser,
+  )
 
   const [master, setMaster] = useState('')
   const [current, setCurrent] = useState('')
   const [next, setNext] = useState('')
   const [confirm, setConfirm] = useState('')
+  const [firstHint, setFirstHint] = useState('')
+  const [voluntaryHint, setVoluntaryHint] = useState('')
+  const voluntaryHintDirty = useRef(false)
   const [error, setError] = useState<string | null>(null)
   const [voluntaryMode, setVoluntaryMode] = useState<VoluntaryMode>('current')
+
+  const firstLoginSessionOk = user
+    ? isFirstLoginPasswordVerified(user.id)
+    : false
+
+  useEffect(() => {
+    if (!user) return
+    setVoluntaryHint(user.passwordHint ?? '')
+    voluntaryHintDirty.current = false
+  }, [user?.id, user?.passwordHint])
 
   if (!user) {
     return <Navigate to="/login" replace />
@@ -32,11 +49,18 @@ export function ChangePassword() {
   const onFirstLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
-    const r = completeFirstLoginPasswordChange(user.id, master, next, confirm)
+    const r = completeFirstLoginPasswordChange(
+      user.id,
+      firstLoginSessionOk ? '' : master,
+      next,
+      confirm,
+      firstHint.trim() || undefined,
+    )
     if (!r.ok) {
       setError(r.error)
       return
     }
+    clearFirstLoginPasswordVerified()
     navigate(home, { replace: true })
   }
 
@@ -50,6 +74,9 @@ export function ChangePassword() {
     if (!r.ok) {
       setError(r.error)
       return
+    }
+    if (voluntaryHintDirty.current) {
+      setPasswordHintForUser(user.id, voluntaryHint.trim())
     }
     navigate(home, { replace: true })
   }
@@ -65,9 +92,18 @@ export function ChangePassword() {
             Set your password
           </h1>
           <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-            Enter the <strong>temporary password</strong> your admin gave you
-            (out of band), then choose a new password (at least 8 characters)
-            and confirm it.
+            {firstLoginSessionOk ? (
+              <>
+                You already signed in with your temporary password. Choose a
+                new password (at least 8 characters) and confirm it below.
+              </>
+            ) : (
+              <>
+                Enter the <strong>temporary password</strong> your admin gave
+                you (out of band), then choose a new password (at least 8
+                characters) and confirm it.
+              </>
+            )}
           </p>
         </div>
 
@@ -75,13 +111,15 @@ export function ChangePassword() {
           onSubmit={onFirstLoginSubmit}
           className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/90"
         >
-          <PasswordField
-            id="m"
-            label="Temporary password"
-            autoComplete="off"
-            value={master}
-            onChange={setMaster}
-          />
+          {!firstLoginSessionOk ? (
+            <PasswordField
+              id="m"
+              label="Temporary password"
+              autoComplete="off"
+              value={master}
+              onChange={setMaster}
+            />
+          ) : null}
           <PasswordField
             id="n"
             label="New password"
@@ -96,6 +134,27 @@ export function ChangePassword() {
             value={confirm}
             onChange={setConfirm}
           />
+          <div>
+            <label
+              htmlFor="fh"
+              className="text-xs font-semibold text-slate-600 dark:text-slate-400"
+            >
+              Password hint (optional)
+            </label>
+            <input
+              id="fh"
+              type="text"
+              autoComplete="off"
+              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 shadow-sm dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
+              placeholder="Shown only if you mistype your password on sign-in"
+              value={firstHint}
+              onChange={(e) => setFirstHint(e.target.value)}
+            />
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              Never put your real password here. This hint is stored with your
+              team data in this browser (demo mode).
+            </p>
+          </div>
           {error ? (
             <p className="text-sm font-medium text-rose-700 dark:text-rose-400">
               {error}
@@ -202,6 +261,34 @@ export function ChangePassword() {
           value={confirm}
           onChange={setConfirm}
         />
+        <div>
+          <label
+            htmlFor="vh"
+            className="text-xs font-semibold text-slate-600 dark:text-slate-400"
+          >
+            Password hint (optional)
+          </label>
+          <input
+            id="vh"
+            type="text"
+            autoComplete="off"
+            className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 shadow-sm dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
+            placeholder={
+              user.passwordHint
+                ? 'Update or clear your sign-in hint'
+                : 'Shown if you mistype your password on sign-in'
+            }
+            value={voluntaryHint}
+            onChange={(e) => {
+              voluntaryHintDirty.current = true
+              setVoluntaryHint(e.target.value)
+            }}
+          />
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            Leave unchanged to keep your current hint. Edit to update; delete
+            all text and save to remove the hint.
+          </p>
+        </div>
         {error ? (
           <p className="text-sm font-medium text-rose-700 dark:text-rose-400">
             {error}
