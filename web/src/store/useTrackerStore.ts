@@ -40,7 +40,10 @@ import { sanitizeWorkItemUpdate } from '../lib/workItemPrivacy'
 import { normalizeLoginUsername } from '../lib/username'
 import { mergeBundledSlackDefaults } from '../data/defaultSlackDmUrls'
 import { DEFAULT_NEW_TEAM_JIRA_SPRINT_FIELD_ID } from '../data/jiraDefaults'
+import { postJiraIssueComment } from '../lib/jiraApi'
+import { isAdmin } from '../lib/permissions'
 import { parseSlackDmUrlInput } from '../lib/slackDm'
+import { isTrackerSyncEnabled } from '../lib/syncConfigured'
 import { dmThreadKey } from '../lib/teamChat'
 import { useAuthStore } from './useAuthStore'
 
@@ -776,6 +779,13 @@ export const useTrackerStore = create<TrackerState>()(
       addComment: (teamId, itemId, authorName, body) => {
         const t = body.trim()
         if (!t) return
+        const state = get()
+        const d = getSlice(state, teamId)
+        const item = d.workItems.find((w) => w.id === itemId)
+        const jiraKeys = (item?.jiraKeys ?? [])
+          .map((k) => String(k).trim())
+          .filter(Boolean)
+
         const entry: WorkComment = {
           id: newId('comment'),
           authorName: authorName.trim() || 'Unknown',
@@ -783,10 +793,10 @@ export const useTrackerStore = create<TrackerState>()(
           createdAt: new Date().toISOString(),
         }
         set((s) => {
-          const d = getSlice(s, teamId)
+          const slice = getSlice(s, teamId)
           return {
             teamsData: patchSlice(s, teamId, {
-              workItems: d.workItems.map((w) =>
+              workItems: slice.workItems.map((w) =>
                 w.id === itemId
                   ? { ...w, comments: [...w.comments, entry] }
                   : w,
@@ -794,6 +804,65 @@ export const useTrackerStore = create<TrackerState>()(
             }),
           }
         })
+
+        if (!jiraKeys.length || !isTrackerSyncEnabled()) return
+
+        const uid = useAuthStore.getState().currentUserId
+        const user = state.users.find((u) => u.id === uid)
+        if (!user) return
+
+        const issueKey = jiraKeys[0].toUpperCase()
+        const jiraBody = `${authorName.trim() || 'Unknown'} (via ScrumTracker):\n\n${t}`
+        const syncMode = isAdmin(user) ? ('admin' as const) : ('individual' as const)
+        const trackerUsername = isAdmin(user) ? undefined : user.username
+
+        void (async () => {
+          try {
+            const res = await postJiraIssueComment({
+              teamId,
+              issueKey,
+              body: jiraBody,
+              syncMode,
+              ...(trackerUsername ? { trackerUsername } : {}),
+            })
+            if (!res.ok) {
+              const msg = await res.text()
+              if (typeof window !== 'undefined') {
+                window.alert(
+                  `Comment saved in the tracker but could not be posted to Jira (${issueKey}): ${msg.slice(0, 500)}`,
+                )
+              }
+              return
+            }
+            const data = (await res.json()) as { jiraCommentId?: string }
+            if (data.jiraCommentId && typeof window !== 'undefined') {
+              set((s) => {
+                const slice = getSlice(s, teamId)
+                return {
+                  teamsData: patchSlice(s, teamId, {
+                    workItems: slice.workItems.map((w) => {
+                      if (w.id !== itemId) return w
+                      return {
+                        ...w,
+                        comments: w.comments.map((c) =>
+                          c.id === entry.id
+                            ? { ...c, id: `jira-cmt-${data.jiraCommentId}` }
+                            : c,
+                        ),
+                      }
+                    }),
+                  }),
+                }
+              })
+            }
+          } catch (e) {
+            if (typeof window !== 'undefined') {
+              window.alert(
+                `Comment saved in the tracker but Jira request failed (${issueKey}): ${e instanceof Error ? e.message : String(e)}`,
+              )
+            }
+          }
+        })()
       },
 
       appendTeamChatMessage: (teamId, authorDisplayName, peerDisplayName, body) => {

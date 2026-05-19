@@ -105,6 +105,21 @@ export async function postJiraCreateIssue(body: {
   })
 }
 
+/** Post a plain-text comment on a linked Jira issue (uses team or user PAT like sync). */
+export async function postJiraIssueComment(body: {
+  teamId: string
+  issueKey: string
+  body: string
+  syncMode?: 'admin' | 'individual'
+  trackerUsername?: string
+}) {
+  return syncFetch('/api/jira/issue-comment', {
+    method: 'POST',
+    headers: jiraHeaders(),
+    body: JSON.stringify(body),
+  })
+}
+
 export type JiraProjectOption = { key: string; name: string }
 export type JiraIssueTypeOption = { id: string; name: string }
 

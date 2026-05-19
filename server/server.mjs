@@ -189,6 +189,6 @@ server.listen(PORT, HOST, () => {
     `  WS   /ws/tracker — { type: 'tracker_rev', rev } and optional { type: 'work_item_updated', … }`,
   )
   console.log(
-    `  JIRA: …/sync, …/create-issue, GET …/meta/*, …/lookup-issue, …/issue-suggest`,
+    `  JIRA: …/sync, …/create-issue, …/issue-comment, GET …/meta/*, …/lookup-issue, …/issue-suggest`,
   )
 })

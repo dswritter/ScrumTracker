@@ -718,6 +718,32 @@ async function fetchIssueComments(jiraBase, pat, issueKey) {
   return all
 }
 
+/**
+ * Add a plain-text comment on a Jira issue (REST v2). Uses the same PAT as sync.
+ * @param {string} jiraBase
+ * @param {string} pat
+ * @param {string} issueKey
+ * @param {string} bodyText
+ */
+async function postIssueComment(jiraBase, pat, issueKey, bodyText) {
+  const base = jiraBase.replace(/\/$/, '')
+  const url = `${base}/rest/api/2/issue/${encodeURIComponent(issueKey)}/comment`
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${pat}`,
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ body: bodyText }),
+  })
+  if (!res.ok) {
+    const t = await res.text()
+    throw new Error(`Jira add comment ${res.status} for ${issueKey}: ${t.slice(0, 400)}`)
+  }
+  return res.json()
+}
+
 async function fetchCommentsForIssues(jiraBase, pat, issueKeys, concurrency = 8) {
   const map = new Map()
   for (let i = 0; i < issueKeys.length; i += concurrency) {
@@ -1316,6 +1342,43 @@ export function registerJiraRoutes(app, opts) {
     } catch (e) {
       res.status(502).json({
         error: e instanceof Error ? e.message : 'Jira create failed',
+      })
+    }
+  })
+
+  app.post('/api/jira/issue-comment', requireJiraSecret, async (req, res) => {
+    const teamId = typeof req.body?.teamId === 'string' ? req.body.teamId.trim() : ''
+    const issueKey =
+      typeof req.body?.issueKey === 'string' ? req.body.issueKey.trim().toUpperCase() : ''
+    const bodyText = typeof req.body?.body === 'string' ? req.body.body : ''
+    const syncMode = req.body?.syncMode === 'individual' ? 'individual' : 'admin'
+    const trackerUsername = normalizeTrackerUsername(req.body?.trackerUsername)
+
+    if (!teamId || !issueKey || !bodyText.trim()) {
+      res.status(400).json({
+        error:
+          'Body must include { teamId, issueKey, body } (optional syncMode, trackerUsername)',
+      })
+      return
+    }
+
+    const conn = await resolvePatAndJiraBase(teamId, syncMode, trackerUsername)
+    if (!conn.ok) {
+      res.status(conn.status).json({ error: conn.error })
+      return
+    }
+    const { pat, jiraBase } = conn
+
+    try {
+      const created = await postIssueComment(jiraBase, pat, issueKey, bodyText.trim())
+      const jiraCommentId =
+        created && (typeof created.id === 'string' || typeof created.id === 'number')
+          ? String(created.id)
+          : null
+      res.json({ ok: true, jiraCommentId })
+    } catch (e) {
+      res.status(502).json({
+        error: e instanceof Error ? e.message : 'Jira comment failed',
       })
     }
   })
