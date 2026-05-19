@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
+import { dedupeWorkCommentsForDisplay } from '../lib/dedupeWorkComments'
 import { formatIsoDateTime } from '../lib/formatIso'
 import { itemDetailPath } from '../lib/workItemRoutes'
 import type { WorkItem } from '../types'
@@ -43,7 +44,7 @@ export function WorkItemTitleLink({
   const [pos, setPos] = useState({ top: 0, left: 0 })
 
   const sortedComments = useMemo(() => {
-    let list = [...item.comments].sort((a, b) =>
+    let list = dedupeWorkCommentsForDisplay([...item.comments]).sort((a, b) =>
       b.createdAt.localeCompare(a.createdAt),
     )
     if (sprintCommentWindow) {

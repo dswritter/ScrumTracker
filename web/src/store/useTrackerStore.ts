@@ -51,15 +51,32 @@ function newId(prefix: string): string {
   return `${prefix}-${generateId().slice(0, 8)}`
 }
 
+function normalizeWorkComment(raw: unknown): WorkComment | null {
+  const o = raw as Record<string, unknown>
+  const id = typeof o.id === 'string' ? o.id : ''
+  if (!id) return null
+  const authorName = typeof o.authorName === 'string' ? o.authorName : ''
+  const body = typeof o.body === 'string' ? o.body : ''
+  const createdAt =
+    typeof o.createdAt === 'string' ? o.createdAt : new Date().toISOString()
+  const row: WorkComment = { id, authorName, body, createdAt }
+  if (typeof o.editedAt === 'string') row.editedAt = o.editedAt
+  if (typeof o.jiraIssueKey === 'string' && o.jiraIssueKey.trim()) {
+    row.jiraIssueKey = o.jiraIssueKey.trim().toUpperCase()
+  }
+  return row
+}
+
 function normalizeWorkItem(raw: unknown): WorkItem {
   const o = raw as Record<string, unknown>
-  const existing = Array.isArray(o.comments)
-    ? (o.comments as WorkComment[])
-    : []
+  const rawComments = Array.isArray(o.comments) ? o.comments : []
+  const normalizedComments = rawComments
+    .map((c) => normalizeWorkComment(c))
+    .filter((c): c is WorkComment => c != null)
   const notes = typeof o.notes === 'string' ? o.notes : ''
   const comments =
-    existing.length > 0
-      ? existing
+    normalizedComments.length > 0
+      ? normalizedComments
       : notes.trim()
         ? [
             {
@@ -513,9 +530,17 @@ export interface TrackerState {
     itemId: string,
     localCommentId: string,
     jiraCommentId: string,
+    jiraIssueKey?: string,
   ) => void
 
   deleteComment: (teamId: string, itemId: string, commentId: string) => void
+
+  editComment: (
+    teamId: string,
+    itemId: string,
+    commentId: string,
+    newBody: string,
+  ) => void
 
   rollIncompleteWorkItems: (teamId: string) => void
 
@@ -807,9 +832,19 @@ export const useTrackerStore = create<TrackerState>()(
         return entryId
       },
 
-      retagCommentWithJiraId: (teamId, itemId, localCommentId, jiraCommentId) => {
+      retagCommentWithJiraId: (
+        teamId,
+        itemId,
+        localCommentId,
+        jiraCommentId,
+        jiraIssueKey,
+      ) => {
         const jid = String(jiraCommentId).trim()
         if (!jid) return
+        const issue =
+          typeof jiraIssueKey === 'string' && jiraIssueKey.trim()
+            ? jiraIssueKey.trim().toUpperCase()
+            : undefined
         set((s) => {
           const slice = getSlice(s, teamId)
           return {
@@ -820,7 +855,11 @@ export const useTrackerStore = create<TrackerState>()(
                   ...w,
                   comments: w.comments.map((c) =>
                     c.id === localCommentId
-                      ? { ...c, id: `jira-cmt-${jid}` }
+                      ? {
+                          ...c,
+                          id: `jira-cmt-${jid}`,
+                          ...(issue ? { jiraIssueKey: issue } : {}),
+                        }
                       : c,
                   ),
                 }
@@ -1006,6 +1045,31 @@ export const useTrackerStore = create<TrackerState>()(
             }),
           }
         }),
+
+      editComment: (teamId, itemId, commentId, newBody) => {
+        const t = newBody.trim()
+        if (!t) return
+        const editedAt = new Date().toISOString()
+        set((s) => {
+          const d = getSlice(s, teamId)
+          return {
+            teamsData: patchSlice(s, teamId, {
+              workItems: d.workItems.map((w) =>
+                w.id === itemId
+                  ? {
+                      ...w,
+                      comments: w.comments.map((c) =>
+                        c.id === commentId
+                          ? { ...c, body: t, editedAt }
+                          : c,
+                      ),
+                    }
+                  : w,
+              ),
+            }),
+          }
+        })
+      },
 
       rollIncompleteWorkItems: (teamId) =>
         set((state) => {

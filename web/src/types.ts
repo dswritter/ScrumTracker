@@ -18,13 +18,17 @@ export type WorkStatus =
   | 'blocked'
   | 'todo'
 
-/** Append-only thread; older entries are not edited or deleted in the UI. */
+/** Work item thread; edits allowed for own comments when the UI permits. */
 export interface WorkComment {
   id: string
   authorName: string
   body: string
   /** ISO timestamp */
   createdAt: string
+  /** ISO when the author last edited the body (tracker-only display). */
+  editedAt?: string
+  /** Jira issue key for this row when mirrored from Jira or after a tracker→Jira post (used for Jira API updates). */
+  jiraIssueKey?: string
 }
 
 /** Team DM message; stored in shared snapshot (syncs like work items). */

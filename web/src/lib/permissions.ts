@@ -1,4 +1,5 @@
-import type { TrackerUserAccount, WorkItem } from '../types'
+import type { TrackerUserAccount, WorkComment, WorkItem } from '../types'
+import { commentAuthorLabel } from './commentAuthor'
 import { isPrivateWorkItem, workItemVisibleToViewer } from './workItemPrivacy'
 
 export function isAdmin(u: TrackerUserAccount | null | undefined): boolean {
@@ -57,6 +58,21 @@ export function canDeleteComment(
     return true
   }
   return isAdmin(user)
+}
+
+/** Edit own comment body (same people who may add comments on this item). */
+export function canEditOwnWorkComment(
+  user: TrackerUserAccount | null,
+  item: WorkItem,
+  comment: WorkComment,
+): boolean {
+  if (!user || !canEditWorkItem(user, item)) return false
+  const an = comment.authorName.trim()
+  if (an === commentAuthorLabel(user)) return true
+  const dn = user.displayName.trim()
+  if (dn && an === dn) return true
+  if (dn && an.startsWith(`${dn} (`)) return true
+  return false
 }
 
 export function canChangeAssignees(

@@ -1,3 +1,4 @@
+import { dedupeWorkCommentsForDisplay } from './dedupeWorkComments'
 import type {
   TeamChatMessage,
   TeamKnowledgePage,
@@ -58,9 +59,10 @@ export function mergeWorkComments(
   for (const c of local) {
     if (!byId.has(c.id)) byId.set(c.id, c)
   }
-  return [...byId.values()].sort((a, b) =>
+  const merged = [...byId.values()].sort((a, b) =>
     a.createdAt.localeCompare(b.createdAt),
   )
+  return dedupeWorkCommentsForDisplay(merged)
 }
 
 function mergeWorkItems(remoteList: WorkItem[], localList: WorkItem[]): WorkItem[] {

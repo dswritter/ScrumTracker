@@ -120,6 +120,22 @@ export async function postJiraIssueComment(body: {
   })
 }
 
+/** Update an existing Jira issue comment (REST v2). */
+export async function putJiraIssueCommentUpdate(body: {
+  teamId: string
+  issueKey: string
+  jiraCommentId: string
+  body: string
+  syncMode?: 'admin' | 'individual'
+  trackerUsername?: string
+}) {
+  return syncFetch('/api/jira/issue-comment', {
+    method: 'PUT',
+    headers: jiraHeaders(),
+    body: JSON.stringify(body),
+  })
+}
+
 export type JiraProjectOption = { key: string; name: string }
 export type JiraIssueTypeOption = { id: string; name: string }
 

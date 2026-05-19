@@ -350,6 +350,7 @@ function Row({
       </td>
       <td className="px-2 py-2">
         <CommentsCell
+          teamId={teamId}
           item={item}
           jiraBaseUrl={jiraBaseUrl}
           canAdd={canComment}

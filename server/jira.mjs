@@ -250,11 +250,32 @@ function adfBlocksToPlainText(nodes) {
   return s
 }
 
-function mergeJiraCommentsIntoWorkItem(existingComments, jiraApiComments) {
-  const local = (existingComments || []).filter(
-    (c) => c && !String(c.id).startsWith('jira-cmt-'),
-  )
-  const jiraMapped = (jiraApiComments || []).map((jc) => ({
+function mergeJiraCommentsIntoWorkItem(existingComments, jiraApiComments, issueKey) {
+  const jiraList = jiraApiComments || []
+  const key =
+    typeof issueKey === 'string' && issueKey.trim()
+      ? issueKey.trim().toUpperCase()
+      : ''
+  const local = (existingComments || []).filter((c) => {
+    if (!c || String(c.id).startsWith('jira-cmt-')) return false
+    const plain = (c.body || '').trim()
+    if (!plain || !key) return true
+    for (const jc of jiraList) {
+      const jb = bodyToPlainText(jc.body).trim()
+      if (jb !== plain) continue
+      const ca = typeof c.createdAt === 'string' ? c.createdAt : ''
+      const cb = typeof jc.created === 'string' ? jc.created : ''
+      if (ca && cb) {
+        const da = Date.parse(ca)
+        const db = Date.parse(cb)
+        if (!Number.isNaN(da) && !Number.isNaN(db) && Math.abs(da - db) <= 120_000) {
+          return false
+        }
+      }
+    }
+    return true
+  })
+  const jiraMapped = jiraList.map((jc) => ({
     id: `jira-cmt-${jc.id}`,
     authorName:
       (jc.author &&
@@ -268,6 +289,7 @@ function mergeJiraCommentsIntoWorkItem(existingComments, jiraApiComments) {
     })(),
     createdAt:
       typeof jc.created === 'string' ? jc.created : new Date().toISOString(),
+    ...(key ? { jiraIssueKey: key } : {}),
   }))
   return [...local, ...jiraMapped].sort((a, b) =>
     a.createdAt.localeCompare(b.createdAt),
@@ -524,7 +546,7 @@ function upsertWorkItemFromIssue(
 
   if (idx >= 0) {
     const w = workItems[idx]
-    let comments = mergeJiraCommentsIntoWorkItem(w.comments, jiraComments)
+    let comments = mergeJiraCommentsIntoWorkItem(w.comments, jiraComments, key)
     const resTs = resolutionTimestampFromFields(fields)
     if (
       trackerReachedDone(w.status, status) &&
@@ -552,7 +574,7 @@ function upsertWorkItemFromIssue(
   }
 
   const id = `wi-jira-${key.replace(/[^a-zA-Z0-9_-]/g, '')}`
-  let createdComments = mergeJiraCommentsIntoWorkItem([], jiraComments)
+  let createdComments = mergeJiraCommentsIntoWorkItem([], jiraComments, key)
   const resTsNew = resolutionTimestampFromFields(fields)
   if (
     status === 'done' &&
@@ -740,6 +762,33 @@ async function postIssueComment(jiraBase, pat, issueKey, bodyText) {
   if (!res.ok) {
     const t = await res.text()
     throw new Error(`Jira add comment ${res.status} for ${issueKey}: ${t.slice(0, 400)}`)
+  }
+  return res.json()
+}
+
+/**
+ * Update an existing Jira issue comment (REST v2).
+ * @param {string} jiraBase
+ * @param {string} pat
+ * @param {string} issueKey
+ * @param {string} jiraCommentNumericId
+ * @param {string} bodyText
+ */
+async function updateIssueComment(jiraBase, pat, issueKey, jiraCommentNumericId, bodyText) {
+  const base = jiraBase.replace(/\/$/, '')
+  const url = `${base}/rest/api/2/issue/${encodeURIComponent(issueKey)}/comment/${encodeURIComponent(jiraCommentNumericId)}`
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: {
+      Authorization: `Bearer ${pat}`,
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ body: bodyText }),
+  })
+  if (!res.ok) {
+    const t = await res.text()
+    throw new Error(`Jira update comment ${res.status} for ${issueKey}/${jiraCommentNumericId}: ${t.slice(0, 400)}`)
   }
   return res.json()
 }
@@ -1379,6 +1428,45 @@ export function registerJiraRoutes(app, opts) {
     } catch (e) {
       res.status(502).json({
         error: e instanceof Error ? e.message : 'Jira comment failed',
+      })
+    }
+  })
+
+  app.put('/api/jira/issue-comment', requireJiraSecret, async (req, res) => {
+    const teamId = typeof req.body?.teamId === 'string' ? req.body.teamId.trim() : ''
+    const issueKey =
+      typeof req.body?.issueKey === 'string' ? req.body.issueKey.trim().toUpperCase() : ''
+    const jiraCommentId =
+      typeof req.body?.jiraCommentId === 'string'
+        ? req.body.jiraCommentId.trim()
+        : typeof req.body?.jiraCommentId === 'number'
+          ? String(req.body.jiraCommentId)
+          : ''
+    const bodyText = typeof req.body?.body === 'string' ? req.body.body : ''
+    const syncMode = req.body?.syncMode === 'individual' ? 'individual' : 'admin'
+    const trackerUsername = normalizeTrackerUsername(req.body?.trackerUsername)
+
+    if (!teamId || !issueKey || !jiraCommentId || !bodyText.trim()) {
+      res.status(400).json({
+        error:
+          'Body must include { teamId, issueKey, jiraCommentId, body } (optional syncMode, trackerUsername)',
+      })
+      return
+    }
+
+    const conn = await resolvePatAndJiraBase(teamId, syncMode, trackerUsername)
+    if (!conn.ok) {
+      res.status(conn.status).json({ error: conn.error })
+      return
+    }
+    const { pat, jiraBase } = conn
+
+    try {
+      await updateIssueComment(jiraBase, pat, issueKey, jiraCommentId, bodyText.trim())
+      res.json({ ok: true })
+    } catch (e) {
+      res.status(502).json({
+        error: e instanceof Error ? e.message : 'Jira comment update failed',
       })
     }
   })

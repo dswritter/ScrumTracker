@@ -2,13 +2,16 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { CommentJiraPostOptions } from '../components/CommentJiraPostOptions'
 import { JiraPerItemIssueActions } from '../components/JiraPerItemIssueActions'
+import {
+  EditWorkCommentDialog,
+  PushExistingCommentToJiraDialog,
+} from '../components/WorkCommentActionDialogs'
+import { WorkCommentRow } from '../components/WorkCommentRow'
 import { StatusBadge } from '../components/StatusBadge'
-import { WorkCommentBody } from '../components/WorkCommentBody'
 import { WorkItemTitleLink } from '../components/WorkItemTitleLink'
 import { useCurrentUser } from '../hooks/useCurrentUser'
 import { useTeamContextNullable } from '../hooks/useTeamContext'
 import { commentAuthorLabel } from '../lib/commentAuthor'
-import { formatIsoDateTime } from '../lib/formatIso'
 import {
   canAddComment,
   canDeleteComment,
@@ -18,10 +21,11 @@ import {
 } from '../lib/permissions'
 import { isPrivateWorkItem } from '../lib/workItemPrivacy'
 import { otherItemsSharingAssignees } from '../lib/stats'
+import { dedupeWorkCommentsForDisplay } from '../lib/dedupeWorkComments'
 import { postTrackerCommentToJiraIfRequested } from '../lib/submitCommentToJira'
 import { isTrackerSyncEnabled } from '../lib/syncConfigured'
 import { useTrackerStore } from '../store/useTrackerStore'
-import type { Sprint } from '../types'
+import type { Sprint, WorkComment } from '../types'
 
 function jiraHref(base: string, key: string): string {
   const b = base.trim().replace(/\/$/, '')
@@ -40,6 +44,7 @@ export function ItemDetail() {
   const addComment = useTrackerStore((s) => s.addComment)
   const retagCommentWithJiraId = useTrackerStore((s) => s.retagCommentWithJiraId)
   const deleteComment = useTrackerStore((s) => s.deleteComment)
+  const editComment = useTrackerStore((s) => s.editComment)
   const updateWorkItem = useTrackerStore((s) => s.updateWorkItem)
   const rawParam = useParams<{ itemId: string }>().itemId ?? ''
   const itemId = useMemo(() => {
@@ -53,6 +58,8 @@ export function ItemDetail() {
   const [draft, setDraft] = useState('')
   const [alsoToJira, setAlsoToJira] = useState(false)
   const [selectedIssueKey, setSelectedIssueKey] = useState('')
+  const [pushJiraComment, setPushJiraComment] = useState<WorkComment | null>(null)
+  const [editingComment, setEditingComment] = useState<WorkComment | null>(null)
 
   const item = useMemo(
     () => ctx?.workItems?.find((w) => w.id === itemId) ?? null,
@@ -74,15 +81,13 @@ export function ItemDetail() {
 
   const syncJira = isTrackerSyncEnabled()
 
-  const sortedComments = useMemo(
-    () =>
-      item
-        ? [...item.comments].sort((a, b) =>
-            b.createdAt.localeCompare(a.createdAt),
-          )
-        : [],
-    [item],
-  )
+  const sortedComments = useMemo(() => {
+    if (!item) return []
+    const deduped = dedupeWorkCommentsForDisplay(item.comments)
+    return [...deduped].sort((a, b) =>
+      b.createdAt.localeCompare(a.createdAt),
+    )
+  }, [item])
 
   const otherItems = useMemo(() => {
     if (!item || !ctx) return []
@@ -291,37 +296,24 @@ export function ItemDetail() {
         ) : (
           <ul className="mt-3 space-y-4 border-t border-slate-100 pt-4">
             {sortedComments.map((c) => (
-              <li
+              <WorkCommentRow
                 key={c.id}
-                className="group relative text-sm pr-8"
-              >
-                <p className="font-medium text-slate-900 dark:text-slate-100">
-                  <WorkCommentBody comment={c} jiraBaseUrl={jiraBaseUrl} />
-                </p>
-                <p className="mt-1 text-xs text-slate-500">
-                  {c.authorName} · {formatIsoDateTime(c.createdAt)}
-                </p>
-                {canRemoveComment ? (
-                  <button
-                    type="button"
-                    className="absolute right-0 top-0 flex h-7 w-7 items-center justify-center rounded text-slate-400 opacity-0 transition-opacity hover:bg-rose-50 hover:text-rose-700 group-hover:opacity-100"
-                    title="Remove comment"
-                    aria-label="Remove comment"
-                    onClick={() => {
-                      if (
-                        confirm(
-                          'Remove this comment? This cannot be undone.',
-                        )
-                      )
-                        deleteComment(teamId, item.id, c.id)
-                    }}
-                  >
-                    <span className="text-xl leading-none" aria-hidden>
-                      ×
-                    </span>
-                  </button>
-                ) : null}
-              </li>
+                comment={c}
+                item={item}
+                user={user}
+                jiraBaseUrl={jiraBaseUrl}
+                onPushJira={
+                  canComment ? (cc) => setPushJiraComment(cc) : undefined
+                }
+                onEdit={
+                  canComment ? (cc) => setEditingComment(cc) : undefined
+                }
+                onDelete={
+                  canRemoveComment
+                    ? (cid) => deleteComment(teamId, item.id, cid)
+                    : undefined
+                }
+              />
             ))}
           </ul>
         )}
@@ -411,6 +403,25 @@ export function ItemDetail() {
           </ul>
         </div>
       ) : null}
+
+      <PushExistingCommentToJiraDialog
+        open={pushJiraComment !== null}
+        onClose={() => setPushJiraComment(null)}
+        comment={pushJiraComment}
+        item={item}
+        teamId={teamId}
+        user={user}
+        retagCommentWithJiraId={retagCommentWithJiraId}
+      />
+      <EditWorkCommentDialog
+        open={editingComment !== null}
+        onClose={() => setEditingComment(null)}
+        comment={editingComment}
+        item={item}
+        teamId={teamId}
+        user={user}
+        editComment={editComment}
+      />
     </div>
   )
 }

@@ -1,8 +1,15 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useDismissOnEscape } from '../hooks/useDismissOnEscape'
-import type { TrackerUserAccount, WorkItem } from '../types'
+import type { TrackerUserAccount, WorkComment, WorkItem } from '../types'
+import {
+  EditWorkCommentDialog,
+  PushExistingCommentToJiraDialog,
+} from './WorkCommentActionDialogs'
 import { CommentJiraPostOptions } from './CommentJiraPostOptions'
 import { WorkCommentBody } from './WorkCommentBody'
+import { WorkCommentRow } from './WorkCommentRow'
+import { dedupeWorkCommentsForDisplay } from '../lib/dedupeWorkComments'
+import { useTrackerStore } from '../store/useTrackerStore'
 
 function formatDate(iso: string): string {
   try {
@@ -18,6 +25,7 @@ function formatDate(iso: string): string {
 
 export function CommentsCell({
   item,
+  teamId,
   jiraBaseUrl,
   canAdd,
   currentName,
@@ -28,6 +36,7 @@ export function CommentsCell({
   user: commentUser,
 }: {
   item: WorkItem
+  teamId: string
   jiraBaseUrl: string
   canAdd: boolean
   currentName: string
@@ -46,7 +55,19 @@ export function CommentsCell({
   const [draft, setDraft] = useState('')
   const [alsoToJira, setAlsoToJira] = useState(false)
   const [selectedIssueKey, setSelectedIssueKey] = useState('')
-  const comments = item.comments
+  const [pushJiraComment, setPushJiraComment] = useState<WorkComment | null>(
+    null,
+  )
+  const [editingComment, setEditingComment] = useState<WorkComment | null>(
+    null,
+  )
+  const retagCommentWithJiraId = useTrackerStore((s) => s.retagCommentWithJiraId)
+  const editComment = useTrackerStore((s) => s.editComment)
+
+  const comments = useMemo(
+    () => dedupeWorkCommentsForDisplay(item.comments),
+    [item.comments],
+  )
   const close = useCallback(() => setOpen(false), [])
 
   const jiraKeysTrim = item.jiraKeys
@@ -64,8 +85,10 @@ export function CommentsCell({
   useDismissOnEscape(open, close)
 
   const preview = comments.slice(-2).reverse()
+  const canCommentRows = canAdd && Boolean(commentUser)
 
   return (
+    <>
     <div className="group relative w-44">
       <button
         type="button"
@@ -132,46 +155,37 @@ export function CommentsCell({
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 {canDeleteComment
-                  ? 'Admins can remove individual comments. Add updates below.'
+                  ? 'Admins can remove comments. Authors can edit or post older comments to Jira when sync is on.'
                   : 'Add updates below.'}
               </p>
             </div>
-            <ul className="max-h-64 space-y-2 overflow-y-auto px-4 py-3 text-sm">
+            <ul className="max-h-64 list-none space-y-3 overflow-y-auto px-4 py-3 text-sm">
               {comments.map((c) => (
-                <li
+                <WorkCommentRow
                   key={c.id}
-                  className="group relative list-inside list-disc pr-7 text-slate-800 marker:text-indigo-500 dark:text-slate-100 dark:marker:text-sky-300"
-                >
-                  <span className="font-medium text-slate-900 dark:text-slate-100">
-                    <WorkCommentBody comment={c} jiraBaseUrl={jiraBaseUrl} />
-                  </span>
-                  <span className="mt-0.5 block text-xs text-slate-500">
-                    {c.authorName} · {formatDate(c.createdAt)}
-                  </span>
-                  {canDeleteComment && onDeleteComment ? (
-                    <button
-                      type="button"
-                      className="absolute right-0 top-0 flex h-6 w-6 items-center justify-center rounded text-slate-400 opacity-0 transition-opacity hover:bg-rose-50 hover:text-rose-700 group-hover:opacity-100"
-                      title="Remove comment"
-                      aria-label="Remove comment"
-                      onClick={() => {
-                        if (
-                          confirm(
-                            'Remove this comment? This cannot be undone.',
-                          )
-                        )
-                          onDeleteComment(c.id)
-                      }}
-                    >
-                      <span className="text-lg leading-none" aria-hidden>
-                        ×
-                      </span>
-                    </button>
-                  ) : null}
-                </li>
+                  comment={c}
+                  item={item}
+                  user={commentUser ?? null}
+                  jiraBaseUrl={jiraBaseUrl}
+                  onPushJira={
+                    canCommentRows
+                      ? (cc) => setPushJiraComment(cc)
+                      : undefined
+                  }
+                  onEdit={
+                    canCommentRows
+                      ? (cc) => setEditingComment(cc)
+                      : undefined
+                  }
+                  onDelete={
+                    canDeleteComment && onDeleteComment
+                      ? (cid) => onDeleteComment(cid)
+                      : undefined
+                  }
+                />
               ))}
               {comments.length === 0 ? (
-                <li className="list-none text-slate-500">No comments yet.</li>
+                <li className="text-slate-500">No comments yet.</li>
               ) : null}
             </ul>
             {canAdd ? (
@@ -242,5 +256,28 @@ export function CommentsCell({
         </div>
       ) : null}
     </div>
+    {commentUser ? (
+      <>
+        <PushExistingCommentToJiraDialog
+          open={pushJiraComment !== null}
+          onClose={() => setPushJiraComment(null)}
+          comment={pushJiraComment}
+          item={item}
+          teamId={teamId}
+          user={commentUser}
+          retagCommentWithJiraId={retagCommentWithJiraId}
+        />
+        <EditWorkCommentDialog
+          open={editingComment !== null}
+          onClose={() => setEditingComment(null)}
+          comment={editingComment}
+          item={item}
+          teamId={teamId}
+          user={commentUser}
+          editComment={editComment}
+        />
+      </>
+    ) : null}
+    </>
   )
 }
