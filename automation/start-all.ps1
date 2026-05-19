@@ -1,7 +1,8 @@
 #requires -Version 5.1
 [CmdletBinding()]
 param(
-    [string] $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path,
+    # Repo root (folder that contains server/, web/). Omit to infer parent of this script's folder.
+    [string] $RepoRoot = '',
     # Single port for UI (static), /api/*, and /ws/tracker - match Windows Firewall + ngrok to this.
     [int] $Port = 3847,
     # Show a console for Node so startup errors are visible (debug).
@@ -9,6 +10,24 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+if (-not $RepoRoot) {
+    $scriptDir = $PSScriptRoot
+    if ([string]::IsNullOrWhiteSpace($scriptDir) -and $MyInvocation.MyCommand.Path) {
+        $scriptDir = Split-Path -LiteralPath $MyInvocation.MyCommand.Path -Parent
+    }
+    if ([string]::IsNullOrWhiteSpace($scriptDir)) {
+        Write-Error @"
+Could not determine repo root: `$PSScriptRoot is empty and MyCommand.Path is missing.
+Fix: run from automation folder, or pass an explicit path, e.g.:
+  .\start-all.ps1 -RepoRoot 'D:\ScrumTracker-main'
+Or use start-all.cmd (calls PowerShell with -ExecutionPolicy Bypass).
+"@
+        exit 1
+    }
+    $RepoRoot = (Resolve-Path (Join-Path $scriptDir '..')).Path
+}
+
 $ServerDir = Join-Path $RepoRoot 'server'
 $WebDir = Join-Path $RepoRoot 'web'
 $EnvFile = Join-Path $WebDir '.env.production'
