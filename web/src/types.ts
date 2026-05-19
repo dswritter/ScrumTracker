@@ -94,6 +94,8 @@ export interface TrackerTeam {
   name: string
   /** userId of the manager/director who directly oversees this team in the org hierarchy. */
   parentManagerId?: string
+  /** Short alphanumeric code the team admin shares so a manager can link this team. */
+  joinCode?: string
 }
 
 /** One playbook page (Git, Jira, setup, URLs, etc.); order is array order. */
