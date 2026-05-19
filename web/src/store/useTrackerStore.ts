@@ -173,6 +173,12 @@ function finalizePasswordPolicy(u: TrackerUserAccount): TrackerUserAccount {
     if (pw.length >= 8 && !WEAK_PASSWORDS.has(pw.toLowerCase())) return u
     return { ...u, password: DEMO_SEED_ADMIN_PASSWORD, mustChangePassword: false }
   }
+  // Manager/director passwords are set by the user on registration and must never be
+  // overwritten by the seed fallback — doing so locks them out permanently.
+  if (u.role === 'manager' || u.role === 'director') {
+    if (pw.length > 0) return u
+    return { ...u, password: generateMasterPassword8(), mustChangePassword: true }
+  }
   if (pw.length >= 8 && !WEAK_PASSWORDS.has(pw.toLowerCase())) return u
   return {
     ...u,
