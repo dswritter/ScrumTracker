@@ -10,6 +10,7 @@
  */
 import fs from 'fs'
 import path from 'path'
+import { readTrackerStore } from './splitJsonStore.mjs'
 
 const TOKEN_FILE = 'confluence-tokens.json'
 
@@ -280,7 +281,21 @@ export function registerConfluenceRoutes(app, dataDir, broadcastRevFn) {
 
     const notes = readNotes(dataDir, teamId)
 
-    const spaceUrl = notes.confluenceSpaceUrl
+    let spaceUrl = notes.confluenceSpaceUrl
+    // Fallback: if not in notes.json (e.g. set before notes.json arch), read from main snapshot
+    if (!spaceUrl || typeof spaceUrl !== 'string') {
+      try {
+        const store = readTrackerStore(dataDir)
+        if (store.snapshot) {
+          const snap = JSON.parse(store.snapshot)
+          const fromSnap = snap?.teamsData?.[teamId]?.confluenceSpaceUrl
+          if (typeof fromSnap === 'string' && fromSnap.trim()) {
+            spaceUrl = fromSnap.trim()
+            notes.confluenceSpaceUrl = spaceUrl // persist to notes.json below
+          }
+        }
+      } catch { /* non-fatal */ }
+    }
     if (!spaceUrl || typeof spaceUrl !== 'string') {
       return res.status(400).json({ ok: false, error: 'No Confluence space URL configured for this team. Set it in Settings → Confluence integration.' })
     }

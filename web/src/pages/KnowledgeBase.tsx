@@ -1053,11 +1053,33 @@ export function KnowledgeBase() {
                 Sync error: {cfPage.syncError}
               </p>
             ) : (
-              <p className="text-sm text-slate-400 dark:text-slate-500">
-                {canSyncConfluence
-                  ? 'Page has no body — it may be empty in Confluence, or try re-syncing.'
-                  : 'Page has no body — ask an admin to re-sync the Confluence space.'}
-              </p>
+              <div className="flex flex-col gap-3">
+                <p className="text-sm text-slate-400 dark:text-slate-500">
+                  {canSyncConfluence
+                    ? 'Page has no body — it may be empty in Confluence, or needs a re-sync.'
+                    : 'Page has no body — ask an admin to re-sync the Confluence space in Settings.'}
+                </p>
+                {canSyncConfluence && (
+                  <button
+                    type="button"
+                    disabled={confluenceSyncing}
+                    onClick={handleConfluenceSync}
+                    className="inline-flex w-fit items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50 disabled:opacity-50 dark:border-blue-700 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-900/30"
+                  >
+                    {confluenceSyncing ? (
+                      <i className="fa-solid fa-circle-notch fa-spin text-[10px]" aria-hidden />
+                    ) : (
+                      <i className="fa-solid fa-rotate text-[10px]" aria-hidden />
+                    )}
+                    {confluenceSyncing ? 'Syncing all pages…' : 'Re-sync Confluence now'}
+                  </button>
+                )}
+                {confluenceSyncMsg && (
+                  <p className={`text-xs font-medium ${confluenceSyncMsg.startsWith('Sync failed') ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-700 dark:text-emerald-300'}`}>
+                    {confluenceSyncMsg}
+                  </p>
+                )}
+              </div>
             )}
           </div>
         </article>
