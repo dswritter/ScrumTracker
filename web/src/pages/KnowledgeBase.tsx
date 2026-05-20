@@ -128,7 +128,16 @@ function ConfluencePagesSection({
   onSync?: () => void
   syncMsg?: string | null
 }) {
+  const scrollerRef = useRef<HTMLDivElement | null>(null)
   const isError = syncMsg ? syncMsg.startsWith('Sync failed') || syncMsg.startsWith('Import failed') : false
+
+  const scroll = (dir: -1 | 1) => {
+    const el = scrollerRef.current
+    if (!el) return
+    // scroll ~3 card widths at a time
+    el.scrollBy({ left: dir * 560, behavior: 'smooth' })
+  }
+
   return (
     <section className="rounded-xl border border-blue-200/60 bg-blue-50/40 dark:border-blue-900/30 dark:bg-blue-950/10">
       <div className="flex items-center gap-2 border-b border-blue-200/60 px-4 py-2.5 dark:border-blue-900/30">
@@ -174,36 +183,64 @@ function ConfluencePagesSection({
             : 'No pages synced yet. Ask an admin to sync the Confluence space in Settings.'}
         </p>
       ) : (
-        <ul className="divide-y divide-blue-100 dark:divide-blue-900/20">
-          {pages.map((p) => (
-            <li key={p.pageId}>
-              <button
-                type="button"
-                className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-blue-100/60 dark:hover:bg-blue-900/20"
-                onClick={() =>
-                  setSearchParams(
-                    (prev) => { const n = new URLSearchParams(prev); n.set('cfpage', p.pageId); return n },
-                    { replace: true },
-                  )
-                }
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-200">
+        <div className="relative px-1 py-3">
+          {/* Left arrow */}
+          <button
+            type="button"
+            onClick={() => scroll(-1)}
+            className="absolute left-1 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white/90 text-slate-500 shadow-sm hover:bg-white hover:text-slate-700 dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-400 dark:hover:bg-slate-700"
+            aria-label="Scroll left"
+          >
+            <i className="fa-solid fa-chevron-left text-[10px]" aria-hidden />
+          </button>
+
+          {/* Card strip */}
+          <div
+            className="overflow-hidden"
+            style={{ maskImage: 'linear-gradient(to right, transparent 0%, black 5%, black 95%, transparent 100%)' }}
+          >
+            <div
+              ref={scrollerRef}
+              className="flex snap-x snap-mandatory gap-3 overflow-x-auto px-8 py-1 [scrollbar-width:none]"
+            >
+              {pages.map((p, i) => (
+                <button
+                  key={p.pageId}
+                  type="button"
+                  className="flex w-[min(12rem,55vw)] shrink-0 snap-center flex-col rounded-lg border border-blue-200/60 bg-white/80 p-2.5 text-left shadow-sm transition-colors hover:border-blue-400/60 hover:bg-blue-100/70 dark:border-blue-900/40 dark:bg-blue-950/40 dark:hover:bg-blue-900/30"
+                  onClick={() =>
+                    setSearchParams(
+                      (prev) => { const n = new URLSearchParams(prev); n.set('cfpage', p.pageId); return n },
+                      { replace: true },
+                    )
+                  }
+                >
+                  <span className="text-[10px] font-bold uppercase tracking-wide text-blue-600 dark:text-blue-400">
+                    Wiki {i + 1}
+                  </span>
+                  <span className="mt-0.5 block truncate text-xs font-semibold text-slate-900 dark:text-slate-100">
                     {p.title}
-                  </p>
-                  <p className="mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">
+                  </span>
+                  <span className="mt-1 line-clamp-2 text-[11px] leading-snug text-slate-500 dark:text-slate-400">
                     {p.spaceKey}
-                    {p.lastSyncedAt
-                      ? ` · synced ${new Date(p.lastSyncedAt).toLocaleDateString()}`
-                      : ' · not synced'}
-                    {p.syncError ? ' · ⚠ error' : ''}
-                  </p>
-                </div>
-                <i className="fa-solid fa-chevron-right shrink-0 text-[10px] text-slate-400 dark:text-slate-500" aria-hidden />
-              </button>
-            </li>
-          ))}
-        </ul>
+                    {p.lastSyncedAt ? ` · ${new Date(p.lastSyncedAt).toLocaleDateString()}` : ''}
+                    {p.syncError ? ' · ⚠' : ''}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Right arrow */}
+          <button
+            type="button"
+            onClick={() => scroll(1)}
+            className="absolute right-1 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white/90 text-slate-500 shadow-sm hover:bg-white hover:text-slate-700 dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-400 dark:hover:bg-slate-700"
+            aria-label="Scroll right"
+          >
+            <i className="fa-solid fa-chevron-right text-[10px]" aria-hidden />
+          </button>
+        </div>
       )}
     </section>
   )
