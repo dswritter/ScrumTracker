@@ -805,6 +805,7 @@ export interface TrackerState {
   ) => void
 
   setConfluenceSpaceUrl: (teamId: string, url: string) => void
+  setConfluencePages: (teamId: string, pages: ConfluencePageRef[]) => void
 }
 
 const defaultWorkItem = (): WorkItem => ({
@@ -1168,6 +1169,11 @@ export const useTrackerStore = create<TrackerState>()(
           teamsData: patchSlice(s, teamId, {
             confluenceSpaceUrl: url.trim() || undefined,
           }),
+        })),
+
+      setConfluencePages: (teamId, pages) =>
+        set((s) => ({
+          teamsData: patchSlice(s, teamId, { confluencePages: pages.length ? pages : undefined }),
         })),
 
       deleteComment: (teamId, itemId, commentId) =>

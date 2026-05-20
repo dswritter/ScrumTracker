@@ -140,7 +140,7 @@ app.get('/api/health', (_req, res) => {
   res.json({ ok: true })
 })
 
-registerConfluenceRoutes(app, DATA_DIR)
+registerConfluenceRoutes(app, DATA_DIR, broadcastTrackerRev)
 
 registerJiraRoutes(app, {
   dataDir: DATA_DIR,

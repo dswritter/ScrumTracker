@@ -1,11 +1,13 @@
 import { Link } from 'react-router-dom'
-import type { TeamKnowledgePage } from '../types'
+import type { ConfluencePageRef, TeamKnowledgePage } from '../types'
 
 type Props = {
   query: string
   suggestions: { page: TeamKnowledgePage; score: number }[]
   onContribute: () => void
   onDismiss: () => void
+  cfSuggestions?: ConfluencePageRef[]
+  onCfClick?: (pageId: string) => void
 }
 
 function LostExplorerIllustration({ className = '' }: { className?: string }) {
@@ -72,8 +74,12 @@ export function KnowledgeFindPanel({
   suggestions,
   onContribute,
   onDismiss,
+  cfSuggestions = [],
+  onCfClick,
 }: Props) {
-  const hasSuggestions = suggestions.length > 0
+  const hasKb = suggestions.length > 0
+  const hasCf = cfSuggestions.length > 0
+  const hasAny = hasKb || hasCf
 
   return (
     <section
@@ -82,10 +88,8 @@ export function KnowledgeFindPanel({
     >
       <div className="flex items-start justify-between gap-2">
         <p className="font-medium text-amber-950 dark:text-amber-100">
-          No exact match for “{query}”.
-          {hasSuggestions
-            ? ' Here are the closest pages:'
-            : ' Nothing close turned up in your team knowledge.'}
+          No exact match for "{query}".
+          {hasAny ? ' Closest results:' : ' Nothing close turned up in your team knowledge.'}
         </p>
         <button
           type="button"
@@ -96,19 +100,45 @@ export function KnowledgeFindPanel({
           ×
         </button>
       </div>
-      {hasSuggestions ? (
-        <ul className="mt-2 space-y-1">
-          {suggestions.map(({ page }) => (
-            <li key={page.id}>
-              <Link
-                to={`/kb/${page.id}`}
-                className="font-medium text-[#007a3d] underline-offset-2 hover:underline dark:text-emerald-300"
-              >
-                {page.title}
-              </Link>
-            </li>
-          ))}
-        </ul>
+      {hasAny ? (
+        <>
+          {hasKb && (
+            <ul className="mt-2 space-y-1">
+              {suggestions.map(({ page }) => (
+                <li key={page.id}>
+                  <Link
+                    to={`/kb/${page.id}`}
+                    className="font-medium text-[#007a3d] underline-offset-2 hover:underline dark:text-emerald-300"
+                  >
+                    {page.title}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+          {hasCf && (
+            <div className={hasKb ? 'mt-3 border-t border-amber-200/60 pt-2 dark:border-amber-900/40' : 'mt-2'}>
+              <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-400">
+                <i className="fa-solid fa-book-open mr-1 text-[9px]" aria-hidden />
+                Confluence
+              </p>
+              <ul className="space-y-1">
+                {cfSuggestions.map((p) => (
+                  <li key={p.pageId} className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onCfClick?.(p.pageId)}
+                      className="font-medium text-blue-600 underline-offset-2 hover:underline dark:text-blue-400"
+                    >
+                      {p.title}
+                    </button>
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500">{p.spaceKey}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </>
       ) : (
         <div className="mt-4 flex flex-col items-center text-center text-amber-950/80 dark:text-amber-100/85">
           <LostExplorerIllustration className="mb-3 h-28 w-36 text-amber-800 dark:text-amber-200" />

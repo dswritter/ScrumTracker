@@ -27,7 +27,7 @@ import {
 } from '../components/KnowledgePageDialNav'
 import { KnowledgeVisualTableEditor } from '../components/KnowledgeVisualTableEditor'
 import { kbInteractiveSanitizeSchema } from '../lib/kbRehypeSchema'
-import { runConfluenceSync } from '../lib/confluenceApi'
+import { fetchConfluencePageBody, runConfluenceSync } from '../lib/confluenceApi'
 import { isAdmin, isUpperManagement } from '../lib/permissions'
 import { useCurrentUser } from '../hooks/useCurrentUser'
 import { useTeamContextNullable } from '../hooks/useTeamContext'
@@ -221,14 +221,24 @@ export function KnowledgeBase() {
   const teamId = ctx?.teamId
   const pages = ctx?.teamKnowledgePages ?? EMPTY_KB_PAGES
   const teamsData = useTrackerStore((s) => s.teamsData)
-  const importSnapshotJson = useTrackerStore((s) => s.importSnapshotJson)
-  const exportSnapshotJson = useTrackerStore((s) => s.exportSnapshotJson)
+  const setConfluencePages = useTrackerStore((s) => s.setConfluencePages)
   const confluencePages: ConfluencePageRef[] = teamId
     ? (teamsData[teamId]?.confluencePages ?? EMPTY_CF_PAGES)
     : EMPTY_CF_PAGES
   const confluenceSpaceUrl = teamId ? (teamsData[teamId]?.confluenceSpaceUrl ?? '') : ''
   const cfPageId = searchParams.get('cfpage') ?? null
   const cfPage = cfPageId ? confluencePages.find((p) => p.pageId === cfPageId) ?? null : null
+  const [cfPageBody, setCfPageBody] = useState<string | null>(null)
+  const [cfPageBodyLoading, setCfPageBodyLoading] = useState(false)
+
+  useEffect(() => {
+    if (!cfPage || !teamId) { setCfPageBody(null); return }
+    setCfPageBody(null)
+    setCfPageBodyLoading(true)
+    fetchConfluencePageBody(teamId, cfPage.pageId).then((r) => {
+      setCfPageBody(r.ok ? r.body : null)
+    }).finally(() => setCfPageBodyLoading(false))
+  }, [cfPage?.pageId, teamId])
 
   const addKnowledgePage = useTrackerStore((s) => s.addKnowledgePage)
   const updateKnowledgePage = useTrackerStore((s) => s.updateKnowledgePage)
@@ -243,24 +253,19 @@ export function KnowledgeBase() {
     setConfluenceSyncing(true)
     setConfluenceSyncMsg(null)
     try {
-      const snapshot = exportSnapshotJson()
-      const result = await runConfluenceSync(teamId, snapshot)
+      const result = await runConfluenceSync(teamId)
       if (!result.ok) {
         setConfluenceSyncMsg(`Sync failed: ${result.error}`)
         return
       }
-      const r = importSnapshotJson(result.snapshot)
-      if (!r.ok) {
-        setConfluenceSyncMsg(`Import failed: ${r.error}`)
-        return
-      }
+      setConfluencePages(teamId, result.pages)
       setConfluenceSyncMsg(`Synced ${result.pageCount} page${result.pageCount !== 1 ? 's' : ''}.`)
     } catch (e) {
       setConfluenceSyncMsg(e instanceof Error ? e.message : 'Sync failed')
     } finally {
       setConfluenceSyncing(false)
     }
-  }, [teamId, exportSnapshotJson, importSnapshotJson])
+  }, [teamId, setConfluencePages])
 
   const [editing, setEditing] = useState(false)
   const [draftTitle, setDraftTitle] = useState('')
@@ -307,6 +312,12 @@ export function KnowledgeBase() {
     if (!findRaw) return []
     return rankKnowledgePagesByQuery(findRaw, pages, 6)
   }, [findRaw, pages])
+
+  const cfFindSuggestions = useMemo(() => {
+    if (!findRaw || !confluencePages.length) return EMPTY_CF_PAGES
+    const q = findRaw.toLowerCase()
+    return confluencePages.filter((p) => p.title.toLowerCase().includes(q)).slice(0, 4)
+  }, [findRaw, confluencePages])
 
   const searchMatches = useMemo(
     () => (highlightQ ? listAllSearchMatches(highlightQ, pages) : []),
@@ -408,6 +419,35 @@ export function KnowledgeBase() {
       { replace: true },
     )
   }, [setSearchParams])
+
+  const onCfFindClick = useCallback(
+    (pageId: string) => {
+      setSearchParams(
+        (prev) => {
+          const n = new URLSearchParams(prev)
+          n.set('cfpage', pageId)
+          n.delete('find')
+          return n
+        },
+        { replace: true },
+      )
+    },
+    [setSearchParams],
+  )
+
+  const onCfPageClick = useCallback(
+    (pageId: string) => {
+      setSearchParams(
+        (prev) => {
+          const n = new URLSearchParams(prev)
+          n.set('cfpage', pageId)
+          return n
+        },
+        { replace: true },
+      )
+    },
+    [setSearchParams],
+  )
 
   const insertMarkdownAtCursor = useCallback(
     (md: string, api: TextAreaTextApi | null) => {
@@ -781,8 +821,13 @@ export function KnowledgeBase() {
             </a>
           </header>
           <div className="px-5 py-4">
-            {cfPage.body ? (
-              <KnowledgeMarkdown source={cfPage.body} />
+            {cfPageBodyLoading ? (
+              <p className="flex items-center gap-2 text-sm text-slate-400 dark:text-slate-500">
+                <i className="fa-solid fa-circle-notch fa-spin text-xs" aria-hidden />
+                Loading page content…
+              </p>
+            ) : cfPageBody ? (
+              <KnowledgeMarkdown source={cfPageBody} />
             ) : cfPage.syncError ? (
               <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300">
                 Sync error: {cfPage.syncError}
@@ -790,8 +835,8 @@ export function KnowledgeBase() {
             ) : (
               <p className="text-sm text-slate-400 dark:text-slate-500">
                 {canSyncConfluence
-                  ? 'Not synced yet — use the Sync button in the KB Confluence section or Settings → Confluence integration.'
-                  : 'Not synced yet — ask an admin to sync the Confluence space.'}
+                  ? 'Page has no body — it may be empty in Confluence, or try re-syncing.'
+                  : 'Page has no body — ask an admin to re-sync the Confluence space.'}
               </p>
             )}
           </div>
@@ -971,6 +1016,8 @@ export function KnowledgeBase() {
           suggestions={findSuggestions}
           onContribute={onAddPage}
           onDismiss={dismissFind}
+          cfSuggestions={cfFindSuggestions}
+          onCfClick={onCfFindClick}
         />
       ) : null}
 
@@ -1143,13 +1190,17 @@ export function KnowledgeBase() {
         />
       ) : null}
 
-      {!editing && dialPages.length > 1 ? (
+      {!editing && (dialPages.length > 1 || confluencePages.length > 0) ? (
         <KnowledgePageDialNav
           pages={dialPages}
           currentId={page.id}
           onHorizontalStep={goRelativeDial}
           pageHref={pageHref}
           matchMode={Boolean(highlightQ && searchMatches.length > 0)}
+          confluencePages={confluencePages}
+          cfPageId={cfPageId}
+          onCfPageClick={onCfPageClick}
+          cfQuery={highlightQ || undefined}
         />
       ) : null}
     </div>

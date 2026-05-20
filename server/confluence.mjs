@@ -1,8 +1,10 @@
 /**
  * Confluence wiki sync for ScrumTracker.
- * Mirrors the jira.mjs pattern: server reads PAT, fetches Confluence REST API,
- * converts Confluence Storage Format (HTML) to Markdown, and stores page bodies
- * directly in the snapshot (no server-side file cache).
+ *
+ * Bodies are stored in data/teams/{teamId}/notes.json (server-side only).
+ * The HTTP sync response returns only lightweight metadata refs (no body field)
+ * so the client snapshot stays small regardless of how many pages exist.
+ * Full page bodies are served on-demand via GET /api/confluence/body.
  *
  * Token file: data/confluence-tokens.json  →  { token, baseUrl }
  */
@@ -207,7 +209,44 @@ async function fetchAllSpacePages(baseUrl, spaceKey, token) {
 // Express route registration
 // ---------------------------------------------------------------------------
 
-export function registerConfluenceRoutes(app, dataDir) {
+// ---------------------------------------------------------------------------
+// notes.json helpers — read/write team notes directly (avoids snapshot round-trip)
+// ---------------------------------------------------------------------------
+
+function notesPath(dataDir, teamId) {
+  return path.join(dataDir, 'teams', teamId, 'notes.json')
+}
+
+function readNotes(dataDir, teamId) {
+  try {
+    const raw = fs.readFileSync(notesPath(dataDir, teamId), 'utf8')
+    return JSON.parse(raw) ?? {}
+  } catch {
+    return {}
+  }
+}
+
+function writeNotes(dataDir, teamId, notes) {
+  const dir = path.join(dataDir, 'teams', teamId)
+  fs.mkdirSync(dir, { recursive: true })
+  const fp = notesPath(dataDir, teamId)
+  const tmp = `${fp}.${process.pid}.${Date.now()}.tmp`
+  fs.writeFileSync(tmp, JSON.stringify(notes), 'utf8')
+  fs.renameSync(tmp, fp)
+}
+
+function bumpRev(dataDir) {
+  const fp = path.join(dataDir, 'tracker-state.json')
+  let existing = {}
+  try { existing = JSON.parse(fs.readFileSync(fp, 'utf8')) } catch {}
+  const rev = Date.now()
+  const tmp = `${fp}.${process.pid}.${Date.now()}.tmp`
+  fs.writeFileSync(tmp, JSON.stringify({ ...existing, rev }), 'utf8')
+  fs.renameSync(tmp, fp)
+  return rev
+}
+
+export function registerConfluenceRoutes(app, dataDir, broadcastRevFn) {
   // Save PAT
   app.post('/api/confluence/token', (req, res) => {
     const token = req.body?.token
@@ -225,14 +264,13 @@ export function registerConfluenceRoutes(app, dataDir) {
     res.json({ configured: Boolean(t) })
   })
 
-  // Sync all pages from configured space
+  // Sync all pages from configured space.
+  // Reads confluenceSpaceUrl from notes.json (no snapshot needed).
+  // Saves full page bodies to notes.json; returns only lightweight metadata refs.
   app.post('/api/confluence/sync', async (req, res) => {
-    const { teamId, snapshot: snapshotStr } = req.body ?? {}
+    const { teamId } = req.body ?? {}
     if (!teamId || typeof teamId !== 'string') {
       return res.status(400).json({ ok: false, error: 'teamId is required' })
-    }
-    if (!snapshotStr || typeof snapshotStr !== 'string') {
-      return res.status(400).json({ ok: false, error: 'snapshot is required' })
     }
 
     const tok = readToken(dataDir)
@@ -240,34 +278,22 @@ export function registerConfluenceRoutes(app, dataDir) {
       return res.status(400).json({ ok: false, error: 'No Confluence token configured. Add a PAT in Settings → Confluence Integration.' })
     }
 
-    let snap
-    try {
-      snap = JSON.parse(snapshotStr)
-    } catch {
-      return res.status(400).json({ ok: false, error: 'Invalid snapshot JSON' })
-    }
+    const notes = readNotes(dataDir, teamId)
 
-    const teamData = snap?.teamsData?.[teamId]
-    if (!teamData) {
-      return res.status(400).json({ ok: false, error: `No team data found for teamId: ${teamId}` })
-    }
-
-    const spaceUrl = teamData.confluenceSpaceUrl
+    const spaceUrl = notes.confluenceSpaceUrl
     if (!spaceUrl || typeof spaceUrl !== 'string') {
-      return res.status(400).json({ ok: false, error: 'No Confluence space URL configured for this team.' })
+      return res.status(400).json({ ok: false, error: 'No Confluence space URL configured for this team. Set it in Settings → Confluence integration.' })
     }
 
-    // Extract spaceKey from URL: /spaces/{spaceKey}/...
     const spaceKeyMatch = spaceUrl.match(/\/spaces\/([^/?#]+)/i)
     if (!spaceKeyMatch) {
-      return res.status(400).json({ ok: false, error: 'Could not extract space key from URL. Expected format: https://wiki.corp.adobe.com/spaces/{SPACEKEY}/...' })
+      return res.status(400).json({ ok: false, error: 'Could not extract space key from URL. Expected format: .../spaces/{SPACEKEY}/...' })
     }
     const spaceKey = spaceKeyMatch[1]
 
-    // Build a map of existing refs so we can preserve old bodies on error
+    // Preserve existing bodies on per-page error
     const existingRefs = {}
-    const prev = Array.isArray(teamData.confluencePages) ? teamData.confluencePages : []
-    for (const ref of prev) {
+    for (const ref of Array.isArray(notes.confluencePages) ? notes.confluencePages : []) {
       if (ref && typeof ref.pageId === 'string') existingRefs[ref.pageId] = ref
     }
 
@@ -279,7 +305,8 @@ export function registerConfluenceRoutes(app, dataDir) {
     }
 
     const now = new Date().toISOString()
-    const newRefs = []
+    const newRefs = []      // includes body — stored in notes.json
+    const metaRefs = []     // no body — returned to client
 
     for (const p of rawPages) {
       const pageId = String(p.id ?? '')
@@ -292,45 +319,59 @@ export function registerConfluenceRoutes(app, dataDir) {
         : `${tok.baseUrl}/pages/viewpage.action?pageId=${pageId}`
 
       const htmlBody = p.body?.storage?.value ?? ''
-      if (!htmlBody && !existingRefs[pageId]?.body) {
-        // Skip empty pages with no prior body
-        newRefs.push({
-          pageId,
-          title,
-          url,
-          spaceKey: pageSpaceKey,
-          lastSyncedAt: now,
-        })
-        continue
-      }
-
       let markdown = ''
       let syncError
-      try {
-        markdown = htmlBody ? storageToMarkdown(htmlBody) : (existingRefs[pageId]?.body ?? '')
-      } catch (e) {
-        syncError = `Conversion failed: ${e instanceof Error ? e.message : String(e)}`
+
+      if (htmlBody) {
+        try {
+          markdown = storageToMarkdown(htmlBody)
+        } catch (e) {
+          syncError = `Conversion failed: ${e instanceof Error ? e.message : String(e)}`
+          markdown = existingRefs[pageId]?.body ?? ''
+        }
+      } else {
         markdown = existingRefs[pageId]?.body ?? ''
       }
 
-      const ref = {
-        pageId,
-        title,
-        url,
-        spaceKey: pageSpaceKey,
-        lastSyncedAt: now,
+      const fullRef = {
+        pageId, title, url, spaceKey: pageSpaceKey, lastSyncedAt: now,
         ...(markdown ? { body: markdown } : {}),
         ...(syncError ? { syncError } : {}),
       }
-      newRefs.push(ref)
+      const metaRef = {
+        pageId, title, url, spaceKey: pageSpaceKey, lastSyncedAt: now,
+        ...(syncError ? { syncError } : {}),
+      }
+      newRefs.push(fullRef)
+      metaRefs.push(metaRef)
     }
 
-    // Write updated refs back into snapshot
-    snap.teamsData[teamId] = {
-      ...teamData,
-      confluencePages: newRefs,
-    }
+    // Persist full refs (with bodies) to notes.json on the server
+    writeNotes(dataDir, teamId, { ...notes, confluencePages: newRefs })
 
-    res.json({ ok: true, snapshot: JSON.stringify(snap), pageCount: newRefs.length })
+    // Bump rev and notify connected clients
+    try {
+      const rev = bumpRev(dataDir)
+      if (typeof broadcastRevFn === 'function') broadcastRevFn(rev)
+    } catch { /* non-fatal */ }
+
+    // Return only metadata (no bodies) so the HTTP response stays small
+    res.json({ ok: true, pages: metaRefs, pageCount: metaRefs.length })
+  })
+
+  // Fetch a single page body from server storage (called when user opens a Confluence page)
+  app.get('/api/confluence/body', (req, res) => {
+    const teamId = req.query.teamId
+    const pageId = req.query.pageId
+    if (!teamId || !pageId) {
+      return res.status(400).json({ ok: false, error: 'teamId and pageId are required' })
+    }
+    const notes = readNotes(dataDir, String(teamId))
+    const pages = Array.isArray(notes.confluencePages) ? notes.confluencePages : []
+    const found = pages.find((p) => p && p.pageId === String(pageId))
+    if (!found) {
+      return res.status(404).json({ ok: false, error: 'Page not found. Sync the space to fetch page content.' })
+    }
+    res.json({ ok: true, body: found.body ?? '', syncError: found.syncError ?? null })
   })
 }
