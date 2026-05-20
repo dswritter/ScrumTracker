@@ -104,7 +104,7 @@ export function KnowledgeMarkdown({
   return (
     <div
       className={[
-        'prose prose-slate w-fit min-w-0 max-w-none dark:prose-invert',
+        'prose prose-slate w-full min-w-0 max-w-none break-words dark:prose-invert',
         'prose-headings:scroll-mt-20 prose-headings:mb-3 prose-headings:font-sans',
         'prose-p:leading-relaxed prose-p:[font-family:var(--font-reading)]',
         'prose-a:text-[#007a3d] dark:prose-a:text-emerald-300',
