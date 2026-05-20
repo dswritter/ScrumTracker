@@ -39,6 +39,12 @@ export function TeamOverviewCard({
         filter: 'inProgress',
       },
       {
+        name: 'Ready for prod',
+        value: c.ready_for_prod,
+        variant: 'accent',
+        filter: 'readyForProd',
+      },
+      {
         name: 'Todo / blocked',
         value: c.blocked + c.todo,
         variant: 'muted',

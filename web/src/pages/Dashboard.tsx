@@ -221,6 +221,7 @@ export function Dashboard() {
   const total = filteredItems.length
   const inProgressCount =
     counts.in_progress + counts.to_test + counts.to_track
+  const readyForProdCount = counts.ready_for_prod
   const blockedTodoCount = counts.blocked + counts.todo
 
   const teamPieSlices = useMemo(
@@ -239,21 +240,29 @@ export function Dashboard() {
           filter: 'inProgress' as const,
         },
         {
+          name: 'Ready for prod',
+          value: readyForProdCount,
+          variant: 'accent' as const,
+          filter: 'readyForProd' as const,
+        },
+        {
           name: 'Todo / blocked',
           value: blockedTodoCount,
           variant: 'muted' as const,
           filter: 'blockedTodo' as const,
         },
       ].filter((r) => r.value > 0),
-    [done, inProgressCount, blockedTodoCount],
+    [done, inProgressCount, readyForProdCount, blockedTodoCount],
   )
 
   const onPieSliceNavigate = useCallback(
-    (filter: 'done' | 'inProgress' | 'blockedTodo') => {
+    (filter: 'done' | 'inProgress' | 'blockedTodo' | 'readyForProd') => {
       if (filter === 'done') {
         navigate(buildItemsHref(scope, { status: 'done' }))
       } else if (filter === 'inProgress') {
         navigate(buildItemsHref(scope, { group: 'inProgress' }))
+      } else if (filter === 'readyForProd') {
+        navigate(buildItemsHref(scope, { group: 'readyForProd' }))
       } else {
         navigate(buildItemsHref(scope, { group: 'blockedTodo' }))
       }

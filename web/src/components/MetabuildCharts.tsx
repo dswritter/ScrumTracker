@@ -14,6 +14,7 @@ import {
 const GREEN = '#00B050'
 const GREEN_MID = '#3DCC7A'
 const MUTED_SLICE = '#B8E6CC'
+const ORANGE_READY = '#F97316'
 
 const tooltipProps = {
   cursor: false as const,
@@ -38,9 +39,9 @@ const activeBarGlow = {
 export type TeamPieSlice = {
   name: string
   value: number
-  /** Done = solid brand green; in-progress = striped green; todo/blocked = soft mint. */
-  variant: 'solid' | 'striped' | 'muted'
-  filter: 'done' | 'inProgress' | 'blockedTodo'
+  /** Done = solid brand green; in-progress = striped green; todo/blocked = soft mint; ready-for-prod = orange. */
+  variant: 'solid' | 'striped' | 'muted' | 'accent'
+  filter: 'done' | 'inProgress' | 'blockedTodo' | 'readyForProd'
 }
 
 type PieRow = TeamPieSlice & { fill: string }
@@ -55,7 +56,7 @@ export function MetabuildStatusPie({
   data: TeamPieSlice[]
   compact?: boolean
   totalItems?: number
-  onSliceClick?: (filter: 'done' | 'inProgress' | 'blockedTodo') => void
+  onSliceClick?: (filter: 'done' | 'inProgress' | 'blockedTodo' | 'readyForProd') => void
   onTotalClick?: () => void
 }) {
   const stripedPatternId = useId().replace(/:/g, '')
@@ -68,7 +69,9 @@ export function MetabuildStatusPie({
             ? GREEN
             : d.variant === 'striped'
               ? `url(#${stripedPatternId})`
-              : MUTED_SLICE,
+              : d.variant === 'accent'
+                ? ORANGE_READY
+                : MUTED_SLICE,
       })),
     [data, stripedPatternId],
   )

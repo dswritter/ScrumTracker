@@ -5,6 +5,7 @@ const STATUS_WEIGHT: Record<WorkStatus, number> = {
   in_progress: 55,
   to_test: 40,
   to_track: 25,
+  ready_for_prod: 80,
   blocked: 0,
   todo: 5,
 }
@@ -19,6 +20,7 @@ export function countByStatus(items: WorkItem[]): Record<WorkStatus, number> {
     in_progress: 0,
     to_test: 0,
     to_track: 0,
+    ready_for_prod: 0,
     blocked: 0,
     todo: 0,
   }
@@ -132,6 +134,8 @@ export const IN_PROGRESS_GROUP: WorkStatus[] = [
   'to_track',
 ]
 
+export const READY_FOR_PROD_GROUP: WorkStatus[] = ['ready_for_prod']
+
 export const BLOCKED_TODO_GROUP: WorkStatus[] = ['blocked', 'todo']
 
 export function formerAssigneesOnItem(
@@ -163,7 +167,7 @@ export function filterWorkItemsView(
   opts: {
     sprintId?: string | null
     status?: WorkStatus | null
-    group?: 'inProgress' | 'blockedTodo' | null
+    group?: 'inProgress' | 'blockedTodo' | 'readyForProd' | null
   },
 ): WorkItem[] {
   let out = items
@@ -173,6 +177,8 @@ export function filterWorkItemsView(
     out = out.filter((w) => IN_PROGRESS_GROUP.includes(w.status))
   if (opts.group === 'blockedTodo')
     out = out.filter((w) => BLOCKED_TODO_GROUP.includes(w.status))
+  if (opts.group === 'readyForProd')
+    out = out.filter((w) => READY_FOR_PROD_GROUP.includes(w.status))
   return out
 }
 

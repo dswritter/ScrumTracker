@@ -142,6 +142,7 @@ const STATUS_VALUES = new Set<string>([
   'in_progress',
   'to_test',
   'to_track',
+  'ready_for_prod',
   'blocked',
   'todo',
 ])
@@ -154,6 +155,8 @@ const STATUS_SELECT_RING: Record<WorkStatus, string> = {
     'border-amber-300/90 focus:border-amber-600 focus:ring-amber-200/80 dark:border-amber-700 dark:focus:border-amber-500',
   to_track:
     'border-violet-300/90 focus:border-violet-500 focus:ring-violet-200/80 dark:border-violet-700 dark:focus:border-violet-500',
+  ready_for_prod:
+    'border-orange-300/90 focus:border-orange-500 focus:ring-orange-200/80 dark:border-orange-700 dark:focus:border-orange-500',
   blocked:
     'border-rose-300/90 focus:border-rose-500 focus:ring-rose-200/80 dark:border-rose-700 dark:focus:border-rose-500',
   todo: 'border-slate-300/90 focus:border-slate-500 focus:ring-slate-200/80 dark:border-slate-600 dark:focus:border-slate-500',
@@ -437,7 +440,9 @@ export function Items() {
       ? ('inProgress' as const)
       : groupParam === 'blockedTodo'
         ? ('blockedTodo' as const)
-        : null
+        : groupParam === 'readyForProd'
+          ? ('readyForProd' as const)
+          : null
   /** Status filter from the pie/cards wins if both appear in the URL (avoids empty lists). */
   const groupFilter = statusFilter ? null : groupFilterRaw
 
@@ -550,6 +555,7 @@ export function Items() {
     filterSummary += ` · Status: ${statusFilter.replace('_', ' ')}`
   if (groupFilter === 'inProgress')
     filterSummary += ' · In progress (incl. to test / to track)'
+  if (groupFilter === 'readyForProd') filterSummary += ' · Ready for prod'
   if (groupFilter === 'blockedTodo') filterSummary += ' · Blocked & todo'
   if (user && !isAdmin(user)) filterSummary += ' · Your assignments only'
   if (tableFilterSection)

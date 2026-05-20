@@ -6,6 +6,7 @@ export function workStatusLabel(s: WorkStatus): string {
     in_progress: 'In progress',
     to_test: 'To test',
     to_track: 'To track',
+    ready_for_prod: 'Ready for prod',
     blocked: 'Blocked',
     todo: 'Todo',
   }

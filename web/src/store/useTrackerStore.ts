@@ -2023,6 +2023,7 @@ export const STATUS_OPTIONS: { value: WorkStatus; label: string }[] = [
   { value: 'in_progress', label: 'In progress' },
   { value: 'to_test', label: 'To test' },
   { value: 'to_track', label: 'To track' },
+  { value: 'ready_for_prod', label: 'Ready for prod' },
   { value: 'blocked', label: 'Blocked' },
   { value: 'todo', label: 'Todo' },
 ]

@@ -9,6 +9,8 @@ const styles: Record<WorkStatus, string> = {
     'bg-amber-50 text-amber-900 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-200 dark:ring-amber-800',
   to_track:
     'bg-violet-50 text-violet-900 ring-violet-200 dark:bg-violet-950/50 dark:text-violet-300 dark:ring-violet-800',
+  ready_for_prod:
+    'bg-orange-50 text-orange-700 ring-orange-200 dark:bg-orange-950/40 dark:text-orange-300 dark:ring-orange-800',
   blocked:
     'bg-rose-50 text-rose-800 ring-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:ring-rose-800',
   todo:
@@ -20,6 +22,7 @@ const labels: Record<WorkStatus, string> = {
   in_progress: 'In progress',
   to_test: 'To test',
   to_track: 'To track',
+  ready_for_prod: 'Ready for prod',
   blocked: 'Blocked',
   todo: 'Todo',
 }

@@ -76,6 +76,8 @@ function mapJiraStatus(name) {
     return 'in_progress'
   if (n.includes('test') || n.includes('qa') || n.includes('verify'))
     return 'to_test'
+  if (n.includes('production') || n.includes('ready for prod') || n === 'release ready' || n === 'ready for release')
+    return 'ready_for_prod'
   if (n.includes('track') || n.includes('review') || n.includes('ready'))
     return 'to_track'
   if (n.includes('to do') || n === 'open' || n === 'new' || n === 'backlog')

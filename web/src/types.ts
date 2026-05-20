@@ -15,6 +15,7 @@ export type WorkStatus =
   | 'in_progress'
   | 'to_test'
   | 'to_track'
+  | 'ready_for_prod'
   | 'blocked'
   | 'todo'
 
