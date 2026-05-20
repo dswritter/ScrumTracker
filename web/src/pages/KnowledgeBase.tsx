@@ -37,9 +37,10 @@ import {
 } from '../lib/knowledgeMarkdown'
 import { useTrackerStore } from '../store/useTrackerStore'
 import { useMentionPopup } from '../hooks/useMentionPopup'
-import type { TeamKnowledgePage } from '../types'
+import type { ConfluencePageRef, TeamKnowledgePage } from '../types'
 
 const EMPTY_KB_PAGES: TeamKnowledgePage[] = []
+const EMPTY_CF_PAGES: ConfluencePageRef[] = []
 const DEFAULT_NEW_TITLE = 'New page'
 const MAX_INLINE_IMAGE_BYTES = 2_000_000
 
@@ -110,6 +111,59 @@ async function fileToImageMarkdownSnippet(file: File): Promise<string | null> {
   })
 }
 
+function ConfluencePagesSection({
+  pages,
+  setSearchParams,
+}: {
+  pages: ConfluencePageRef[]
+  setSearchParams: ReturnType<typeof useSearchParams>[1]
+}) {
+  if (pages.length === 0) return null
+  return (
+    <section className="rounded-xl border border-blue-200/60 bg-blue-50/40 dark:border-blue-900/30 dark:bg-blue-950/10">
+      <div className="flex items-center gap-2 border-b border-blue-200/60 px-4 py-2.5 dark:border-blue-900/30">
+        <i className="fa-solid fa-book-open text-xs text-blue-600 dark:text-blue-400" aria-hidden />
+        <h3 className="text-xs font-bold uppercase tracking-wide text-blue-700 dark:text-blue-400">
+          Confluence pages
+        </h3>
+        <span className="ml-auto rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-600 dark:bg-blue-900/40 dark:text-blue-300">
+          {pages.length}
+        </span>
+      </div>
+      <ul className="divide-y divide-blue-100 dark:divide-blue-900/20">
+        {pages.map((p) => (
+          <li key={p.pageId}>
+            <button
+              type="button"
+              className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-blue-100/60 dark:hover:bg-blue-900/20"
+              onClick={() =>
+                setSearchParams(
+                  (prev) => { const n = new URLSearchParams(prev); n.set('cfpage', p.pageId); return n },
+                  { replace: true },
+                )
+              }
+            >
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-200">
+                  {p.title}
+                </p>
+                <p className="mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">
+                  {p.spaceKey}
+                  {p.lastSyncedAt
+                    ? ` · synced ${new Date(p.lastSyncedAt).toLocaleDateString()}`
+                    : ' · not synced'}
+                  {p.syncError ? ' · ⚠ error' : ''}
+                </p>
+              </div>
+              <i className="fa-solid fa-chevron-right shrink-0 text-[10px] text-slate-400 dark:text-slate-500" aria-hidden />
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
 export function KnowledgeBase() {
   const mdColorMode = useMdEditorColorMode()
   const { pageId } = useParams<{ pageId: string }>()
@@ -121,6 +175,12 @@ export function KnowledgeBase() {
   const ctx = useTeamContextNullable()
   const teamId = ctx?.teamId
   const pages = ctx?.teamKnowledgePages ?? EMPTY_KB_PAGES
+  const teamsData = useTrackerStore((s) => s.teamsData)
+  const confluencePages: ConfluencePageRef[] = teamId
+    ? (teamsData[teamId]?.confluencePages ?? EMPTY_CF_PAGES)
+    : EMPTY_CF_PAGES
+  const cfPageId = searchParams.get('cfpage') ?? null
+  const cfPage = cfPageId ? confluencePages.find((p) => p.pageId === cfPageId) ?? null : null
 
   const addKnowledgePage = useTrackerStore((s) => s.addKnowledgePage)
   const updateKnowledgePage = useTrackerStore((s) => s.updateKnowledgePage)
@@ -603,6 +663,71 @@ export function KnowledgeBase() {
     )
   }
 
+  if (cfPage) {
+    return (
+      <div className={`${KB_PAGE_WIDTH_CLASS} flex min-h-0 flex-col pb-24`}>
+        <article className="w-full min-w-0 rounded-xl border border-blue-200/70 bg-blue-50/60 shadow-sm dark:border-blue-900/40 dark:bg-blue-950/20">
+          <header className="flex flex-wrap items-start gap-3 border-b border-blue-200/50 px-5 py-4 dark:border-blue-900/40">
+            <div className="min-w-0 flex-1">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSearchParams((prev) => { const n = new URLSearchParams(prev); n.delete('cfpage'); return n }, { replace: true })}
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                >
+                  <i className="fa-solid fa-arrow-left text-[10px]" aria-hidden />
+                  KB
+                </button>
+                <span className="text-slate-400 dark:text-slate-600">/</span>
+                <h2 className="min-w-0 truncate text-lg font-bold text-slate-900 dark:text-slate-100">
+                  {cfPage.title}
+                </h2>
+                <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+                  {cfPage.spaceKey}
+                </span>
+              </div>
+              {cfPage.lastSyncedAt ? (
+                <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
+                  Synced {new Date(cfPage.lastSyncedAt).toLocaleString()}
+                </p>
+              ) : null}
+            </div>
+            <a
+              href={cfPage.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
+              Open in Confluence
+              <i className="fa-solid fa-arrow-up-right-from-square text-[10px]" aria-hidden />
+            </a>
+          </header>
+          <div className="px-5 py-4">
+            {cfPage.body ? (
+              <KnowledgeMarkdown source={cfPage.body} />
+            ) : cfPage.syncError ? (
+              <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300">
+                Sync error: {cfPage.syncError}
+              </p>
+            ) : (
+              <p className="text-sm text-slate-400 dark:text-slate-500">
+                Not synced yet — go to Settings → Confluence integration and click &ldquo;Sync all pages&rdquo;.
+              </p>
+            )}
+          </div>
+        </article>
+      </div>
+    )
+  }
+
+  if (pages.length === 0 && confluencePages.length > 0) {
+    return (
+      <div className={`${KB_PAGE_WIDTH_CLASS} space-y-6`}>
+        <ConfluencePagesSection pages={confluencePages} setSearchParams={setSearchParams} />
+      </div>
+    )
+  }
+
   if (pages.length === 0) {
     return (
       <div className={`${KB_PAGE_WIDTH_CLASS} space-y-6`}>
@@ -919,6 +1044,10 @@ export function KnowledgeBase() {
           </div>
         )}
       </article>
+
+      {!editing && confluencePages.length > 0 ? (
+        <ConfluencePagesSection pages={confluencePages} setSearchParams={setSearchParams} />
+      ) : null}
 
       {!editing && dialPages.length > 1 ? (
         <KnowledgePageDialNav

@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import type {
+  ConfluencePageRef,
   Sprint,
   TeamChatMessage,
   TeamKnowledgePage,
@@ -387,6 +388,27 @@ function normalizeTeamKnowledgePages(
   return out.length ? out : undefined
 }
 
+function normalizeConfluencePages(raw: unknown): ConfluencePageRef[] | undefined {
+  if (!Array.isArray(raw)) return undefined
+  const out: ConfluencePageRef[] = []
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue
+    const o = item as Record<string, unknown>
+    const pageId = typeof o.pageId === 'string' ? o.pageId.trim() : ''
+    if (!pageId) continue
+    out.push({
+      pageId,
+      title: typeof o.title === 'string' ? o.title : 'Untitled',
+      url: typeof o.url === 'string' ? o.url : '',
+      spaceKey: typeof o.spaceKey === 'string' ? o.spaceKey : '',
+      lastSyncedAt: typeof o.lastSyncedAt === 'string' ? o.lastSyncedAt : undefined,
+      body: typeof o.body === 'string' ? o.body : undefined,
+      syncError: typeof o.syncError === 'string' ? o.syncError : undefined,
+    })
+  }
+  return out.length ? out : undefined
+}
+
 function normalizeTeamData(raw: unknown): TrackerTeamData {
   const o = raw as Record<string, unknown>
   const base: TrackerTeamData = {
@@ -432,6 +454,11 @@ function normalizeTeamData(raw: unknown): TrackerTeamData {
         ? normalizeTeamChatThreads(o.teamChatThreads as Record<string, unknown>)
         : undefined,
     teamKnowledgePages: normalizeTeamKnowledgePages(o.teamKnowledgePages),
+    confluenceSpaceUrl:
+      typeof o.confluenceSpaceUrl === 'string' && o.confluenceSpaceUrl.trim()
+        ? o.confluenceSpaceUrl.trim()
+        : undefined,
+    confluencePages: normalizeConfluencePages(o.confluencePages),
   }
   return stripAutoPlaceholderSprints(base)
 }
@@ -776,6 +803,8 @@ export interface TrackerState {
     authorName: string,
     body: string,
   ) => void
+
+  setConfluenceSpaceUrl: (teamId: string, url: string) => void
 }
 
 const defaultWorkItem = (): WorkItem => ({
@@ -1133,6 +1162,13 @@ export const useTrackerStore = create<TrackerState>()(
             }),
           }
         }),
+
+      setConfluenceSpaceUrl: (teamId, url) =>
+        set((s) => ({
+          teamsData: patchSlice(s, teamId, {
+            confluenceSpaceUrl: url.trim() || undefined,
+          }),
+        })),
 
       deleteComment: (teamId, itemId, commentId) =>
         set((s) => {

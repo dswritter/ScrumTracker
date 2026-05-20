@@ -1,5 +1,6 @@
 import { dedupeWorkCommentsForDisplay } from './dedupeWorkComments'
 import type {
+  ConfluencePageRef,
   TeamChatMessage,
   TeamKnowledgePage,
   TrackerTeam,
@@ -140,6 +141,29 @@ function mergeTeamChatThreads(
   return Object.keys(out).length ? out : undefined
 }
 
+function mergeConfluencePages(
+  remote: ConfluencePageRef[] | undefined,
+  local: ConfluencePageRef[] | undefined,
+): ConfluencePageRef[] | undefined {
+  if (!remote?.length && !local?.length) return undefined
+  const r = remote ?? []
+  const l = local ?? []
+  const byId = new Map<string, ConfluencePageRef>()
+  for (const p of l) byId.set(p.pageId, p)
+  for (const p of r) {
+    const existing = byId.get(p.pageId)
+    if (!existing) {
+      byId.set(p.pageId, p)
+    } else {
+      const rSynced = p.lastSyncedAt ?? ''
+      const lSynced = existing.lastSyncedAt ?? ''
+      byId.set(p.pageId, rSynced >= lSynced ? p : existing)
+    }
+  }
+  const merged = [...byId.values()]
+  return merged.length ? merged : undefined
+}
+
 /**
  * Apply a remote team slice on top of local: sprint/Jira/settings come from remote;
  * work-item comments and team chat messages are union-merged so offline-only entries
@@ -159,6 +183,10 @@ export function mergeTeamDataWithRemote(
     teamKnowledgePages: mergeKnowledgePages(
       remote.teamKnowledgePages,
       local.teamKnowledgePages,
+    ),
+    confluencePages: mergeConfluencePages(
+      remote.confluencePages,
+      local.confluencePages,
     ),
   }
 }

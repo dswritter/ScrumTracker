@@ -5,6 +5,7 @@ import http from 'http'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { WebSocketServer, WebSocket as WsWebSocket } from 'ws'
+import { registerConfluenceRoutes } from './confluence.mjs'
 import { registerJiraRoutes } from './jira.mjs'
 import { readTrackerStore, writeTrackerStore } from './splitJsonStore.mjs'
 import { patchWorkItemInSnapshot } from './workItemPatch.mjs'
@@ -138,6 +139,8 @@ app.patch('/api/tracker/teams/:teamId/work-items/:itemId', (req, res) => {
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true })
 })
+
+registerConfluenceRoutes(app, DATA_DIR)
 
 registerJiraRoutes(app, {
   dataDir: DATA_DIR,

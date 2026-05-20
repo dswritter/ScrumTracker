@@ -136,6 +136,21 @@ export interface TrackerTeamData {
   teamChatThreads?: Record<string, TeamChatMessage[]>
   /** Team playbook pages; syncs with team snapshot. */
   teamKnowledgePages?: TeamKnowledgePage[]
+  /** Confluence space URL configured by admin (one per team). */
+  confluenceSpaceUrl?: string
+  /** Confluence pages synced from the configured space; replaced entirely on each sync. */
+  confluencePages?: ConfluencePageRef[]
+}
+
+/** A Confluence page synced from wiki.corp.adobe.com; body is full Markdown from last sync. */
+export interface ConfluencePageRef {
+  pageId: string
+  title: string
+  url: string
+  spaceKey: string
+  lastSyncedAt?: string
+  body?: string
+  syncError?: string
 }
 
 /**
