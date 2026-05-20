@@ -27,6 +27,8 @@ import {
 } from '../components/KnowledgePageDialNav'
 import { KnowledgeVisualTableEditor } from '../components/KnowledgeVisualTableEditor'
 import { kbInteractiveSanitizeSchema } from '../lib/kbRehypeSchema'
+import { runConfluenceSync } from '../lib/confluenceApi'
+import { isAdmin, isUpperManagement } from '../lib/permissions'
 import { useCurrentUser } from '../hooks/useCurrentUser'
 import { useTeamContextNullable } from '../hooks/useTeamContext'
 import {
@@ -114,11 +116,16 @@ async function fileToImageMarkdownSnippet(file: File): Promise<string | null> {
 function ConfluencePagesSection({
   pages,
   setSearchParams,
+  canSync,
+  syncing,
+  onSync,
 }: {
   pages: ConfluencePageRef[]
   setSearchParams: ReturnType<typeof useSearchParams>[1]
+  canSync?: boolean
+  syncing?: boolean
+  onSync?: () => void
 }) {
-  if (pages.length === 0) return null
   return (
     <section className="rounded-xl border border-blue-200/60 bg-blue-50/40 dark:border-blue-900/30 dark:bg-blue-950/10">
       <div className="flex items-center gap-2 border-b border-blue-200/60 px-4 py-2.5 dark:border-blue-900/30">
@@ -126,40 +133,65 @@ function ConfluencePagesSection({
         <h3 className="text-xs font-bold uppercase tracking-wide text-blue-700 dark:text-blue-400">
           Confluence pages
         </h3>
-        <span className="ml-auto rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-600 dark:bg-blue-900/40 dark:text-blue-300">
-          {pages.length}
-        </span>
+        {pages.length > 0 && (
+          <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-600 dark:bg-blue-900/40 dark:text-blue-300">
+            {pages.length}
+          </span>
+        )}
+        {canSync && (
+          <button
+            type="button"
+            disabled={syncing}
+            onClick={onSync}
+            className="ml-auto flex items-center gap-1 rounded-lg border border-blue-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-blue-700 hover:bg-blue-50 disabled:opacity-50 dark:border-blue-700 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-900/30"
+          >
+            {syncing ? (
+              <i className="fa-solid fa-circle-notch fa-spin text-[10px]" aria-hidden />
+            ) : (
+              <i className="fa-solid fa-rotate text-[10px]" aria-hidden />
+            )}
+            {syncing ? 'Syncing…' : 'Sync'}
+          </button>
+        )}
       </div>
-      <ul className="divide-y divide-blue-100 dark:divide-blue-900/20">
-        {pages.map((p) => (
-          <li key={p.pageId}>
-            <button
-              type="button"
-              className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-blue-100/60 dark:hover:bg-blue-900/20"
-              onClick={() =>
-                setSearchParams(
-                  (prev) => { const n = new URLSearchParams(prev); n.set('cfpage', p.pageId); return n },
-                  { replace: true },
-                )
-              }
-            >
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-200">
-                  {p.title}
-                </p>
-                <p className="mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">
-                  {p.spaceKey}
-                  {p.lastSyncedAt
-                    ? ` · synced ${new Date(p.lastSyncedAt).toLocaleDateString()}`
-                    : ' · not synced'}
-                  {p.syncError ? ' · ⚠ error' : ''}
-                </p>
-              </div>
-              <i className="fa-solid fa-chevron-right shrink-0 text-[10px] text-slate-400 dark:text-slate-500" aria-hidden />
-            </button>
-          </li>
-        ))}
-      </ul>
+      {pages.length === 0 ? (
+        <p className="px-4 py-4 text-sm text-slate-400 dark:text-slate-500">
+          {canSync
+            ? 'No pages synced yet — click Sync to pull all pages from the configured space.'
+            : 'No pages synced yet. Ask an admin to sync the Confluence space in Settings.'}
+        </p>
+      ) : (
+        <ul className="divide-y divide-blue-100 dark:divide-blue-900/20">
+          {pages.map((p) => (
+            <li key={p.pageId}>
+              <button
+                type="button"
+                className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-blue-100/60 dark:hover:bg-blue-900/20"
+                onClick={() =>
+                  setSearchParams(
+                    (prev) => { const n = new URLSearchParams(prev); n.set('cfpage', p.pageId); return n },
+                    { replace: true },
+                  )
+                }
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-200">
+                    {p.title}
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">
+                    {p.spaceKey}
+                    {p.lastSyncedAt
+                      ? ` · synced ${new Date(p.lastSyncedAt).toLocaleDateString()}`
+                      : ' · not synced'}
+                    {p.syncError ? ' · ⚠ error' : ''}
+                  </p>
+                </div>
+                <i className="fa-solid fa-chevron-right shrink-0 text-[10px] text-slate-400 dark:text-slate-500" aria-hidden />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   )
 }
@@ -176,15 +208,46 @@ export function KnowledgeBase() {
   const teamId = ctx?.teamId
   const pages = ctx?.teamKnowledgePages ?? EMPTY_KB_PAGES
   const teamsData = useTrackerStore((s) => s.teamsData)
+  const importSnapshotJson = useTrackerStore((s) => s.importSnapshotJson)
+  const exportSnapshotJson = useTrackerStore((s) => s.exportSnapshotJson)
   const confluencePages: ConfluencePageRef[] = teamId
     ? (teamsData[teamId]?.confluencePages ?? EMPTY_CF_PAGES)
     : EMPTY_CF_PAGES
+  const confluenceSpaceUrl = teamId ? (teamsData[teamId]?.confluenceSpaceUrl ?? '') : ''
   const cfPageId = searchParams.get('cfpage') ?? null
   const cfPage = cfPageId ? confluencePages.find((p) => p.pageId === cfPageId) ?? null : null
 
   const addKnowledgePage = useTrackerStore((s) => s.addKnowledgePage)
   const updateKnowledgePage = useTrackerStore((s) => s.updateKnowledgePage)
   const deleteKnowledgePage = useTrackerStore((s) => s.deleteKnowledgePage)
+
+  const [confluenceSyncing, setConfluenceSyncing] = useState(false)
+  const [confluenceSyncMsg, setConfluenceSyncMsg] = useState<string | null>(null)
+  const canSyncConfluence = (isAdmin(user) || isUpperManagement(user)) && Boolean(confluenceSpaceUrl)
+
+  const handleConfluenceSync = useCallback(async () => {
+    if (!teamId) return
+    setConfluenceSyncing(true)
+    setConfluenceSyncMsg(null)
+    try {
+      const snapshot = exportSnapshotJson()
+      const result = await runConfluenceSync(teamId, snapshot)
+      if (!result.ok) {
+        setConfluenceSyncMsg(`Sync failed: ${result.error}`)
+        return
+      }
+      const r = importSnapshotJson(result.snapshot)
+      if (!r.ok) {
+        setConfluenceSyncMsg(`Import failed: ${r.error}`)
+        return
+      }
+      setConfluenceSyncMsg(`Synced ${result.pageCount} page${result.pageCount !== 1 ? 's' : ''}.`)
+    } catch (e) {
+      setConfluenceSyncMsg(e instanceof Error ? e.message : 'Sync failed')
+    } finally {
+      setConfluenceSyncing(false)
+    }
+  }, [teamId, exportSnapshotJson, importSnapshotJson])
 
   const [editing, setEditing] = useState(false)
   const [draftTitle, setDraftTitle] = useState('')
@@ -711,7 +774,9 @@ export function KnowledgeBase() {
               </p>
             ) : (
               <p className="text-sm text-slate-400 dark:text-slate-500">
-                Not synced yet — go to Settings → Confluence integration and click &ldquo;Sync all pages&rdquo;.
+                {canSyncConfluence
+                  ? 'Not synced yet — use the Sync button in the KB Confluence section or Settings → Confluence integration.'
+                  : 'Not synced yet — ask an admin to sync the Confluence space.'}
               </p>
             )}
           </div>
@@ -720,10 +785,19 @@ export function KnowledgeBase() {
     )
   }
 
-  if (pages.length === 0 && confluencePages.length > 0) {
+  if (pages.length === 0 && (confluenceSpaceUrl || confluencePages.length > 0)) {
     return (
       <div className={`${KB_PAGE_WIDTH_CLASS} space-y-6`}>
-        <ConfluencePagesSection pages={confluencePages} setSearchParams={setSearchParams} />
+        <ConfluencePagesSection
+          pages={confluencePages}
+          setSearchParams={setSearchParams}
+          canSync={canSyncConfluence}
+          syncing={confluenceSyncing}
+          onSync={handleConfluenceSync}
+        />
+        {confluenceSyncMsg && (
+          <p className="text-xs text-slate-500 dark:text-slate-400">{confluenceSyncMsg}</p>
+        )}
       </div>
     )
   }
@@ -1045,8 +1119,19 @@ export function KnowledgeBase() {
         )}
       </article>
 
-      {!editing && confluencePages.length > 0 ? (
-        <ConfluencePagesSection pages={confluencePages} setSearchParams={setSearchParams} />
+      {!editing && (confluenceSpaceUrl || confluencePages.length > 0) ? (
+        <>
+          <ConfluencePagesSection
+            pages={confluencePages}
+            setSearchParams={setSearchParams}
+            canSync={canSyncConfluence}
+            syncing={confluenceSyncing}
+            onSync={handleConfluenceSync}
+          />
+          {confluenceSyncMsg && (
+            <p className="text-xs text-slate-500 dark:text-slate-400">{confluenceSyncMsg}</p>
+          )}
+        </>
       ) : null}
 
       {!editing && dialPages.length > 1 ? (

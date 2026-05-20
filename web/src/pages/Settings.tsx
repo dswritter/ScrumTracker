@@ -5,7 +5,7 @@ import { useCurrentUser } from '../hooks/useCurrentUser'
 import { useTeamContextNullable } from '../hooks/useTeamContext'
 import { getJiraTokenStatus, postJiraToken } from '../lib/jiraApi'
 import { getConfluenceTokenStatus, postConfluenceToken, runConfluenceSync } from '../lib/confluenceApi'
-import { isAdmin } from '../lib/permissions'
+import { isAdmin, isUpperManagement } from '../lib/permissions'
 import { copyTextToClipboard } from '../lib/copyToClipboard'
 import { pushTrackerSnapshotNow } from '../lib/pushTrackerSnapshotNow'
 import { runJiraSyncFromStore } from '../lib/runJiraSync'
@@ -799,7 +799,7 @@ export function Settings() {
         ) : null}
       </CollapsibleSettingsSection>
 
-      {isAdmin(user) && (
+      {(isAdmin(user) || isUpperManagement(user)) && (
         <CollapsibleSettingsSection
           id="confluence-integration"
           title="Confluence integration"
