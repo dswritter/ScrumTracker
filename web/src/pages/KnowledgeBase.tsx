@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { ClipboardEvent, DragEvent, InputHTMLAttributes } from 'react'
+import type { ClipboardEvent, DragEvent, InputHTMLAttributes, KeyboardEvent as ReactKeyboardEvent, SyntheticEvent as ReactSyntheticEvent } from 'react'
 import {
   Navigate,
   useNavigate,
@@ -36,6 +36,7 @@ import {
   toggleNthTaskListItem,
 } from '../lib/knowledgeMarkdown'
 import { useTrackerStore } from '../store/useTrackerStore'
+import { useMentionPopup } from '../hooks/useMentionPopup'
 import type { TeamKnowledgePage } from '../types'
 
 const EMPTY_KB_PAGES: TeamKnowledgePage[] = []
@@ -149,6 +150,16 @@ export function KnowledgeBase() {
     window.addEventListener('resize', measure)
     return () => window.removeEventListener('resize', measure)
   }, [])
+
+  const mentionNames = useMemo(() => ctx?.teamMembers ?? [], [ctx])
+  const mention = useMentionPopup(
+    draftBody,
+    (v) => setDraftBody(sanitizeTableCellsInMarkdown(v)),
+    mentionNames,
+    () => editorSurfaceRef.current?.querySelector('textarea') ?? null,
+  )
+  const onMentionKeyDown = (e: ReactKeyboardEvent<HTMLTextAreaElement>) => mention.onKeyDown(e)
+  const onMentionAfterInput = (e: ReactSyntheticEvent<HTMLTextAreaElement>) => mention.onAfterInput(e)
 
   const idx = useMemo(
     () => (pageId ? pages.findIndex((p) => p.id === pageId) : -1),
@@ -786,31 +797,60 @@ export function KnowledgeBase() {
                 }}
               />
             ) : null}
-            <div
-              ref={editorSurfaceRef}
-              data-color-mode={mdColorMode}
-              className="kb-md-editor kb-md-editor-edit-mode min-h-0 w-full min-w-0 flex-1"
-              onDragOver={onEditorDragOver}
-              onDrop={onEditorDrop}
-            >
-              <MDEditor
-                ref={mdEditorRef}
-                value={draftBody}
-                onChange={(v) =>
-                  setDraftBody(sanitizeTableCellsInMarkdown(v ?? ''))
-                }
-                preview="live"
-                height={editorHeight}
-                visibleDragbar
-                autoFocus
-                textareaProps={{
-                  spellCheck: true,
-                  'aria-label': 'Markdown content',
-                  onPaste: onEditorPaste,
-                }}
-                commandsFilter={commandsFilter}
-                previewOptions={previewOptions}
-              />
+            <div className="relative min-h-0 w-full min-w-0 flex-1">
+              <div
+                ref={editorSurfaceRef}
+                data-color-mode={mdColorMode}
+                className="kb-md-editor kb-md-editor-edit-mode min-h-0 w-full min-w-0"
+                onDragOver={onEditorDragOver}
+                onDrop={onEditorDrop}
+              >
+                <MDEditor
+                  ref={mdEditorRef}
+                  value={draftBody}
+                  onChange={(v) =>
+                    setDraftBody(sanitizeTableCellsInMarkdown(v ?? ''))
+                  }
+                  preview="live"
+                  height={editorHeight}
+                  visibleDragbar
+                  autoFocus
+                  textareaProps={{
+                    spellCheck: true,
+                    'aria-label': 'Markdown content',
+                    onPaste: onEditorPaste,
+                    onKeyDown: onMentionKeyDown,
+                    onKeyUp: onMentionAfterInput,
+                    onClick: onMentionAfterInput,
+                  }}
+                  commandsFilter={commandsFilter}
+                  previewOptions={previewOptions}
+                />
+              </div>
+              {mention.open && mention.matches.length > 0 ? (
+                <ul
+                  className="absolute left-2 top-11 z-50 max-h-52 min-w-[13rem] overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 shadow-xl dark:border-slate-700 dark:bg-slate-900"
+                  role="listbox"
+                >
+                  {mention.matches.map((name, i) => (
+                    <li key={name} role="option" aria-selected={i === mention.highlight}>
+                      <button
+                        type="button"
+                        className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm ${
+                          i === mention.highlight
+                            ? 'bg-[#00B050]/15 text-[#0d5c2e] dark:bg-[#00B050]/20 dark:text-emerald-300'
+                            : 'text-slate-800 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800'
+                        }`}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => mention.insertMention(name)}
+                      >
+                        <span className="font-semibold text-[#007a3d] dark:text-emerald-400">@</span>
+                        {name}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
             </div>
             <div className="flex flex-wrap gap-4 pt-1">
               <button
