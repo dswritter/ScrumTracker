@@ -165,6 +165,7 @@ export function Settings() {
   const setJiraSprintFieldId = useTrackerStore((s) => s.setJiraSprintFieldId)
   const setUserSlackChatUrl = useTrackerStore((s) => s.setUserSlackChatUrl)
   const setConfluenceSpaceUrl = useTrackerStore((s) => s.setConfluenceSpaceUrl)
+  const setConfluencePages = useTrackerStore((s) => s.setConfluencePages)
   const teamsData = useTrackerStore((s) => s.teamsData)
   const confluenceSpaceUrl = teamId ? (teamsData[teamId]?.confluenceSpaceUrl ?? '') : ''
   const confluencePages = teamId ? (teamsData[teamId]?.confluencePages ?? []) : []
@@ -895,17 +896,12 @@ export function Settings() {
                 setConfluenceMsg(null)
                 setConfluenceSyncing(true)
                 try {
-                  const snapshot = exportSnapshotJson()
-                  const result = await runConfluenceSync(teamId, snapshot)
+                  const result = await runConfluenceSync(teamId)
                   if (!result.ok) {
                     setConfluenceMsg(`Sync failed: ${result.error}`)
                     return
                   }
-                  const r = importSnapshotJson(result.snapshot)
-                  if (!r.ok) {
-                    setConfluenceMsg(`Snapshot import failed: ${r.error}`)
-                    return
-                  }
+                  setConfluencePages(teamId, result.pages)
                   setConfluenceMsg(`Synced ${result.pageCount} page${result.pageCount !== 1 ? 's' : ''}.`)
                 } catch (e) {
                   setConfluenceMsg(e instanceof Error ? e.message : 'Sync failed')
