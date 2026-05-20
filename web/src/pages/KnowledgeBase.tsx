@@ -826,70 +826,6 @@ export function KnowledgeBase() {
     )
   }
 
-  if (cfPage) {
-    return (
-      <div className={`${KB_PAGE_WIDTH_CLASS} flex min-h-0 flex-col pb-24`}>
-        <article className="w-full min-w-0 rounded-xl border border-blue-200/70 bg-blue-50/60 shadow-sm dark:border-blue-900/40 dark:bg-blue-950/20">
-          <header className="flex flex-wrap items-start gap-3 border-b border-blue-200/50 px-5 py-4 dark:border-blue-900/40">
-            <div className="min-w-0 flex-1">
-              <div className="flex min-w-0 flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setSearchParams((prev) => { const n = new URLSearchParams(prev); n.delete('cfpage'); return n }, { replace: true })}
-                  className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
-                >
-                  <i className="fa-solid fa-arrow-left text-[10px]" aria-hidden />
-                  KB
-                </button>
-                <span className="text-slate-400 dark:text-slate-600">/</span>
-                <h2 className="min-w-0 truncate text-lg font-bold text-slate-900 dark:text-slate-100">
-                  {cfPage.title}
-                </h2>
-                <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
-                  {cfPage.spaceKey}
-                </span>
-              </div>
-              {cfPage.lastSyncedAt ? (
-                <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
-                  Synced {new Date(cfPage.lastSyncedAt).toLocaleString()}
-                </p>
-              ) : null}
-            </div>
-            <a
-              href={cfPage.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
-            >
-              Open in Confluence
-              <i className="fa-solid fa-arrow-up-right-from-square text-[10px]" aria-hidden />
-            </a>
-          </header>
-          <div className="px-5 py-4">
-            {cfPageBodyLoading ? (
-              <p className="flex items-center gap-2 text-sm text-slate-400 dark:text-slate-500">
-                <i className="fa-solid fa-circle-notch fa-spin text-xs" aria-hidden />
-                Loading page content…
-              </p>
-            ) : cfPageBody ? (
-              <KnowledgeMarkdown source={cfPageBody} />
-            ) : cfPage.syncError ? (
-              <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300">
-                Sync error: {cfPage.syncError}
-              </p>
-            ) : (
-              <p className="text-sm text-slate-400 dark:text-slate-500">
-                {canSyncConfluence
-                  ? 'Page has no body — it may be empty in Confluence, or try re-syncing.'
-                  : 'Page has no body — ask an admin to re-sync the Confluence space.'}
-              </p>
-            )}
-          </div>
-        </article>
-      </div>
-    )
-  }
-
   if (pages.length === 0 && (confluenceSpaceUrl || confluencePages.length > 0)) {
     return (
       <div className={`${KB_PAGE_WIDTH_CLASS} space-y-6`}>
@@ -983,9 +919,9 @@ export function KnowledgeBase() {
 
   return (
     <div
-      className={`${editing ? 'mx-auto w-full min-w-0 max-w-none' : KB_PAGE_WIDTH_CLASS} flex min-h-0 flex-col pb-24 items-stretch`}
+      className={`${editing && !cfPage ? 'mx-auto w-full min-w-0 max-w-none' : KB_PAGE_WIDTH_CLASS} flex min-h-0 flex-col pb-24 items-stretch`}
     >
-      {imageModalOpen ? (
+      {!cfPage && imageModalOpen ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
           role="presentation"
@@ -1066,11 +1002,75 @@ export function KnowledgeBase() {
         />
       ) : null}
 
+      {/* ── Confluence article (shown when a CF page is open, nav bar stays visible) ── */}
+      {cfPage ? (
+        <article className="w-full min-w-0 rounded-xl border border-blue-200/70 bg-blue-50/60 shadow-sm dark:border-blue-900/40 dark:bg-blue-950/20">
+          <header className="flex flex-wrap items-start gap-3 border-b border-blue-200/50 px-5 py-4 dark:border-blue-900/40">
+            <div className="min-w-0 flex-1">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSearchParams((prev) => { const n = new URLSearchParams(prev); n.delete('cfpage'); return n }, { replace: true })}
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                >
+                  <i className="fa-solid fa-arrow-left text-[10px]" aria-hidden />
+                  KB
+                </button>
+                <span className="text-slate-400 dark:text-slate-600">/</span>
+                <h2 className="min-w-0 truncate text-lg font-bold text-slate-900 dark:text-slate-100">
+                  {cfPage.title}
+                </h2>
+                <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+                  {cfPage.spaceKey}
+                </span>
+              </div>
+              {cfPage.lastSyncedAt ? (
+                <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
+                  Synced {new Date(cfPage.lastSyncedAt).toLocaleString()}
+                </p>
+              ) : null}
+            </div>
+            <a
+              href={cfPage.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
+              Open in Confluence
+              <i className="fa-solid fa-arrow-up-right-from-square text-[10px]" aria-hidden />
+            </a>
+          </header>
+          <div className="px-5 py-4">
+            {cfPageBodyLoading ? (
+              <p className="flex items-center gap-2 text-sm text-slate-400 dark:text-slate-500">
+                <i className="fa-solid fa-circle-notch fa-spin text-xs" aria-hidden />
+                Loading page content…
+              </p>
+            ) : cfPageBody ? (
+              <KnowledgeMarkdown source={cfPageBody} />
+            ) : cfPage.syncError ? (
+              <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300">
+                Sync error: {cfPage.syncError}
+              </p>
+            ) : (
+              <p className="text-sm text-slate-400 dark:text-slate-500">
+                {canSyncConfluence
+                  ? 'Page has no body — it may be empty in Confluence, or try re-syncing.'
+                  : 'Page has no body — ask an admin to re-sync the Confluence space.'}
+              </p>
+            )}
+          </div>
+        </article>
+      ) : null}
+
+      {/* ── KB article (hidden when a CF page is open) ─────────────────────── */}
       <article
         className={
-          editing
-            ? 'w-full max-w-none flex-1 rounded-xl border border-emerald-200/70 bg-[#E8F5E9]/95 shadow-sm dark:border-emerald-900/55 dark:bg-emerald-950/40'
-            : 'w-full min-w-0 rounded-xl border border-emerald-200/70 bg-[#E8F5E9]/95 shadow-sm dark:border-emerald-900/55 dark:bg-emerald-950/40'
+          cfPage
+            ? 'hidden'
+            : editing
+              ? 'w-full max-w-none flex-1 rounded-xl border border-emerald-200/70 bg-[#E8F5E9]/95 shadow-sm dark:border-emerald-900/55 dark:bg-emerald-950/40'
+              : 'w-full min-w-0 rounded-xl border border-emerald-200/70 bg-[#E8F5E9]/95 shadow-sm dark:border-emerald-900/55 dark:bg-emerald-950/40'
         }
       >
         {editing ? (

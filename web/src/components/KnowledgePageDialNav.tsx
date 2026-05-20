@@ -47,6 +47,12 @@ export function KnowledgePageDialNav({
     onActivePaneChange?.(activePane)
   }, [activePane, onActivePaneChange])
 
+  // Auto-switch pane when cfPageId changes externally (e.g. KnowledgeFindPanel click)
+  useEffect(() => {
+    if (cfPageId && hasCf) setActivePane('wiki')
+    else if (!cfPageId) setActivePane('kb')
+  }, [cfPageId, hasCf])
+
   const idx = useMemo(
     () => pages.findIndex((p) => p.id === currentId),
     [pages, currentId],
@@ -128,15 +134,14 @@ export function KnowledgePageDialNav({
     return () => el.removeEventListener('wheel', onWheel)
   }, [onHorizontalStep, currentId, pages.length, activePane, hasCf])
 
-  // ── Wiki pane: trackpad/wheel → scroll the card strip horizontally ─────────
+  // ── Wiki pane: trackpad/wheel → navigate between CF pages ────────────────
   useEffect(() => {
     const el = wikiScrollerRef.current
     if (!el || !hasCf || activePane !== 'wiki') return
     let accum = 0
     let cooldownUntil = 0
-    const COOLDOWN_MS = 200
-    const THRESHOLD = 60
-    const CARD_W = 190 // approx px per card scroll step
+    const COOLDOWN_MS = 480
+    const THRESHOLD = 95
     const onWheel = (e: WheelEvent) => {
       const now = performance.now()
       if (now < cooldownUntil) { e.preventDefault(); accum = 0; return }
@@ -152,32 +157,46 @@ export function KnowledgePageDialNav({
       accum += dominant
       if (accum > THRESHOLD) {
         accum = 0; cooldownUntil = now + COOLDOWN_MS
-        el.scrollBy({ left: CARD_W, behavior: 'smooth' }); e.preventDefault()
+        const nextIdx = (cfIdx >= 0 ? cfIdx : 0) + 1
+        if (nextIdx < filteredCfPages.length) onCfPageClick?.(filteredCfPages[nextIdx].pageId)
+        e.preventDefault()
       } else if (accum < -THRESHOLD) {
         accum = 0; cooldownUntil = now + COOLDOWN_MS
-        el.scrollBy({ left: -CARD_W, behavior: 'smooth' }); e.preventDefault()
+        const nextIdx = (cfIdx >= 0 ? cfIdx : 0) - 1
+        if (nextIdx >= 0) onCfPageClick?.(filteredCfPages[nextIdx].pageId)
+        e.preventDefault()
       }
     }
     el.addEventListener('wheel', onWheel, { passive: false })
     return () => el.removeEventListener('wheel', onWheel)
-  }, [hasCf, activePane])
+  }, [hasCf, activePane, cfIdx, filteredCfPages, onCfPageClick])
 
-  // ── Wiki pane: arrow keys → scroll the card strip ────────────────────────
+  // ── Wiki pane: arrow keys → navigate between CF pages ───────────────────
   useEffect(() => {
     if (!hasCf || activePane !== 'wiki') return
-    const CARD_W = 190
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
       const t = e.target
       if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement) return
       if (t instanceof HTMLElement && t.closest('[contenteditable="true"]')) return
       const dir = e.key === 'ArrowLeft' ? -1 : 1
-      wikiScrollerRef.current?.scrollBy({ left: dir * CARD_W, behavior: 'smooth' })
+      const nextIdx = (cfIdx >= 0 ? cfIdx : 0) + dir
+      if (nextIdx >= 0 && nextIdx < filteredCfPages.length) {
+        onCfPageClick?.(filteredCfPages[nextIdx].pageId)
+      }
       e.preventDefault()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [hasCf, activePane])
+  }, [hasCf, activePane, cfIdx, filteredCfPages, onCfPageClick])
+
+  // Activate wiki pane; if no CF page is currently selected, auto-open the first one
+  const activateWikiPane = () => {
+    setActivePane('wiki')
+    if (!cfPageId && filteredCfPages.length > 0) {
+      onCfPageClick?.(filteredCfPages[0].pageId)
+    }
+  }
 
   const kbValid = pages.length > 1 && idx >= 0
   if (!kbValid && !hasCf) return null
@@ -342,7 +361,7 @@ export function KnowledgePageDialNav({
             type="button"
             onClick={(e) => {
               e.stopPropagation()
-              setActivePane((p) => (p === 'kb' ? 'wiki' : 'kb'))
+              if (activePane === 'kb') activateWikiPane(); else setActivePane('kb')
             }}
             className="absolute flex h-8 w-8 items-center justify-center rounded-full border-2 bg-white shadow-md transition-colors dark:bg-slate-800 dark:text-slate-200"
             style={{
@@ -363,7 +382,7 @@ export function KnowledgePageDialNav({
         <button
           type="button"
           className={`flex min-w-0 flex-1 flex-col py-1.5 text-left transition-opacity ${!kbActive ? 'opacity-100' : 'opacity-40'}`}
-          onClick={() => setActivePane('wiki')}
+          onClick={() => activateWikiPane()}
           aria-label="Switch to Wiki navigation"
         >
           <div className={`flex items-center gap-1.5 px-3 pb-1 ${!kbActive ? 'border-b-2 border-blue-500' : ''}`}>
