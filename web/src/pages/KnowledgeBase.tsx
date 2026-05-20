@@ -119,13 +119,16 @@ function ConfluencePagesSection({
   canSync,
   syncing,
   onSync,
+  syncMsg,
 }: {
   pages: ConfluencePageRef[]
   setSearchParams: ReturnType<typeof useSearchParams>[1]
   canSync?: boolean
   syncing?: boolean
   onSync?: () => void
+  syncMsg?: string | null
 }) {
+  const isError = syncMsg ? syncMsg.startsWith('Sync failed') || syncMsg.startsWith('Import failed') : false
   return (
     <section className="rounded-xl border border-blue-200/60 bg-blue-50/40 dark:border-blue-900/30 dark:bg-blue-950/10">
       <div className="flex items-center gap-2 border-b border-blue-200/60 px-4 py-2.5 dark:border-blue-900/30">
@@ -154,6 +157,16 @@ function ConfluencePagesSection({
           </button>
         )}
       </div>
+      {syncMsg && (
+        <div className={`border-b px-4 py-2 text-xs font-medium ${
+          isError
+            ? 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-300'
+            : 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-300'
+        }`}>
+          {isError ? <i className="fa-solid fa-triangle-exclamation mr-1" aria-hidden /> : <i className="fa-solid fa-circle-check mr-1" aria-hidden />}
+          {syncMsg}
+        </div>
+      )}
       {pages.length === 0 ? (
         <p className="px-4 py-4 text-sm text-slate-400 dark:text-slate-500">
           {canSync
@@ -519,7 +532,7 @@ export function KnowledgeBase() {
       pendingNewPageIdRef.current = null
       setTableModalOpen(false)
       tableApiRef.current = null
-      const dest = pages[idx + 1] ?? pages[idx - 1]
+      const dest = pages[idx - 1] ?? pages[idx + 1]
       deleteKnowledgePage(teamId, page.id)
       if (dest) navigatePreservingKbParams(`/kb/${dest.id}`)
       else navigate('/kb')
@@ -531,7 +544,7 @@ export function KnowledgeBase() {
       pendingNewPageIdRef.current = null
       setTableModalOpen(false)
       tableApiRef.current = null
-      const dest = pages[idx + 1] ?? pages[idx - 1]
+      const dest = pages[idx - 1] ?? pages[idx + 1]
       deleteKnowledgePage(teamId, page.id)
       if (dest) navigatePreservingKbParams(`/kb/${dest.id}`)
       else navigate('/kb')
@@ -568,6 +581,8 @@ export function KnowledgeBase() {
 
   const onAddPage = useCallback(() => {
     if (!teamId || !user) return
+    // Don't create another page if already editing a pristine blank new page
+    if (editing && page && pendingNewPageIdRef.current === page.id && !draftBody.trim()) return
     const id = addKnowledgePage(teamId, {
       title: DEFAULT_NEW_TITLE,
       body: '',
@@ -578,7 +593,7 @@ export function KnowledgeBase() {
     setDraftTitle('')
     setDraftBody('')
     setEditing(true)
-  }, [teamId, user, addKnowledgePage, navigate])
+  }, [teamId, user, editing, page, draftBody, addKnowledgePage, navigate])
 
   const onDeletePage = useCallback(() => {
     if (!teamId || !page) return
@@ -592,7 +607,7 @@ export function KnowledgeBase() {
     if (pendingNewPageIdRef.current === page.id) {
       pendingNewPageIdRef.current = null
     }
-    const dest = pages[idx + 1] ?? pages[idx - 1]
+    const dest = pages[idx - 1] ?? pages[idx + 1]
     deleteKnowledgePage(teamId, page.id)
     if (dest) navigatePreservingKbParams(`/kb/${dest.id}`)
     else navigate('/kb')
@@ -794,10 +809,8 @@ export function KnowledgeBase() {
           canSync={canSyncConfluence}
           syncing={confluenceSyncing}
           onSync={handleConfluenceSync}
+          syncMsg={confluenceSyncMsg}
         />
-        {confluenceSyncMsg && (
-          <p className="text-xs text-slate-500 dark:text-slate-400">{confluenceSyncMsg}</p>
-        )}
       </div>
     )
   }
@@ -1120,18 +1133,14 @@ export function KnowledgeBase() {
       </article>
 
       {!editing && (confluenceSpaceUrl || confluencePages.length > 0) ? (
-        <>
-          <ConfluencePagesSection
-            pages={confluencePages}
-            setSearchParams={setSearchParams}
-            canSync={canSyncConfluence}
-            syncing={confluenceSyncing}
-            onSync={handleConfluenceSync}
-          />
-          {confluenceSyncMsg && (
-            <p className="text-xs text-slate-500 dark:text-slate-400">{confluenceSyncMsg}</p>
-          )}
-        </>
+        <ConfluencePagesSection
+          pages={confluencePages}
+          setSearchParams={setSearchParams}
+          canSync={canSyncConfluence}
+          syncing={confluenceSyncing}
+          onSync={handleConfluenceSync}
+          syncMsg={confluenceSyncMsg}
+        />
       ) : null}
 
       {!editing && dialPages.length > 1 ? (
