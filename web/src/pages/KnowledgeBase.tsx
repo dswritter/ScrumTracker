@@ -411,10 +411,18 @@ export function KnowledgeBase() {
     [searchParams],
   )
 
+  // Tracks which dial-nav pane is active so arrow-key navigation can be skipped
+  // when the user has switched to the Wiki pane (the dial nav handles it there).
+  const kbNavActivePaneRef = useRef<'kb' | 'wiki'>('kb')
+  const onNavActivePaneChange = useCallback((pane: 'kb' | 'wiki') => {
+    kbNavActivePaneRef.current = pane
+  }, [])
+
   useEffect(() => {
     if (editing) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+      if (kbNavActivePaneRef.current !== 'kb') return // wiki pane handles its own keys
       const t = e.target
       if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement) return
       if (t instanceof HTMLElement && t.closest('[contenteditable="true"]')) return
@@ -1216,17 +1224,6 @@ export function KnowledgeBase() {
         )}
       </article>
 
-      {!editing && (confluenceSpaceUrl || confluencePages.length > 0) ? (
-        <ConfluencePagesSection
-          pages={confluencePages}
-          setSearchParams={setSearchParams}
-          canSync={canSyncConfluence}
-          syncing={confluenceSyncing}
-          onSync={handleConfluenceSync}
-          syncMsg={confluenceSyncMsg}
-        />
-      ) : null}
-
       {!editing && (dialPages.length > 1 || confluencePages.length > 0) ? (
         <KnowledgePageDialNav
           pages={dialPages}
@@ -1238,6 +1235,7 @@ export function KnowledgeBase() {
           cfPageId={cfPageId}
           onCfPageClick={onCfPageClick}
           cfQuery={highlightQ || undefined}
+          onActivePaneChange={onNavActivePaneChange}
         />
       ) : null}
     </div>

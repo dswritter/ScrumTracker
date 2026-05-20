@@ -22,6 +22,8 @@ type Props = {
   cfPageId?: string | null
   onCfPageClick?: (pageId: string) => void
   cfQuery?: string
+  /** Called whenever the user switches the active pane, so the host can adjust key handling. */
+  onActivePaneChange?: (pane: 'kb' | 'wiki') => void
 }
 
 export function KnowledgePageDialNav({
@@ -35,10 +37,15 @@ export function KnowledgePageDialNav({
   cfPageId = null,
   onCfPageClick,
   cfQuery,
+  onActivePaneChange,
 }: Props) {
   const hasCf = confluencePages.length > 0
-  // Which pane responds to gesture/keyboard navigation
   const [activePane, setActivePane] = useState<'kb' | 'wiki'>('kb')
+
+  // Notify host whenever active pane changes
+  useEffect(() => {
+    onActivePaneChange?.(activePane)
+  }, [activePane, onActivePaneChange])
 
   const idx = useMemo(
     () => pages.findIndex((p) => p.id === currentId),
@@ -57,7 +64,6 @@ export function KnowledgePageDialNav({
 
   const windowSlice = useMemo(() => {
     if (idx < 0 || pages.length === 0) return []
-    // In split mode always show window; in single mode gate on length > 1
     if (!hasCf && pages.length <= 1) return []
     const start = Math.max(0, idx - windowRadius)
     const end = Math.min(pages.length, idx + windowRadius + 1)
@@ -77,10 +83,9 @@ export function KnowledgePageDialNav({
     return filteredCfPages.slice(start, end).map((page, i) => ({ page, indexInAll: start + i }))
   }, [filteredCfPages, cfIdx, windowRadius])
 
-  // Scroll the active card into view in its half
+  // Scroll the active card into view in its pane
   useLayoutEffect(() => {
-    const pane = hasCf ? activePane : 'kb'
-    const scroller = pane === 'kb' ? kbScrollerRef.current : wikiScrollerRef.current
+    const scroller = (hasCf && activePane === 'wiki') ? wikiScrollerRef.current : kbScrollerRef.current
     const card = activeCardRef.current
     if (!scroller || !card) return
     const id = window.requestAnimationFrame(() => {
@@ -90,7 +95,7 @@ export function KnowledgePageDialNav({
     return () => window.cancelAnimationFrame(id)
   }, [currentId, cfPageId, activePane, hasCf])
 
-  // Wheel gesture — KB pane
+  // ── KB pane: trackpad/wheel → navigate KB articles ────────────────────────
   useEffect(() => {
     const el = kbScrollerRef.current
     if (!el || !onHorizontalStep || (hasCf && activePane !== 'kb')) return
@@ -123,14 +128,15 @@ export function KnowledgePageDialNav({
     return () => el.removeEventListener('wheel', onWheel)
   }, [onHorizontalStep, currentId, pages.length, activePane, hasCf])
 
-  // Wheel gesture — Wiki pane (navigates between CF pages)
+  // ── Wiki pane: trackpad/wheel → scroll the card strip horizontally ─────────
   useEffect(() => {
     const el = wikiScrollerRef.current
     if (!el || !hasCf || activePane !== 'wiki') return
     let accum = 0
     let cooldownUntil = 0
-    const COOLDOWN_MS = 480
-    const THRESHOLD = 95
+    const COOLDOWN_MS = 200
+    const THRESHOLD = 60
+    const CARD_W = 190 // approx px per card scroll step
     const onWheel = (e: WheelEvent) => {
       const now = performance.now()
       if (now < cooldownUntil) { e.preventDefault(); accum = 0; return }
@@ -144,35 +150,49 @@ export function KnowledgePageDialNav({
             : 0
       if (Math.abs(dominant) < 0.5) return
       accum += dominant
-      if (accum > THRESHOLD || accum < -THRESHOLD) {
-        const dir = accum > 0 ? 1 : -1
+      if (accum > THRESHOLD) {
         accum = 0; cooldownUntil = now + COOLDOWN_MS
-        const nextIdx = (cfIdx >= 0 ? cfIdx : 0) + dir
-        if (nextIdx >= 0 && nextIdx < filteredCfPages.length) {
-          onCfPageClick?.(filteredCfPages[nextIdx].pageId)
-        }
-        e.preventDefault()
+        el.scrollBy({ left: CARD_W, behavior: 'smooth' }); e.preventDefault()
+      } else if (accum < -THRESHOLD) {
+        accum = 0; cooldownUntil = now + COOLDOWN_MS
+        el.scrollBy({ left: -CARD_W, behavior: 'smooth' }); e.preventDefault()
       }
     }
     el.addEventListener('wheel', onWheel, { passive: false })
     return () => el.removeEventListener('wheel', onWheel)
-  }, [hasCf, activePane, cfIdx, filteredCfPages, onCfPageClick])
+  }, [hasCf, activePane])
+
+  // ── Wiki pane: arrow keys → scroll the card strip ────────────────────────
+  useEffect(() => {
+    if (!hasCf || activePane !== 'wiki') return
+    const CARD_W = 190
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+      const t = e.target
+      if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement) return
+      if (t instanceof HTMLElement && t.closest('[contenteditable="true"]')) return
+      const dir = e.key === 'ArrowLeft' ? -1 : 1
+      wikiScrollerRef.current?.scrollBy({ left: dir * CARD_W, behavior: 'smooth' })
+      e.preventDefault()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [hasCf, activePane])
 
   const kbValid = pages.length > 1 && idx >= 0
   if (!kbValid && !hasCf) return null
   if (kbValid && !hasCf && windowSlice.length === 0) return null
 
-  // ── Card renderers ────────────────────────────────────────────────────────
+  // ── Card builders ─────────────────────────────────────────────────────────
 
-  const splitCardW = 'w-[min(11rem,36vw)]'
-  const fullCardW = 'w-[min(14rem,72vw)]'
-  const cardW = hasCf ? splitCardW : fullCardW
+  const cardW = hasCf ? 'w-[min(11rem,36vw)]' : 'w-[min(14rem,72vw)]'
 
   const kbCards = windowSlice.map(({ page, indexInTeam }) => {
     const dist = Math.abs(indexInTeam - idx)
     const isCurrent = page.id === currentId
     const scale = dist === 0 ? 1 : dist === 1 ? 0.94 : Math.max(0.88, 0.88 - (dist - 2) * 0.02)
-    const opacity = hasCf && activePane !== 'kb' ? 0.65 : (dist === 0 ? 1 : dist === 1 ? 0.92 : 0.86)
+    const baseOpacity = dist === 0 ? 1 : dist === 1 ? 0.92 : 0.86
+    const opacity = (hasCf && activePane !== 'kb') ? baseOpacity * 0.35 : baseOpacity
     const blurPx = dist >= windowRadius ? 0.35 : 0
     const cardInner = (
       <>
@@ -214,7 +234,8 @@ export function KnowledgePageDialNav({
     const dist = Math.abs(indexInAll - centerI)
     const isCurrent = page.pageId === cfPageId
     const scale = dist === 0 ? 1 : dist === 1 ? 0.94 : Math.max(0.88, 0.88 - (dist - 2) * 0.02)
-    const opacity = hasCf && activePane !== 'wiki' ? 0.65 : (dist === 0 ? 1 : dist === 1 ? 0.92 : 0.86)
+    const baseOpacity = dist === 0 ? 1 : dist === 1 ? 0.92 : 0.86
+    const opacity = activePane !== 'wiki' ? baseOpacity * 0.35 : baseOpacity
     const blurPx = dist >= windowRadius ? 0.35 : 0
     const cardInner = (
       <>
@@ -256,7 +277,6 @@ export function KnowledgePageDialNav({
   const maskStyle = { maskImage: 'linear-gradient(to right, transparent, black 6%, black 94%, transparent)' }
 
   if (!hasCf) {
-    // Original single-pane layout (no Confluence)
     return (
       <nav
         className="fixed bottom-0 left-0 right-0 z-20 border-t border-slate-200 bg-white/95 backdrop-blur-md dark:border-slate-700 dark:bg-slate-900/95"
@@ -274,7 +294,8 @@ export function KnowledgePageDialNav({
     )
   }
 
-  // Split KB | divider+toggle | Wiki layout
+  const kbActive = activePane === 'kb'
+
   return (
     <nav
       className="fixed bottom-0 left-0 right-0 z-20 border-t border-slate-200 bg-white/95 backdrop-blur-md dark:border-slate-700 dark:bg-slate-900/95"
@@ -282,29 +303,27 @@ export function KnowledgePageDialNav({
     >
       <div className={`${KB_PAGE_WIDTH_CLASS} flex items-stretch`}>
 
-        {/* ── KB pane (left) ─────────────────────────────────── */}
-        <div
-          className="flex min-w-0 flex-1 flex-col py-1.5"
+        {/* ── KB pane ──────────────────────────────────────────── */}
+        <button
+          type="button"
+          className={`flex min-w-0 flex-1 flex-col py-1.5 text-left transition-opacity ${kbActive ? 'opacity-100' : 'opacity-40'}`}
           onClick={() => setActivePane('kb')}
+          aria-label="Switch to KB navigation"
         >
-          {/* Pane label */}
-          <div className="flex items-center gap-1.5 px-3 pb-1">
+          <div className={`flex items-center gap-1.5 px-3 pb-1 ${kbActive ? 'border-b-2 border-[#00B050]' : ''}`}>
             <i className="fa-solid fa-book-bookmark text-[9px] text-[#007a3d] dark:text-emerald-400" aria-hidden />
-            <span className={`text-[10px] font-bold uppercase tracking-wide transition-colors ${
-              activePane === 'kb' ? 'text-[#007a3d] dark:text-emerald-300' : 'text-slate-400 dark:text-slate-500'
-            }`}>
+            <span className={`text-[10px] font-bold uppercase tracking-wide ${kbActive ? 'text-[#007a3d] dark:text-emerald-300' : 'text-slate-500'}`}>
               KB
             </span>
             <span className={`rounded-full px-1.5 py-0.5 text-[10px] leading-none font-semibold ${
-              activePane === 'kb'
+              kbActive
                 ? 'bg-[#00B050]/15 text-[#007a3d] dark:bg-emerald-900/30 dark:text-emerald-300'
                 : 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500'
             }`}>
               {pages.length}
             </span>
           </div>
-          {/* Card strip */}
-          <div className="relative overflow-hidden" style={maskStyle}>
+          <div className="relative min-w-0 overflow-hidden" style={maskStyle}>
             <div
               ref={kbScrollerRef}
               className="kb-dial-scroll flex snap-x snap-mandatory items-end justify-center gap-2 overflow-x-auto overflow-y-visible px-2 py-1 [scrollbar-width:none]"
@@ -314,42 +333,46 @@ export function KnowledgePageDialNav({
               )}
             </div>
           </div>
-        </div>
+        </button>
 
-        {/* ── Divider + toggle button ──────────────────────────── */}
-        <div className="relative flex flex-col items-center justify-center px-0.5">
+        {/* ── Divider + toggle ─────────────────────────────────── */}
+        <div className="relative flex flex-col items-center justify-center px-0.5 py-1.5">
           <div className="h-full w-px bg-slate-200 dark:bg-slate-700" />
           <button
             type="button"
-            onClick={() => setActivePane((p) => (p === 'kb' ? 'wiki' : 'kb'))}
-            className="absolute flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700"
-            title={activePane === 'kb' ? 'Switch to Wiki navigation' : 'Switch to KB navigation'}
+            onClick={(e) => {
+              e.stopPropagation()
+              setActivePane((p) => (p === 'kb' ? 'wiki' : 'kb'))
+            }}
+            className="absolute flex h-8 w-8 items-center justify-center rounded-full border-2 bg-white shadow-md transition-colors dark:bg-slate-800 dark:text-slate-200"
+            style={{
+              borderColor: kbActive ? '#00B050' : '#3b82f6',
+              color: kbActive ? '#007a3d' : '#2563eb',
+            }}
+            title={kbActive ? 'Switch to Wiki navigation (or click Wiki pane)' : 'Switch to KB navigation (or click KB pane)'}
             aria-label="Toggle active navigation pane"
           >
             <i
-              className={`fa-solid text-[10px] transition-transform ${
-                activePane === 'kb' ? 'fa-chevron-right' : 'fa-chevron-left'
-              }`}
+              className={`fa-solid text-[10px] ${kbActive ? 'fa-chevron-right' : 'fa-chevron-left'}`}
               aria-hidden
             />
           </button>
         </div>
 
-        {/* ── Wiki pane (right) ───────────────────────────────── */}
-        <div
-          className="flex min-w-0 flex-1 flex-col py-1.5"
+        {/* ── Wiki pane ────────────────────────────────────────── */}
+        <button
+          type="button"
+          className={`flex min-w-0 flex-1 flex-col py-1.5 text-left transition-opacity ${!kbActive ? 'opacity-100' : 'opacity-40'}`}
           onClick={() => setActivePane('wiki')}
+          aria-label="Switch to Wiki navigation"
         >
-          {/* Pane label */}
-          <div className="flex items-center gap-1.5 px-3 pb-1">
+          <div className={`flex items-center gap-1.5 px-3 pb-1 ${!kbActive ? 'border-b-2 border-blue-500' : ''}`}>
             <i className="fa-solid fa-book-open text-[9px] text-blue-500 dark:text-blue-400" aria-hidden />
-            <span className={`text-[10px] font-bold uppercase tracking-wide transition-colors ${
-              activePane === 'wiki' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500'
-            }`}>
+            <span className={`text-[10px] font-bold uppercase tracking-wide ${!kbActive ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500'}`}>
               Wiki
             </span>
             <span className={`rounded-full px-1.5 py-0.5 text-[10px] leading-none font-semibold ${
-              activePane === 'wiki'
+              !kbActive
                 ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
                 : 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500'
             }`}>
@@ -358,8 +381,7 @@ export function KnowledgePageDialNav({
                 : confluencePages.length}
             </span>
           </div>
-          {/* Card strip */}
-          <div className="relative overflow-hidden" style={maskStyle}>
+          <div className="relative min-w-0 overflow-hidden" style={maskStyle}>
             <div
               ref={wikiScrollerRef}
               className="kb-dial-scroll flex snap-x snap-mandatory items-end justify-center gap-2 overflow-x-auto overflow-y-visible px-2 py-1 [scrollbar-width:none]"
@@ -371,7 +393,7 @@ export function KnowledgePageDialNav({
               )}
             </div>
           </div>
-        </div>
+        </button>
 
       </div>
     </nav>
