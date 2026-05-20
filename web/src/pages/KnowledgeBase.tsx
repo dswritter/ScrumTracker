@@ -283,7 +283,9 @@ export function KnowledgeBase() {
 
   const [confluenceSyncing, setConfluenceSyncing] = useState(false)
   const [confluenceSyncMsg, setConfluenceSyncMsg] = useState<string | null>(null)
-  const canSyncConfluence = (isAdmin(user) || isUpperManagement(user)) && Boolean(confluenceSpaceUrl)
+  const [confluenceBgSyncing, setConfluenceBgSyncing] = useState(false)
+  // Any team member can trigger sync (admin configures the PAT in Settings once)
+  const canSyncConfluence = Boolean(confluenceSpaceUrl)
 
   const handleConfluenceSync = useCallback(async () => {
     if (!teamId) return
@@ -303,6 +305,19 @@ export function KnowledgeBase() {
       setConfluenceSyncing(false)
     }
   }, [teamId, setConfluencePages])
+
+  // Auto-sync on every session: runs once per component mount, in the background,
+  // keeping existing content visible until the refreshed list arrives.
+  const autoSyncFiredRef = useRef(false)
+  useEffect(() => {
+    if (autoSyncFiredRef.current || !teamId || !confluenceSpaceUrl) return
+    autoSyncFiredRef.current = true
+    setConfluenceBgSyncing(true)
+    runConfluenceSync(teamId)
+      .then((result) => { if (result.ok) setConfluencePages(teamId, result.pages) })
+      .catch(() => {})
+      .finally(() => setConfluenceBgSyncing(false))
+  }, [teamId, confluenceSpaceUrl, setConfluencePages])
 
   const [editing, setEditing] = useState(false)
   const [draftTitle, setDraftTitle] = useState('')
@@ -1027,18 +1042,47 @@ export function KnowledgeBase() {
               {cfPage.lastSyncedAt ? (
                 <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
                   Synced {new Date(cfPage.lastSyncedAt).toLocaleString()}
+                  {confluenceSyncMsg ? (
+                    <span className={`ml-2 ${confluenceSyncMsg.startsWith('Sync failed') ? 'text-rose-500' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                      · {confluenceSyncMsg}
+                    </span>
+                  ) : null}
                 </p>
               ) : null}
             </div>
-            <a
-              href={cfPage.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
-            >
-              Open in Confluence
-              <i className="fa-solid fa-arrow-up-right-from-square text-[10px]" aria-hidden />
-            </a>
+            <div className="flex shrink-0 items-center gap-2">
+              {confluenceBgSyncing && !confluenceSyncing ? (
+                <span className="flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500">
+                  <i className="fa-solid fa-circle-notch fa-spin text-[10px]" aria-hidden />
+                  Updating…
+                </span>
+              ) : null}
+              {canSyncConfluence ? (
+                <button
+                  type="button"
+                  disabled={confluenceSyncing || confluenceBgSyncing}
+                  onClick={handleConfluenceSync}
+                  className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50 disabled:opacity-50 dark:border-blue-700 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-900/30"
+                  title="Re-sync all pages from Confluence"
+                >
+                  {confluenceSyncing ? (
+                    <i className="fa-solid fa-circle-notch fa-spin text-[10px]" aria-hidden />
+                  ) : (
+                    <i className="fa-solid fa-rotate text-[10px]" aria-hidden />
+                  )}
+                  {confluenceSyncing ? 'Syncing…' : 'Sync'}
+                </button>
+              ) : null}
+              <a
+                href={cfPage.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                Open in Confluence
+                <i className="fa-solid fa-arrow-up-right-from-square text-[10px]" aria-hidden />
+              </a>
+            </div>
           </header>
           <div className="px-5 py-4">
             {cfPageBodyLoading ? (
@@ -1055,25 +1099,8 @@ export function KnowledgeBase() {
             ) : (
               <div className="flex flex-col gap-3">
                 <p className="text-sm text-slate-400 dark:text-slate-500">
-                  {canSyncConfluence
-                    ? 'Page has no body — it may be empty in Confluence, or needs a re-sync.'
-                    : 'Page has no body — ask an admin to re-sync the Confluence space in Settings.'}
+                  This page has no content yet — it may be empty in Confluence, or loading for the first time.
                 </p>
-                {canSyncConfluence && (
-                  <button
-                    type="button"
-                    disabled={confluenceSyncing}
-                    onClick={handleConfluenceSync}
-                    className="inline-flex w-fit items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50 disabled:opacity-50 dark:border-blue-700 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-900/30"
-                  >
-                    {confluenceSyncing ? (
-                      <i className="fa-solid fa-circle-notch fa-spin text-[10px]" aria-hidden />
-                    ) : (
-                      <i className="fa-solid fa-rotate text-[10px]" aria-hidden />
-                    )}
-                    {confluenceSyncing ? 'Syncing all pages…' : 'Re-sync Confluence now'}
-                  </button>
-                )}
                 {confluenceSyncMsg && (
                   <p className={`text-xs font-medium ${confluenceSyncMsg.startsWith('Sync failed') ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-700 dark:text-emerald-300'}`}>
                     {confluenceSyncMsg}

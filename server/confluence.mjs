@@ -195,7 +195,8 @@ async function fetchAllSpacePages(baseUrl, spaceKey, token) {
       status: 'current',
       limit: String(limit),
       start: String(start),
-      expand: 'body.storage,space,version',
+      // Metadata only — bodies fetched on-demand to keep sync fast and reliable
+      expand: 'space,version',
     })
     const data = await confluenceGet(baseUrl, `/content?${qs}`, token)
     const results = Array.isArray(data.results) ? data.results : []
@@ -333,29 +334,15 @@ export function registerConfluenceRoutes(app, dataDir, broadcastRevFn) {
         ? (selfHref.startsWith('http') ? selfHref : `${tok.baseUrl}${selfHref}`)
         : `${tok.baseUrl}/pages/viewpage.action?pageId=${pageId}`
 
-      const htmlBody = p.body?.storage?.value ?? ''
-      let markdown = ''
-      let syncError
-
-      if (htmlBody) {
-        try {
-          markdown = storageToMarkdown(htmlBody)
-        } catch (e) {
-          syncError = `Conversion failed: ${e instanceof Error ? e.message : String(e)}`
-          markdown = existingRefs[pageId]?.body ?? ''
-        }
-      } else {
-        markdown = existingRefs[pageId]?.body ?? ''
-      }
+        // Bodies are fetched on-demand when a page is opened; preserve any cached body
+      const cachedBody = existingRefs[pageId]?.body
 
       const fullRef = {
         pageId, title, url, spaceKey: pageSpaceKey, lastSyncedAt: now,
-        ...(markdown ? { body: markdown } : {}),
-        ...(syncError ? { syncError } : {}),
+        ...(cachedBody ? { body: cachedBody } : {}),
       }
       const metaRef = {
         pageId, title, url, spaceKey: pageSpaceKey, lastSyncedAt: now,
-        ...(syncError ? { syncError } : {}),
       }
       newRefs.push(fullRef)
       metaRefs.push(metaRef)
@@ -374,8 +361,9 @@ export function registerConfluenceRoutes(app, dataDir, broadcastRevFn) {
     res.json({ ok: true, pages: metaRefs, pageCount: metaRefs.length })
   })
 
-  // Fetch a single page body from server storage (called when user opens a Confluence page)
-  app.get('/api/confluence/body', (req, res) => {
+  // Fetch a single page body. Returns cached body from notes.json if available;
+  // otherwise fetches live from Confluence API, converts to Markdown, and caches it.
+  app.get('/api/confluence/body', async (req, res) => {
     const teamId = req.query.teamId
     const pageId = req.query.pageId
     if (!teamId || !pageId) {
@@ -387,6 +375,37 @@ export function registerConfluenceRoutes(app, dataDir, broadcastRevFn) {
     if (!found) {
       return res.status(404).json({ ok: false, error: 'Page not found. Sync the space to fetch page content.' })
     }
-    res.json({ ok: true, body: found.body ?? '', syncError: found.syncError ?? null })
+
+    // Serve cached body immediately
+    if (found.body) {
+      return res.json({ ok: true, body: found.body, syncError: found.syncError ?? null })
+    }
+
+    // On-demand fetch from Confluence API
+    const tok = readToken(dataDir)
+    if (!tok) {
+      return res.json({ ok: true, body: '', syncError: 'No Confluence token configured' })
+    }
+    try {
+      const data = await confluenceGet(tok.baseUrl, `/content/${String(pageId)}?expand=body.storage`, tok.token)
+      const htmlBody = data.body?.storage?.value ?? ''
+      let markdown = ''
+      if (htmlBody) {
+        try {
+          markdown = storageToMarkdown(htmlBody)
+        } catch (e) {
+          return res.json({ ok: true, body: '', syncError: `Conversion failed: ${e instanceof Error ? e.message : String(e)}` })
+        }
+      }
+      // Cache the body so future opens are instant
+      if (markdown) {
+        found.body = markdown
+        delete found.syncError
+        try { writeNotes(dataDir, String(teamId), notes) } catch { /* non-fatal */ }
+      }
+      return res.json({ ok: true, body: markdown, syncError: null })
+    } catch (e) {
+      return res.json({ ok: true, body: '', syncError: `Failed to fetch from Confluence: ${e instanceof Error ? e.message : String(e)}` })
+    }
   })
 }
