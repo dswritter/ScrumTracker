@@ -292,7 +292,7 @@ export async function downloadWeeklyProgressDocx(
   const weekMondayKey = opts?.weekMondayKey ?? weekKeyForName
   const miscAll = opts?.weeklyMiscChecklists
 
-  const children: Paragraph[] = [
+  const children: (Paragraph | Table)[] = [
     new Paragraph({
       heading: HeadingLevel.TITLE,
       children: [new TextRun({ text: 'Weekly progress report' })],
