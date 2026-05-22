@@ -124,6 +124,17 @@ export function getCurrentSprint(
   return [...candidates].sort(compareSprintTimelineDesc)[0] ?? null
 }
 
+/**
+ * Tracker sprint id to send with Jira sync when the UI has no explicit scope
+ * (e.g. Settings or daily auto-sync): prefer the calendar “current” sprint, else the
+ * newest sprint in the list — aligned with the Dashboard default.
+ */
+export function defaultJiraSyncTrackerSprintId(sprints: Sprint[]): string | null {
+  if (!sprints.length) return null
+  const sorted = sprintsSortedNewestFirst(sprints)
+  return getCurrentSprint(sorted)?.id ?? sorted[0]?.id ?? null
+}
+
 export function sprintDayProgress(
   sprint: Sprint,
   today: Date = new Date(),

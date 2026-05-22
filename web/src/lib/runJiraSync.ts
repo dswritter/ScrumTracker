@@ -9,6 +9,8 @@ export async function runJiraSyncFromStore(
   opts?: {
     syncMode?: JiraSyncMode
     trackerUsername?: string
+    /** Tracker sprint id from the UI (Dashboard scope or default current sprint). */
+    syncSprintId?: string
   },
 ): Promise<{ ok: true; message: string } | { ok: false; message: string }> {
   const snap = exportSnapshotJson()
@@ -18,6 +20,7 @@ export async function runJiraSyncFromStore(
       teamId,
       syncMode: opts?.syncMode,
       trackerUsername: opts?.trackerUsername,
+      syncSprintId: opts?.syncSprintId,
     })
     if (!res.ok) {
       return { ok: false, message: await res.text() }

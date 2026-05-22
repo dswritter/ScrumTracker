@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   JiraCreateIssueModal,
   LinkJiraIssueModal,
@@ -14,9 +14,11 @@ import {
   jiraTokenStatusAllowsSync,
 } from '../lib/jiraApi'
 import { isAdmin } from '../lib/permissions'
+import { parseDashboardScope } from '../lib/dashboardScope'
 import { runJiraSyncFromStore } from '../lib/runJiraSync'
 import { isTrackerSyncEnabled } from '../lib/syncConfigured'
 import { useTrackerStore } from '../store/useTrackerStore'
+import { getCurrentSprint, sprintsSortedNewestFirst } from '../lib/sdates'
 
 /** Jira sync: admins use team PAT in Settings; members use their own PAT on the server. */
 export function JiraHeaderSyncButton() {
@@ -37,6 +39,7 @@ export function JiraHeaderSyncButton() {
   const [linkOpen, setLinkOpen] = useState(false)
   const hubRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
 
   const hasSyncServer = isTrackerSyncEnabled()
   const ready = Boolean(ctx && hasSyncServer && user)
@@ -55,6 +58,21 @@ export function JiraHeaderSyncButton() {
         }
   }, [ready, admin, teamId, user])
 
+  /** Matches Dashboard sprint scope (`?scope=sprint&sprint=…`); omits when scope is not a single sprint (e.g. all sprints). */
+  const syncSprintIdForJira = useMemo(() => {
+    if (!ctx?.sprints?.length) return undefined
+    const sortedSprints = sprintsSortedNewestFirst(ctx.sprints)
+    const defaultSprintId =
+      getCurrentSprint(sortedSprints)?.id ?? sortedSprints[0]?.id ?? null
+    const scope = parseDashboardScope(
+      searchParams,
+      sortedSprints,
+      defaultSprintId,
+    )
+    if (scope.type === 'sprint') return scope.sprintId
+    return undefined
+  }, [searchParams, ctx?.sprints])
+
   const doSync = async (): Promise<void> => {
     if (!ready || !user) return
     const r = await runJiraSyncFromStore(
@@ -62,8 +80,12 @@ export function JiraHeaderSyncButton() {
       importSnapshotJson,
       teamId,
       admin
-        ? { syncMode: 'admin' }
-        : { syncMode: 'individual', trackerUsername: user.username },
+        ? { syncMode: 'admin', syncSprintId: syncSprintIdForJira }
+        : {
+            syncMode: 'individual',
+            trackerUsername: user.username,
+            syncSprintId: syncSprintIdForJira,
+          },
     )
     if (r.ok) {
       setToast(r.message)
@@ -139,8 +161,8 @@ export function JiraHeaderSyncButton() {
           disabled={busy}
           title={
             admin
-              ? 'Sync work items from Jira (team JQL and PAT in Settings)'
-              : 'Sync from Jira: team sprint items plus issues you reported in the current sprint window'
+              ? 'Sync Jira for the sprint in the scope dropdown (team JQL and PAT in Settings)'
+              : 'Sync Jira for the sprint in the scope dropdown; uses that sprint\'s dates for your reporter items (your PAT)'
           }
           aria-label="Sync from Jira"
           className="inline-flex h-9 items-center gap-1.5 border-0 bg-transparent px-2.5 text-slate-800 hover:bg-slate-50 disabled:opacity-50 dark:text-slate-100 dark:hover:bg-slate-800"

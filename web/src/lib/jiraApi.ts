@@ -81,6 +81,8 @@ export async function postJiraSync(body: {
   jql?: string
   syncMode?: 'admin' | 'individual'
   trackerUsername?: string
+  /** Tracker sprint id (matches `Sprint.id` in the snapshot); scopes sync to that sprint. */
+  syncSprintId?: string
 }) {
   return syncFetch('/api/jira/sync', {
     method: 'POST',

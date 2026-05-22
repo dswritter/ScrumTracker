@@ -10,6 +10,7 @@ import { isAdmin } from '../lib/permissions'
 import { runJiraSyncFromStore } from '../lib/runJiraSync'
 import { isTrackerSyncEnabled } from '../lib/syncConfigured'
 import { useTrackerStore } from '../store/useTrackerStore'
+import { defaultJiraSyncTrackerSprintId } from '../lib/sdates'
 
 function localTodayKey() {
   const d = new Date()
@@ -62,13 +63,16 @@ export function JiraDailyAutoSync() {
           const tokenPayload = await fetchJiraUserTokenStatusPayload(user.username)
           if (!jiraTokenStatusAllowsSync(tokenPayload)) return
         }
+        const syncSprintId = ctx.sprints?.length
+          ? defaultJiraSyncTrackerSprintId(ctx.sprints) ?? undefined
+          : undefined
         const r = await runJiraSyncFromStore(
           exportSnapshotJson,
           importSnapshotJson,
           teamId,
           admin
-            ? { syncMode: 'admin' }
-            : { syncMode: 'individual', trackerUsername: user.username },
+            ? { syncMode: 'admin', syncSprintId }
+            : { syncMode: 'individual', trackerUsername: user.username, syncSprintId },
         )
         if (r.ok) {
           localStorage.setItem(storageKey, localTodayKey())
@@ -89,6 +93,7 @@ export function JiraDailyAutoSync() {
     user?.username,
     user?.role,
     ctx?.teamId,
+    ctx?.sprints,
     exportSnapshotJson,
     importSnapshotJson,
   ])

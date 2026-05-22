@@ -10,6 +10,7 @@ import { copyTextToClipboard } from '../lib/copyToClipboard'
 import { pushTrackerSnapshotNow } from '../lib/pushTrackerSnapshotNow'
 import { runJiraSyncFromStore } from '../lib/runJiraSync'
 import { isTrackerSyncEnabled } from '../lib/syncConfigured'
+import { defaultJiraSyncTrackerSprintId } from '../lib/sdates'
 import { useTrackerStore } from '../store/useTrackerStore'
 
 function MemberIdentityEditor({
@@ -659,8 +660,9 @@ export function Settings() {
           </code>
           . Team members run <strong>Jira sync</strong> from the header with their
           own PAT (stored in <span className="font-mono">jira-user-tokens.json</span>
-          ); the same team JQL applies, plus their issues reported in the current
-          sprint window. Items missing a matching Jira sprint show{' '}
+          ); the same team JQL applies, scoped to the <strong>sprint in the Dashboard
+          scope dropdown</strong> (default: current sprint), plus their issues reported in
+          that sprint&apos;s date range. Items missing a matching Jira sprint show{' '}
           <strong>Needs Jira sprint</strong> for admins.
         </p>
         {!hasSyncServer ? (
@@ -774,10 +776,14 @@ export function Settings() {
               setJiraMsg(null)
               setJiraSyncing(true)
               try {
+                const syncSprintId = ctx?.sprints?.length
+                  ? defaultJiraSyncTrackerSprintId(ctx.sprints) ?? undefined
+                  : undefined
                 const r = await runJiraSyncFromStore(
                   exportSnapshotJson,
                   importSnapshotJson,
                   teamId,
+                  { syncSprintId },
                 )
                 setJiraMsg(r.message)
               } finally {

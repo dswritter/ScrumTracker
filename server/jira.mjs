@@ -465,6 +465,68 @@ function currentSprintDateBoundsForJql(sprints) {
   return { start: minStart, end: maxEnd, jqlStart, jqlEnd }
 }
 
+function findTrackerSprintById(sprints, sprintId) {
+  const id = String(sprintId ?? '').trim()
+  if (!id) return null
+  const list = Array.isArray(sprints) ? sprints : []
+  return list.find((s) => s && s.id === id) ?? null
+}
+
+/** @param {{ start: string, end: string }} sprint */
+function sprintBoundsToJql(sprint) {
+  if (!sprint || typeof sprint.start !== 'string' || typeof sprint.end !== 'string')
+    return null
+  const jqlStart = String(sprint.start).replace(/-/g, '/')
+  const jqlEnd = String(sprint.end).replace(/-/g, '/')
+  return { start: sprint.start, end: sprint.end, jqlStart, jqlEnd }
+}
+
+/** Jira board sprint id embedded in tracker sprint id `jira-sprint-123`. */
+function jiraBoardNumericFromTrackerSprintId(sprintId) {
+  const m = String(sprintId ?? '').match(/^jira-sprint-(\d+)$/)
+  return m ? m[1] : null
+}
+
+/**
+ * When client passes a tracker sprint id, use that sprint for Jira board matching and
+ * reporter date windows; otherwise keep calendar-today behaviour.
+ * @param {unknown[]} sprints
+ */
+function buildActiveJiraSprintIdSetForSync(sprints, syncSprintId, todayYmd) {
+  const sp = findTrackerSprintById(sprints, syncSprintId)
+  if (sp && typeof sp.id === 'string') {
+    const m = sp.id.match(/^jira-sprint-(.+)$/)
+    if (m) return new Set([m[1]])
+    return new Set()
+  }
+  return activeJiraSprintIdSetFromTracker(sprints, todayYmd)
+}
+
+/** @param {unknown[]} sprints */
+function reporterDateBoundsForSync(sprints, syncSprintId) {
+  const sp = findTrackerSprintById(sprints, syncSprintId)
+  if (sp) return sprintBoundsToJql(sp)
+  return currentSprintDateBoundsForJql(sprints)
+}
+
+/**
+ * Narrow admin/team JQL to a specific board sprint when the tracker sprint is backed by
+ * Jira (`jira-sprint-N`) and the saved JQL does not already reference Sprint.
+ * @param {string} jql
+ * @param {unknown[]} sprints
+ * @param {string} syncSprintId
+ */
+function maybeAugmentJqlWithSelectedSprint(jql, sprints, syncSprintId) {
+  const trimmed = String(jql ?? '').trim()
+  if (!trimmed || !syncSprintId) return trimmed
+  if (/\bsprint\b/i.test(trimmed)) return trimmed
+  const sp = findTrackerSprintById(sprints, syncSprintId)
+  if (!sp || typeof sp.id !== 'string') return trimmed
+  const num = jiraBoardNumericFromTrackerSprintId(sp.id)
+  if (!num) return trimmed
+  return `(${trimmed}) AND Sprint = ${num}`
+}
+
 /** Sprint ids like jira-sprint-123 active on today's calendar. */
 function activeJiraSprintIdSetFromTracker(sprints, todayYmd) {
   const set = new Set()
@@ -1067,6 +1129,8 @@ export function registerJiraRoutes(app, opts) {
     const syncMode =
       req.body?.syncMode === 'individual' ? 'individual' : 'admin'
     const trackerUsername = normalizeTrackerUsername(req.body?.trackerUsername)
+    const syncSprintId =
+      typeof req.body?.syncSprintId === 'string' ? req.body.syncSprintId.trim() : ''
     if (typeof snapshotStr !== 'string' || !snapshotStr) {
       res.status(400).json({ error: 'Body must include { snapshot: string }' })
       return
@@ -1136,18 +1200,24 @@ export function registerJiraRoutes(app, opts) {
     }
 
     const teamData = snap.teamsData[tid]
-    const jql =
+    const jqlBase =
       jqlOverride ||
       (typeof teamData.jiraSyncJql === 'string' && teamData.jiraSyncJql.trim()) ||
       process.env.JIRA_JQL?.trim() ||
       ''
-    if (!jql) {
+    if (!jqlBase) {
       res.status(400).json({
         error:
           'Set jiraSyncJql on the team, pass jql in the request body, or set JIRA_JQL',
       })
       return
     }
+
+    const jql = maybeAugmentJqlWithSelectedSprint(
+      jqlBase,
+      teamData.sprints,
+      syncSprintId,
+    )
 
     const sprintFieldRaw =
       (typeof teamData.jiraSprintFieldId === 'string' &&
@@ -1174,8 +1244,9 @@ export function registerJiraRoutes(app, opts) {
       if (sprintFieldRaw) searchFields.push(sprintFieldRaw)
 
       const todayYmd = new Date().toISOString().slice(0, 10)
-      const activeJiraSprintIds = activeJiraSprintIdSetFromTracker(
+      const activeJiraSprintIds = buildActiveJiraSprintIdSetForSync(
         teamData.sprints,
+        syncSprintId,
         todayYmd,
       )
 
@@ -1183,7 +1254,7 @@ export function registerJiraRoutes(app, opts) {
       let secondaryIssues = []
       const secondaryKeySet = new Set()
       if (syncMode === 'individual') {
-        const bounds = currentSprintDateBoundsForJql(teamData.sprints)
+        const bounds = reporterDateBoundsForSync(teamData.sprints, syncSprintId)
         if (bounds) {
           const jqlReporter = `reporter = currentUser() AND created >= "${bounds.jqlStart}" AND created <= "${bounds.jqlEnd}"`
           secondaryIssues = await fetchAllIssues(
