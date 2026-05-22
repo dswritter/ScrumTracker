@@ -28,7 +28,7 @@ project in ("CT AGM", "CT SVG", "CT Color-ACE", "CT ARE", "CT AGM-Print", "CoreT
 The **team JQL** is augmented when **`syncSprintId`** matches a tracker sprint whose id is **`jira-sprint-<n>`** (Jira Software board sprint):
 
 * If the saved JQL **does not** contain the word `sprint` (case-insensitive), the server runs **`(<team JQL>) AND Sprint = n`** so the selected sprint (including **closed** board sprints) is what Jira returns.
-* If the JQL **already** mentions sprint (e.g. `sprint in openSprints()`), the server still runs the saved JQL, **plus** a second query **`(<leading project clause>) AND Sprint = n`** when the JQL starts with a `project in (...)` or `project = …` clause, and merges results. That way choosing an older sprint in the UI can still refresh issues that `openSprints()` would exclude.
+* If the JQL **already** mentions sprint (e.g. `sprint in openSprints()`), the server **rewrites** that clause to **`Sprint = n`** for the **primary** search when `syncSprintId` maps to a tracker sprint `jira-sprint-<n>`, so closed board sprints are fetched without relying on a second query. If the JQL uses other sprint filters and cannot be rewritten, the server may still run a second query **`(<leading project clause>) AND Sprint = n`** when the JQL starts with `project in (...)` or `project = …`, and merges results.
 
 Sprint field values from Jira are **merged** with existing `jira-sprint-*` tags on each item so refetch does not drop prior sprint associations when Jira returns a smaller sprint list.
 

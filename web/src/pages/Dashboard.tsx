@@ -867,7 +867,9 @@ export function Dashboard() {
             weeklyMiscChecklists={ctx.weeklyMiscChecklists}
             onSetWeeklyMisc={handleSetWeeklyMisc}
             teamMembersForMisc={ctx.teamMembers}
-            viewerDisplayName={user?.displayName}
+            viewerDisplayName={
+              user?.displayName?.trim() || user?.username?.trim() || ''
+            }
             viewerIsAdmin={actsAsAdmin}
           />
         </div>

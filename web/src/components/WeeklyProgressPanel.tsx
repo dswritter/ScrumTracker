@@ -18,6 +18,7 @@ import {
   bundleWeeklyProgressByPerson,
   isCommentSeparator,
   workStatusLabel,
+  weeklyProgressPersonKey,
   type WeeklyProgressCard,
   type WeeklyProgressPersonBundle,
   type BulletTreeNode,
@@ -598,6 +599,30 @@ export function WeeklyProgressPanel({
                   }))
                 }
                 const showToggle = b.tasks.length >= COLLAPSE_WHEN_TASKS_GTE
+                const roster = teamMembersForMisc ?? []
+                const canonicalName = rosterCasePreservingName(
+                  b.personName,
+                  roster,
+                )
+                const miscStored = miscLinesFor(
+                  weeklyMiscChecklists,
+                  weekKey,
+                  b.personName,
+                )
+                const viewerKey = weeklyProgressPersonKey(
+                  viewerDisplayName ?? '',
+                )
+                const canEditWeeklyMisc = Boolean(
+                  onSetWeeklyMisc &&
+                    !projectFilter &&
+                    (viewerIsAdmin ||
+                      (viewerKey &&
+                        viewerKey === weeklyProgressPersonKey(b.personName))),
+                )
+                const showMiscBlock =
+                  Boolean(onSetWeeklyMisc && !projectFilter) &&
+                  (canEditWeeklyMisc ||
+                    miscStored.some((l) => l.text.trim() || l.done))
                 return (
                 <li
                   key={b.id}
@@ -647,6 +672,17 @@ export function WeeklyProgressPanel({
                       ) : null}
                     </div>
                   </div>
+                  {showMiscBlock ? (
+                    <WeeklyMiscEditor
+                      weekKey={weekKey}
+                      personDisplayName={b.personName}
+                      initialLines={miscStored}
+                      readOnly={!canEditWeeklyMisc}
+                      onSave={(lines) => {
+                        onSetWeeklyMisc?.(weekKey, canonicalName, lines)
+                      }}
+                    />
+                  ) : null}
                   {expanded ? (
                   <div className="mt-3 space-y-4">
                     {b.tasks.map((c, taskIdx) => (
@@ -781,46 +817,6 @@ export function WeeklyProgressPanel({
                       {b.tasks.length} tasks hidden — click header to show
                     </p>
                   )}
-                  {(() => {
-                    const roster = teamMembersForMisc ?? []
-                    const canonicalName = rosterCasePreservingName(
-                      b.personName,
-                      roster,
-                    )
-                    const miscStored = miscLinesFor(
-                      weeklyMiscChecklists,
-                      weekKey,
-                      b.personName,
-                    )
-                    const canEditWeeklyMisc = Boolean(
-                      onSetWeeklyMisc &&
-                        !projectFilter &&
-                        (viewerIsAdmin ||
-                          (viewerDisplayName &&
-                            viewerDisplayName.trim().toLowerCase() ===
-                              b.personName.trim().toLowerCase())),
-                    )
-                    const showMiscBlock =
-                      Boolean(onSetWeeklyMisc && !projectFilter) &&
-                      (canEditWeeklyMisc ||
-                        miscStored.some((l) => l.text.trim() || l.done))
-                    if (!showMiscBlock) return null
-                    return (
-                      <WeeklyMiscEditor
-                        weekKey={weekKey}
-                        personDisplayName={b.personName}
-                        initialLines={miscStored}
-                        readOnly={!canEditWeeklyMisc}
-                        onSave={(lines) => {
-                          onSetWeeklyMisc?.(
-                            weekKey,
-                            canonicalName,
-                            lines,
-                          )
-                        }}
-                      />
-                    )
-                  })()}
                 </li>
                 )
               })}

@@ -18,14 +18,12 @@ function cloneLines(lines: WeeklyMiscLine[]): WeeklyMiscLine[] {
 export function WeeklyMiscEditor({
   weekKey,
   personDisplayName,
-  roster,
   initialLines,
   readOnly,
   onSave,
 }: {
   weekKey: string
   personDisplayName: string
-  roster: string[]
   initialLines: WeeklyMiscLine[]
   readOnly: boolean
   onSave: (lines: WeeklyMiscLine[]) => void

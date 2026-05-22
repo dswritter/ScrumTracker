@@ -531,6 +531,19 @@ function extractLeadingProjectClause(jql) {
 }
 
 /**
+ * When team JQL uses `sprint in openSprints()`, replace with `Sprint = n` so scoped sync
+ * fetches closed-board-sprint issues instead of relying on a second query (which may fail silently).
+ * @param {string} jql
+ * @param {string} n board sprint id for JQL
+ * @returns {string | null} rewritten JQL, or null if pattern not found
+ */
+function rewriteOpenSprintsToSprintEquals(jql, n) {
+  const probe = /\bsprint\s+in\s+openSprints\s*\(\s*\)/i
+  if (!probe.test(jql)) return null
+  return jql.replace(/\bsprint\s+in\s+openSprints\s*\(\s*\)/gi, `Sprint = ${n}`)
+}
+
+/**
  * When `syncSprintId` maps to a Jira board sprint, narrow the primary search so closed
  * sprints still sync when the user picks that sprint in the UI.
  * @returns {{ primary: string, extraJqls: string[] }}
@@ -543,6 +556,10 @@ function buildPrimaryJqlVariantsForSync(jqlBase, sprints, syncSprintId) {
   if (!n) return { primary: trimmed, extraJqls: [] }
   if (!/\bsprint\b/i.test(trimmed)) {
     return { primary: `(${trimmed}) AND Sprint = ${n}`, extraJqls: [] }
+  }
+  const rewritten = rewriteOpenSprintsToSprintEquals(trimmed, n)
+  if (rewritten && rewritten !== trimmed) {
+    return { primary: rewritten, extraJqls: [] }
   }
   const proj = extractLeadingProjectClause(trimmed)
   if (!proj) return { primary: trimmed, extraJqls: [] }

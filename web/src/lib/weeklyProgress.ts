@@ -96,8 +96,13 @@ export function eligibleMemberDisplayNames(
     .sort((a, b) => a.localeCompare(b))
 }
 
-function normName(s: string): string {
+/** Normalize person labels for comparisons (weekly cards vs login display name). */
+export function weeklyProgressPersonKey(s: string): string {
   return s.trim().toLowerCase()
+}
+
+function normName(s: string): string {
+  return weeklyProgressPersonKey(s)
 }
 
 function inEligible(name: string, eligible: string[]): boolean {

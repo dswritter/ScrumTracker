@@ -161,8 +161,12 @@ export function JiraHeaderSyncButton() {
           disabled={busy}
           title={
             admin
-              ? 'Sync Jira for the sprint in the scope dropdown (team JQL and PAT in Settings)'
-              : 'Sync Jira for the sprint in the scope dropdown; uses that sprint\'s dates for your reporter items (your PAT)'
+              ? syncSprintIdForJira
+                ? 'Sync Jira for the sprint in the scope dropdown. Saved team JQL is used, but sprint in openSprints() is rewritten to Sprint = that board sprint when the tracker sprint id is jira-sprint-<n>. Team PAT in Settings.'
+                : 'Sync Jira using the saved team JQL as-is (pick a single sprint in the scope dropdown to rewrite openSprints() to that sprint). Team PAT in Settings.'
+              : syncSprintIdForJira
+                ? 'Sync Jira for the sprint in the scope dropdown; reporter items use that sprint’s dates. openSprints() in team JQL is rewritten to Sprint = scoped id when applicable. Your PAT.'
+                : 'Sync Jira with saved team JQL as-is; choose a single sprint in the scope dropdown to target a closed board sprint. Your PAT.'
           }
           aria-label="Sync from Jira"
           className="inline-flex h-9 items-center gap-1.5 border-0 bg-transparent px-2.5 text-slate-800 hover:bg-slate-50 disabled:opacity-50 dark:text-slate-100 dark:hover:bg-slate-800"
