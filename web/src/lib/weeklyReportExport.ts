@@ -1,17 +1,21 @@
 import {
+  BorderStyle,
   Document,
   ExternalHyperlink,
   HeadingLevel,
   Packer,
   Paragraph,
+  Table,
+  TableCell,
+  TableRow,
   TextRun,
+  WidthType,
 } from 'docx'
 import { jsPDF } from 'jspdf'
 import { itemDetailPath } from './workItemRoutes'
 import {
   buildBulletTree,
   isCommentSeparator,
-  workStatusLabel,
   type BulletTreeNode,
   type WeeklyProgressCard,
   type WeeklyProgressPersonBundle,
@@ -47,20 +51,6 @@ const MEMBER_SECTION_PDF_RGB: Array<[number, number, number]> = [
   [252, 231, 243],
   [254, 243, 199],
 ]
-
-function authorLineVisible(authorRaw: string, personName: string): boolean {
-  const chunks = authorRaw
-    .split('·')
-    .map((s) => s.trim())
-    .filter(Boolean)
-  if (chunks.length > 1) return true
-  return chunks[0] !== personName.trim()
-}
-
-function sourceLabel(c: WeeklyProgressCard): string {
-  if (c.source === 'mixed') return 'Jira + Tracker'
-  return c.source === 'jira' ? 'Jira' : 'Tracker'
-}
 
 function segmentsFromBulletLines(
   lines: WeeklyProgressCard['bulletLines'],
@@ -160,52 +150,26 @@ function pushConsolidatedItemDocx(
   children: Paragraph[],
   c: WeeklyProgressCard,
   origin: string,
-  personName: string,
 ): void {
   const taskUrl = workItemUrl(origin, c.itemId)
   children.push(
     new Paragraph({
+      spacing: { after: 80 },
       children: [
-        new TextRun({ text: 'Work item: ', bold: true }),
         new ExternalHyperlink({
           link: taskUrl,
           children: [
             new TextRun({
               text: c.itemTitle.trim() || '(untitled)',
               style: 'Hyperlink',
+              bold: true,
+              size: 22,
             }),
           ],
-        }),
-        new TextRun({
-          text: `  ·  ${sourceLabel(c)}  ·  ${c.section || 'General'}`,
         }),
       ],
     }),
   )
-
-  const statusBits = [
-    `Tracker: ${workStatusLabel(c.itemStatus)}`,
-    c.jiraStatusName ? `Jira: ${c.jiraStatusName}` : '',
-  ].filter(Boolean)
-  children.push(
-    new Paragraph({
-      children: [new TextRun({ text: statusBits.join(' · '), size: 20 })],
-    }),
-  )
-
-  if (authorLineVisible(c.authorRaw, personName)) {
-    children.push(
-      new Paragraph({
-        children: [
-          new TextRun({
-            text: `Comment thread: ${c.authorRaw}`,
-            italics: true,
-            size: 20,
-          }),
-        ],
-      }),
-    )
-  }
 
   if (c.jiraResolvedStampKey) {
     const j = c.jiraLinks.find((x) => x.key === c.jiraResolvedStampKey)
@@ -290,17 +254,26 @@ function pushMiscDocx(children: Paragraph[], lines: WeeklyMiscLine[]): void {
   children.push(
     new Paragraph({
       heading: HeadingLevel.HEADING_3,
-      children: [new TextRun({ text: 'Miscellaneous (this week)', bold: true })],
+      spacing: { before: 120, after: 80 },
+      children: [
+        new TextRun({
+          text: 'Other updates',
+          bold: true,
+          color: '007A3D',
+        }),
+      ],
     }),
   )
   for (const line of lines) {
-    const prefix = line.done ? '☑ ' : '☐ '
     const pad = '  '.repeat(Math.min(line.depth, 8))
+    const mark = line.done ? '[x] ' : '[ ] '
+    const markColor = line.done ? '007A3D' : '94A3B8'
     children.push(
       new Paragraph({
         children: [
+          new TextRun({ text: `${pad}${mark}`, color: markColor }),
           new TextRun({
-            text: `${pad}${prefix}${line.text.trim() || '(empty line)'}`,
+            text: line.text.trim() || '(empty line)',
           }),
         ],
       }),
@@ -359,19 +332,47 @@ export async function downloadWeeklyProgressDocx(
     const fill = MEMBER_SECTION_DOCX_FILLS[memberIdx % MEMBER_SECTION_DOCX_FILLS.length]!
     memberIdx++
 
-    children.push(
+    const inner: Paragraph[] = [
       new Paragraph({
-        heading: HeadingLevel.HEADING_2,
-        shading: { fill },
-        spacing: { before: 240, after: 120 },
+        spacing: { after: 160 },
         children: [new TextRun({ text: b.personName, bold: true, size: 28 })],
       }),
-    )
-
+    ]
     for (const c of tasks) {
-      pushConsolidatedItemDocx(children, c, origin, b.personName)
+      pushConsolidatedItemDocx(inner, c, origin)
     }
-    pushMiscDocx(children, misc)
+    pushMiscDocx(inner, misc)
+
+    const cellBorder = {
+      style: BorderStyle.SINGLE,
+      size: 1,
+      color: '94A3B8',
+    }
+    children.push(
+      new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        columnWidths: [9360],
+        rows: [
+          new TableRow({
+            children: [
+              new TableCell({
+                width: { size: 100, type: WidthType.PERCENTAGE },
+                shading: { fill },
+                margins: { top: 240, bottom: 240, left: 280, right: 280 },
+                borders: {
+                  top: cellBorder,
+                  bottom: cellBorder,
+                  left: cellBorder,
+                  right: cellBorder,
+                },
+                children: inner,
+              }),
+            ],
+          }),
+        ],
+      }),
+    )
+    children.push(new Paragraph({ children: [] }))
   }
 
   const doc = new Document({
@@ -392,6 +393,15 @@ export function downloadWeeklyProgressPdf(
   const weekMondayKey = opts?.weekMondayKey ?? weekKeyForName
   const miscAll = opts?.weeklyMiscChecklists
 
+  type PdfLineSpec = {
+    indent: number
+    size: number
+    bold: boolean
+    text: string
+    linkUrl?: string
+    textColor?: [number, number, number]
+  }
+
   const doc = new jsPDF({ unit: 'pt', format: 'letter' })
   const margin = 48
   const pageH = doc.internal.pageSize.getHeight()
@@ -399,7 +409,9 @@ export function downloadWeeklyProgressPdf(
   const maxW = pageW - 2 * margin
   let y = margin
   const lineH = 13
-  const titleH = 18
+  const innerPad = 14
+  const ix = margin + innerPad
+  const innerW = maxW - innerPad * 2
 
   function ensureSpace(h: number) {
     if (y + h > pageH - margin) {
@@ -422,17 +434,129 @@ export function downloadWeeklyProgressPdf(
     }
   }
 
-  function addMemberBanner(name: string, rgb: [number, number, number]) {
-    ensureSpace(titleH + 8)
+  function measureSpecs(specs: PdfLineSpec[]): number {
+    let total = 0
+    for (const s of specs) {
+      doc.setFontSize(s.size)
+      doc.setFont('helvetica', s.bold ? 'bold' : 'normal')
+      const w = Math.max(40, innerW - s.indent)
+      const split = doc.splitTextToSize(s.text, w) as string[]
+      total += split.length * lineH
+    }
+    return total
+  }
+
+  function drawSpecs(specs: PdfLineSpec[], rgb: [number, number, number]) {
+    const padV = 12
+    const contentH = measureSpecs(specs)
+    const blockH = contentH + padV * 2
+    ensureSpace(blockH + 14)
+    const y0 = y
     doc.setFillColor(rgb[0], rgb[1], rgb[2])
-    doc.rect(margin, y - 2, maxW, titleH + 6, 'F')
-    doc.setFontSize(13)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(30, 30, 30)
-    doc.text(name, margin + 6, y + titleH - 2)
-    y += titleH + 10
-    doc.setFont('helvetica', 'normal')
+    doc.roundedRect(margin, y0 - 4, maxW, blockH + 8, 8, 8, 'F')
+    doc.setDrawColor(160, 175, 190)
+    doc.setLineWidth(0.6)
+    doc.roundedRect(margin, y0 - 4, maxW, blockH + 8, 8, 8, 'S')
+    doc.setLineWidth(1)
+    y = y0 + padV
+
+    for (const s of specs) {
+      doc.setFontSize(s.size)
+      doc.setFont('helvetica', s.bold ? 'bold' : 'normal')
+      const w = Math.max(40, innerW - s.indent)
+      const x = ix + s.indent
+      const split = doc.splitTextToSize(s.text, w) as string[]
+      const tc = s.textColor ?? [0, 0, 0]
+      doc.setTextColor(tc[0], tc[1], tc[2])
+      for (let i = 0; i < split.length; i++) {
+        const line = split[i]!
+        ensureSpace(lineH)
+        doc.text(line, x, y)
+        if (s.linkUrl) {
+          const tw = doc.getTextWidth(line)
+          doc.link(x, y - s.size + 2, tw, lineH + 2, { url: s.linkUrl })
+        }
+        y += lineH
+      }
+    }
     doc.setTextColor(0, 0, 0)
+    doc.setFont('helvetica', 'normal')
+    y = y0 + blockH + 14
+  }
+
+  function buildMemberSpecs(
+    b: WeeklyProgressPersonBundle,
+    tasks: WeeklyProgressCard[],
+    misc: WeeklyMiscLine[],
+  ): PdfLineSpec[] {
+    const specs: PdfLineSpec[] = [
+      { indent: 0, size: 13, bold: true, text: b.personName },
+    ]
+    for (const c of tasks) {
+      const taskUrl = workItemUrl(origin, c.itemId)
+      specs.push({
+        indent: 0,
+        size: 11,
+        bold: true,
+        text: c.itemTitle.trim() || '(untitled)',
+        linkUrl: taskUrl,
+      })
+      if (c.jiraResolvedStampKey) {
+        const j = c.jiraLinks.find((x) => x.key === c.jiraResolvedStampKey)
+        const t =
+          j?.href && j.href !== '#'
+            ? `Jira closed · ${j.key}`
+            : `Jira closed · ${c.jiraResolvedStampKey}`
+        specs.push({ indent: 0, size: 9, bold: false, text: t })
+      }
+      const segments = segmentsFromBulletLines(c.bulletLines)
+      for (let si = 0; si < segments.length; si++) {
+        if (si > 0) {
+          specs.push({
+            indent: 0,
+            size: 9,
+            bold: false,
+            text: '—',
+            textColor: [130, 130, 130],
+          })
+        }
+        const tree = buildBulletTree(segments[si]!)
+        for (const bl of bulletTreeToPdfLines(tree, 0)) {
+          specs.push({ indent: 0, size: 10, bold: false, text: bl })
+        }
+      }
+      if (c.jiraLinks.length > 0) {
+        specs.push({
+          indent: 0,
+          size: 9,
+          bold: false,
+          text: `Jira keys: ${c.jiraLinks.map((j) => j.key).join(', ')}`,
+        })
+      }
+      specs.push({ indent: 0, size: 5, bold: false, text: ' ' })
+    }
+    if (misc.length > 0) {
+      specs.push({
+        indent: 0,
+        size: 11,
+        bold: true,
+        text: 'Other updates',
+        textColor: [0, 122, 61],
+      })
+      for (const line of misc) {
+        const pad = '  '.repeat(Math.min(line.depth, 8))
+        const mark = line.done ? '[x] ' : '[ ] '
+        const body = line.text.trim() || '—'
+        specs.push({
+          indent: 0,
+          size: 10,
+          bold: false,
+          text: `${pad}${mark}${body}`,
+          textColor: line.done ? [0, 110, 65] : [71, 85, 105],
+        })
+      }
+    }
+    return specs
   }
 
   addParagraph('Weekly progress report', { bold: true, size: 16 })
@@ -454,57 +578,8 @@ export function downloadWeeklyProgressPdf(
 
     const rgb = MEMBER_SECTION_PDF_RGB[memberIdx % MEMBER_SECTION_PDF_RGB.length]!
     memberIdx++
-    addMemberBanner(b.personName, rgb)
-
-    for (const c of tasks) {
-      const statusBits = [
-        `Tracker: ${workStatusLabel(c.itemStatus)}`,
-        c.jiraStatusName ? `Jira: ${c.jiraStatusName}` : '',
-      ].filter(Boolean)
-      addParagraph(
-        `Work item (${sourceLabel(c)} · ${c.section || 'General'}): ${c.itemTitle.trim() || '(untitled)'}`,
-        { bold: true, size: 11 },
-      )
-      addParagraph(statusBits.join(' · '), { size: 9 })
-      if (authorLineVisible(c.authorRaw, b.personName)) {
-        addParagraph(`Comment thread: ${c.authorRaw}`, { size: 9 })
-      }
-      const taskUrl = workItemUrl(origin, c.itemId)
-      addParagraph(taskUrl, { size: 8 })
-
-      if (c.jiraResolvedStampKey) {
-        const j = c.jiraLinks.find((x) => x.key === c.jiraResolvedStampKey)
-        const line =
-          j?.href && j.href !== '#'
-            ? `Jira closed · ${j.key} — ${j.href}`
-            : `Jira closed · ${c.jiraResolvedStampKey}`
-        addParagraph(line, { size: 9 })
-      }
-      const segments = segmentsFromBulletLines(c.bulletLines)
-      for (let si = 0; si < segments.length; si++) {
-        if (si > 0) addParagraph('—', { size: 9 })
-        const tree = buildBulletTree(segments[si]!)
-        const blines = bulletTreeToPdfLines(tree, 0)
-        for (const bl of blines) {
-          addParagraph(bl, { size: 10 })
-        }
-      }
-      if (c.jiraLinks.length > 0) {
-        const keys = c.jiraLinks.map((j) => j.key).join(', ')
-        addParagraph(`Jira keys: ${keys}`, { size: 9 })
-      }
-      y += 6
-    }
-
-    if (misc.length > 0) {
-      addParagraph('Miscellaneous (this week)', { bold: true, size: 11 })
-      for (const line of misc) {
-        const prefix = line.done ? '[x] ' : '[ ] '
-        const pad = '  '.repeat(Math.min(line.depth, 8))
-        addParagraph(`${pad}${prefix}${line.text.trim() || '—'}`, { size: 10 })
-      }
-      y += 6
-    }
+    const specs = buildMemberSpecs(b, tasks, misc)
+    drawSpecs(specs, rgb)
   }
 
   const name = `weekly-report-${sanitizeFilenamePart(weekKeyForName)}.pdf`

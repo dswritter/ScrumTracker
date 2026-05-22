@@ -50,12 +50,15 @@ export function MetabuildStatusPie({
   data,
   compact = false,
   totalItems,
+  filterActive = false,
   onSliceClick,
   onTotalClick,
 }: {
   data: TeamPieSlice[]
   compact?: boolean
   totalItems?: number
+  /** When true, the total chip acts as “clear filter” instead of “open all items”. */
+  filterActive?: boolean
   onSliceClick?: (filter: 'done' | 'inProgress' | 'blockedTodo' | 'readyForProd') => void
   onTotalClick?: () => void
 }) {
@@ -88,7 +91,11 @@ export function MetabuildStatusPie({
           <button
             type="button"
             className="absolute right-0 top-0 z-10 rounded-md border border-slate-200/90 bg-white/95 px-2 py-1 text-[10px] font-semibold tabular-nums text-slate-600 shadow-sm hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900/95 dark:text-slate-300 dark:hover:bg-slate-800"
-            title="Open all scoped work items"
+            title={
+              filterActive
+                ? 'Clear status filter (show all rows)'
+                : 'All scoped items (no filter)'
+            }
             onClick={onTotalClick}
           >
             {totalItems} items
@@ -188,7 +195,11 @@ export function MetabuildStatusPie({
         <button
           type="button"
           className="absolute right-0 top-0 z-10 rounded-md border border-slate-200/90 bg-white/95 px-2 py-1 text-[10px] font-semibold tabular-nums text-slate-600 shadow-sm hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900/95 dark:text-slate-300 dark:hover:bg-slate-800"
-          title="Open all scoped work items"
+          title={
+            filterActive
+              ? 'Clear status filter (show all rows)'
+              : 'All scoped items (no filter)'
+          }
           onClick={onTotalClick}
         >
           {totalItems} items
@@ -261,9 +272,12 @@ export function MetabuildSectionBars({
 export function MetabuildAssigneeBars({
   rows,
   compact = false,
+  onPersonClick,
 }: {
   rows: { label: string; fullName: string; pct: number }[]
   compact?: boolean
+  /** Click a row (label or bar) to focus that teammate in the weekly layout. */
+  onPersonClick?: (fullName: string) => void
 }) {
   const h = compact
     ? Math.min(480, Math.max(200, rows.length * 22 + 48))
@@ -311,9 +325,17 @@ export function MetabuildAssigneeBars({
           radius={[0, 4, 4, 0]}
           activeBar={activeBarGlow}
           minPointSize={compact ? 4 : 6}
+          onClick={(_data, index) => {
+            const name = rows[index]?.fullName
+            if (name && onPersonClick) onPersonClick(name)
+          }}
         >
           {rows.map((_, i) => (
-            <Cell key={i} fill={GREEN_MID} />
+            <Cell
+              key={i}
+              fill={GREEN_MID}
+              style={{ cursor: onPersonClick ? 'pointer' : 'default' }}
+            />
           ))}
         </Bar>
       </BarChart>

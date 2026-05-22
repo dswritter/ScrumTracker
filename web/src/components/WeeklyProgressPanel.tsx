@@ -334,6 +334,8 @@ export function WeeklyProgressPanel({
   teamMembersForMisc,
   viewerDisplayName,
   viewerIsAdmin = false,
+  assigneeChartPinFullName = null,
+  onClearAssigneeChartPin,
 }: {
   cards: WeeklyProgressCard[]
   peopleOptions: string[]
@@ -367,6 +369,9 @@ export function WeeklyProgressPanel({
   teamMembersForMisc?: string[]
   viewerDisplayName?: string
   viewerIsAdmin?: boolean
+  /** When set (e.g. from “Done % by person”), that card is sorted first and others collapsed. */
+  assigneeChartPinFullName?: string | null
+  onClearAssigneeChartPin?: () => void
 }) {
   const [personExpand, setPersonExpand] = useState<Record<string, boolean>>({})
 
@@ -418,6 +423,52 @@ export function WeeklyProgressPanel({
     teamMembersForMisc,
   ])
 
+  const bundlesOrderedForDisplay = useMemo(() => {
+    const pin = assigneeChartPinFullName?.trim()
+    if (!pin) return bundlesForColumns
+    const pl = pin.toLowerCase()
+    const head: WeeklyProgressPersonBundle[] = []
+    const tail: WeeklyProgressPersonBundle[] = []
+    for (const b of bundlesForColumns) {
+      ;(b.personName.trim().toLowerCase() === pl ? head : tail).push(b)
+    }
+    return [...head, ...tail]
+  }, [bundlesForColumns, assigneeChartPinFullName])
+
+  useEffect(() => {
+    const pin = assigneeChartPinFullName?.trim()
+    if (!pin) {
+      setPersonExpand({})
+      return
+    }
+    const pl = pin.toLowerCase()
+    const hit = bundlesForColumns.some(
+      (b) => b.personName.trim().toLowerCase() === pl,
+    )
+    if (!hit) {
+      setPersonExpand({})
+      return
+    }
+    const next: Record<string, boolean> = {}
+    for (const b of bundlesForColumns) {
+      next[b.id] = b.personName.trim().toLowerCase() === pl
+    }
+    setPersonExpand(next)
+  }, [assigneeChartPinFullName, bundlesForColumns])
+
+  useEffect(() => {
+    const pin = assigneeChartPinFullName?.trim()
+    if (!pin) return
+    const id = `weekly-person-card-${weeklyProgressPersonKey(pin)}`
+    const t = window.setTimeout(() => {
+      document.getElementById(id)?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+      })
+    }, 80)
+    return () => clearTimeout(t)
+  }, [assigneeChartPinFullName, weekKey])
+
   const hasMiscForWeek = useMemo(() => {
     for (const cl of weeklyMiscChecklists ?? []) {
       if (cl.weekMondayKey !== weekKey) continue
@@ -461,11 +512,11 @@ export function WeeklyProgressPanel({
   const bundleColumns = useMemo(
     () =>
       splitBundlesIntoShortestColumns(
-        bundlesForColumns,
+        bundlesOrderedForDisplay,
         columnCount,
         miscLineCountByPerson,
       ),
-    [bundlesForColumns, columnCount, miscLineCountByPerson],
+    [bundlesOrderedForDisplay, columnCount, miscLineCountByPerson],
   )
 
   const weekLabel = useMemo(
@@ -534,11 +585,22 @@ export function WeeklyProgressPanel({
           <h3 className="min-w-0 text-sm font-bold text-white">
             Weekly progress
           </h3>
-          <WeeklyReportExportMenu
-            disabled={!canExportReport}
-            onExportDocx={handleExportDocx}
-            onExportPdf={handleExportPdf}
-          />
+          <div className="flex shrink-0 items-center gap-2">
+            {assigneeChartPinFullName?.trim() && onClearAssigneeChartPin ? (
+              <button
+                type="button"
+                className="rounded-md border border-white/40 bg-white/15 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-white hover:bg-white/25"
+                onClick={onClearAssigneeChartPin}
+              >
+                Expand all
+              </button>
+            ) : null}
+            <WeeklyReportExportMenu
+              disabled={!canExportReport}
+              onExportDocx={handleExportDocx}
+              onExportPdf={handleExportPdf}
+            />
+          </div>
         </div>
       ) : null}
       <div className={`space-y-4 ${showReportHeader ? 'p-4' : ''}`}>
@@ -663,6 +725,7 @@ export function WeeklyProgressPanel({
                 return (
                 <li
                   key={b.id}
+                  id={`weekly-person-card-${weeklyProgressPersonKey(b.personName)}`}
                   className={`flex flex-col rounded-2xl border p-4 shadow-sm ${shellClass(idx)}`}
                 >
                   <div

@@ -106,8 +106,8 @@ export function WeeklyMiscEditor({
   return (
     <div className="mt-4 border-t border-slate-200/70 pt-3 dark:border-slate-600/60">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <p className="text-[11px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-400">
-          Miscellaneous (this week)
+        <p className="text-[11px] font-bold uppercase tracking-wide text-[#007a3d] dark:text-emerald-300">
+          Other updates
         </p>
         {!readOnly ? (
           <span className="text-[10px] text-slate-500 dark:text-slate-400">

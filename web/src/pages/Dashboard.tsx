@@ -20,7 +20,6 @@ import { useTrackerPersistHydrated } from '../hooks/useTrackerPersistHydrated'
 import { useTrackerStore } from '../store/useTrackerStore'
 import { isAdmin, isUpperManagement } from '../lib/permissions'
 import {
-  buildItemsHref,
   filterWorkItemsByScope,
   monthOptionsFromSprints,
   parseDashboardScope,
@@ -43,8 +42,11 @@ import {
 import {
   allAssignees,
   assigneeChartUniqueLabels,
+  BLOCKED_TODO_GROUP,
   countByStatus,
+  IN_PROGRESS_GROUP,
   personCompletionPercent,
+  READY_FOR_PROD_GROUP,
 } from '../lib/stats'
 import { resolveSlackDmUrl } from '../lib/slackDm'
 import {
@@ -58,12 +60,11 @@ import {
   mondayDateKey,
   parseMondayKey,
   weekMondayOffsets,
-  workStatusLabel,
 } from '../lib/weeklyProgress'
 import { miscLinesForPersonExport } from '../lib/weeklyReportExport'
 import { generateId } from '../lib/ids'
 import { itemDetailPath } from '../lib/workItemRoutes'
-import type { WeeklyMiscLine, WorkItem, WorkStatus } from '../types'
+import type { WeeklyMiscLine, WorkItem } from '../types'
 
 function displayInitials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean)
@@ -73,16 +74,6 @@ function displayInitials(name: string): string {
   const b = parts[parts.length - 1][0] ?? ''
   return `${a}${b}`.toUpperCase()
 }
-
-const WORK_ITEM_STATUS_FILTERS: WorkStatus[] = [
-  'todo',
-  'blocked',
-  'in_progress',
-  'to_test',
-  'to_track',
-  'ready_for_prod',
-  'done',
-]
 
 function latestCommentPreview(w: WorkItem): string {
   if (!w.comments.length) return '—'
@@ -145,7 +136,14 @@ export function Dashboard() {
   const wPerson = searchParams.get('wperson') ?? ''
   const [wProject, setWProject] = useState('')
   const [wQuery, setWQuery] = useState('')
-  const [tableStatusFilter, setTableStatusFilter] = useState<WorkStatus | ''>('')
+  type PieTableFilter =
+    | ''
+    | 'done'
+    | 'inProgress'
+    | 'readyForProd'
+    | 'blockedTodo'
+  const [pieTableFilter, setPieTableFilter] = useState<PieTableFilter>('')
+  const [assigneeBarFocus, setAssigneeBarFocus] = useState<string | null>(null)
 
   const weekChoices = useMemo(
     () =>
@@ -161,6 +159,24 @@ export function Dashboard() {
       parseDashboardScope(searchParams, sortedSprints, defaultSprintId),
     [searchParams, sortedSprints, defaultSprintId],
   )
+
+  const scopeFilterKey = useMemo(() => {
+    switch (scope.type) {
+      case 'sprint':
+        return `sprint:${scope.sprintId}`
+      case 'all':
+        return 'all'
+      case 'month':
+        return `month:${scope.year}-${scope.month}`
+      case 'year':
+        return `year:${scope.year}`
+    }
+  }, [scope])
+
+  useEffect(() => {
+    setPieTableFilter('')
+    setAssigneeBarFocus(null)
+  }, [scopeFilterKey])
 
   useEffect(() => {
     if (sortedSprints.length === 0) return
@@ -273,20 +289,16 @@ export function Dashboard() {
     [done, inProgressCount, readyForProdCount, blockedTodoCount],
   )
 
-  const onPieSliceNavigate = useCallback(
+  const onPieSliceFilter = useCallback(
     (filter: 'done' | 'inProgress' | 'blockedTodo' | 'readyForProd') => {
-      if (filter === 'done') {
-        navigate(buildItemsHref(scope, { status: 'done' }))
-      } else if (filter === 'inProgress') {
-        navigate(buildItemsHref(scope, { group: 'inProgress' }))
-      } else if (filter === 'readyForProd') {
-        navigate(buildItemsHref(scope, { group: 'readyForProd' }))
-      } else {
-        navigate(buildItemsHref(scope, { group: 'blockedTodo' }))
-      }
+      setPieTableFilter((cur) => (cur === filter ? '' : filter))
     },
-    [navigate, scope],
+    [],
   )
+
+  const onPieTotalClick = useCallback(() => {
+    setPieTableFilter('')
+  }, [])
 
   const sectionBarRows = useMemo(() => {
     const m = new Map<string, { total: number; done: number }>()
@@ -342,11 +354,17 @@ export function Dashboard() {
 
   const tableItems = useMemo(() => {
     let list = filteredItems
-    if (tableStatusFilter) {
-      list = list.filter((w) => w.status === tableStatusFilter)
+    if (pieTableFilter === 'done') {
+      list = list.filter((w) => w.status === 'done')
+    } else if (pieTableFilter === 'inProgress') {
+      list = list.filter((w) => IN_PROGRESS_GROUP.includes(w.status))
+    } else if (pieTableFilter === 'readyForProd') {
+      list = list.filter((w) => READY_FOR_PROD_GROUP.includes(w.status))
+    } else if (pieTableFilter === 'blockedTodo') {
+      list = list.filter((w) => BLOCKED_TODO_GROUP.includes(w.status))
     }
     return [...list].sort((a, b) => a.title.localeCompare(b.title))
-  }, [filteredItems, tableStatusFilter])
+  }, [filteredItems, pieTableFilter])
 
   function primaryAssigneeLabel(w: WorkItem): string {
     const names = [...w.assignees].map((a) => a.trim()).filter(Boolean)
@@ -363,14 +381,32 @@ export function Dashboard() {
       cur.push(w)
       m.set(key, cur)
     }
-    const names = [...m.keys()].sort((a, b) => a.localeCompare(b))
+    let names = [...m.keys()].sort((a, b) => a.localeCompare(b))
+    const pin = assigneeBarFocus?.trim()
+    if (pin) {
+      const pl = pin.toLowerCase()
+      names = [
+        ...names.filter((n) => n.toLowerCase() === pl),
+        ...names.filter((n) => n.toLowerCase() !== pl),
+      ]
+    }
     return names.map((name) => ({
       name,
       items: (m.get(name) ?? []).sort((a, b) =>
         a.title.localeCompare(b.title),
       ),
     }))
-  }, [tableItems])
+  }, [tableItems, assigneeBarFocus])
+
+  useEffect(() => {
+    if (weeklyOpen || !assigneeBarFocus?.trim()) return
+    const t = window.setTimeout(() => {
+      document
+        .getElementById('dashboard-table-assignee-pin')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 60)
+    return () => clearTimeout(t)
+  }, [assigneeBarFocus, weeklyOpen, tableAssigneeGroups])
 
   const monthOpts = useMemo(
     () => monthOptionsFromSprints(sortedSprints),
@@ -779,8 +815,9 @@ export function Dashboard() {
             data={teamPieSlices}
             compact
             totalItems={total}
-            onSliceClick={onPieSliceNavigate}
-            onTotalClick={() => navigate(buildItemsHref(scope))}
+            filterActive={pieTableFilter !== ''}
+            onSliceClick={onPieSliceFilter}
+            onTotalClick={onPieTotalClick}
           />
         </div>
         <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
@@ -794,7 +831,15 @@ export function Dashboard() {
             <h3 className="mb-0.5 text-center text-[10px] font-bold uppercase tracking-wide text-[#007a3d] dark:text-emerald-300">
               Done % by person
             </h3>
-            <MetabuildAssigneeBars rows={assigneeBarRows} compact />
+            <MetabuildAssigneeBars
+              rows={assigneeBarRows}
+              compact
+              onPersonClick={(fullName) =>
+                setAssigneeBarFocus((cur) =>
+                  cur === fullName ? null : fullName,
+                )
+              }
+            />
           </div>
         ) : null}
         {!actsAsAdmin && teammateNames.length > 0 ? (
@@ -925,6 +970,8 @@ export function Dashboard() {
               user?.displayName?.trim() || user?.username?.trim() || ''
             }
             viewerIsAdmin={actsAsAdmin}
+            assigneeChartPinFullName={assigneeBarFocus}
+            onClearAssigneeChartPin={() => setAssigneeBarFocus(null)}
           />
         </div>
       ) : null}
@@ -932,25 +979,6 @@ export function Dashboard() {
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
           <div className="border-b border-[#00B050]/30 bg-[#00B050] px-3 py-2">
             <h3 className="text-sm font-bold text-white">Work items</h3>
-          </div>
-          <div className="flex flex-wrap items-end gap-3 border-b border-slate-200 bg-slate-50/90 px-3 py-2 dark:border-slate-700 dark:bg-slate-900/60">
-            <label className="flex min-w-[10rem] flex-col gap-1 text-[10px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-400">
-              Status filter
-              <select
-                className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-medium text-slate-900 shadow-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
-                value={tableStatusFilter}
-                onChange={(e) =>
-                  setTableStatusFilter((e.target.value || '') as WorkStatus | '')
-                }
-              >
-                <option value="">All statuses</option>
-                {WORK_ITEM_STATUS_FILTERS.map((st) => (
-                  <option key={st} value={st}>
-                    {workStatusLabel(st)}
-                  </option>
-                ))}
-              </select>
-            </label>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[48rem] border-collapse text-left text-xs">
@@ -1010,9 +1038,17 @@ export function Dashboard() {
                 ) : (
                   tableAssigneeGroups.flatMap((g) => {
                     const jiraBase = ctx.jiraBaseUrl.trim().replace(/\/$/, '')
+                    const pin = assigneeBarFocus?.trim().toLowerCase()
+                    const isPinnedGroup =
+                      pin && g.name.trim().toLowerCase() === pin
                     const headerRow = (
                       <tr
                         key={`grp-${g.name}`}
+                        id={
+                          isPinnedGroup
+                            ? 'dashboard-table-assignee-pin'
+                            : undefined
+                        }
                         className="bg-[#00B050]/10 dark:bg-[#00B050]/15"
                       >
                         <td
