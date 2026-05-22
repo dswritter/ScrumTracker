@@ -310,7 +310,38 @@ export function MetabuildAssigneeBars({
           dataKey="label"
           width={compact ? 112 : 100}
           interval={0}
-          tick={{ fill: 'var(--chart-label)', fontSize: 9 }}
+          tick={(props: {
+            x: number
+            y: number
+            payload: { value?: string }
+          }) => {
+            const { x, y, payload } = props
+            const label = String(payload?.value ?? '')
+            const idx = rows.findIndex((r) => r.label === label)
+            const row = idx >= 0 ? rows[idx] : undefined
+            return (
+              <text
+                x={x - 4}
+                y={y}
+                dy={3}
+                textAnchor="end"
+                fill="var(--chart-label)"
+                fontSize={9}
+                className={
+                  onPersonClick && row
+                    ? 'cursor-pointer hover:underline'
+                    : undefined
+                }
+                onClick={
+                  onPersonClick && row
+                    ? () => onPersonClick(row.fullName)
+                    : undefined
+                }
+              >
+                {label}
+              </text>
+            )
+          }}
         />
         <Tooltip
           {...tooltipProps}

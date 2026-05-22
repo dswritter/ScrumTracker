@@ -16,6 +16,7 @@ import { itemDetailPath } from './workItemRoutes'
 import {
   buildBulletTree,
   isCommentSeparator,
+  parseMondayKey,
   type BulletTreeNode,
   type WeeklyProgressCard,
   type WeeklyProgressPersonBundle,
@@ -164,6 +165,25 @@ function pushConsolidatedItemDocx(
               style: 'Hyperlink',
               bold: true,
               size: 22,
+            }),
+          ],
+        }),
+      ],
+    }),
+  )
+
+  children.push(
+    new Paragraph({
+      spacing: { after: 80 },
+      children: [
+        new ExternalHyperlink({
+          link: taskUrl,
+          children: [
+            new TextRun({
+              text: taskUrl,
+              style: 'Hyperlink',
+              size: 16,
+              color: '64748B',
             }),
           ],
         }),
@@ -383,6 +403,88 @@ export async function downloadWeeklyProgressDocx(
   triggerDownload(blob, name)
 }
 
+function dateOnlyKey(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const da = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${da}`
+}
+
+/** Top-right mini month grid; highlights Mon–Fri of the report week. Returns total height used. */
+function drawPdfWeekCalendar(
+  doc: jsPDF,
+  weekMondayKey: string,
+  anchorRight: number,
+  topY: number,
+): number {
+  const mon = parseMondayKey(weekMondayKey)
+  const fri = new Date(mon)
+  fri.setDate(fri.getDate() + 4)
+  const monKey = dateOnlyKey(mon)
+  const friKey = dateOnlyKey(fri)
+  const calYear = mon.getFullYear()
+  const calMonth = mon.getMonth()
+  const first = new Date(calYear, calMonth, 1)
+  const firstDow = first.getDay()
+  const startOffset = (firstDow + 6) % 7
+  const gridStart = new Date(first)
+  gridStart.setDate(gridStart.getDate() - startOffset)
+
+  const cell = 13
+  const titleBand = 12
+  const labelRow = 9
+  const gridH = 6 * cell
+  const gridW = 7 * cell
+  const x0 = anchorRight - gridW
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(8)
+  doc.setTextColor(0, 100, 55)
+  const monthTitle = mon.toLocaleString(undefined, {
+    month: 'short',
+    year: 'numeric',
+  })
+  doc.text(monthTitle, x0 + gridW / 2, topY + 8, { align: 'center' })
+
+  doc.setFontSize(7)
+  const wd = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
+  for (let c = 0; c < 7; c++) {
+    doc.text(wd[c]!, x0 + c * cell + 3, topY + titleBand + labelRow)
+  }
+
+  doc.setFont('helvetica', 'normal')
+  for (let r = 0; r < 6; r++) {
+    for (let c = 0; c < 7; c++) {
+      const idx = r * 7 + c
+      const d = new Date(gridStart)
+      d.setDate(d.getDate() + idx)
+      const inMonth = d.getMonth() === calMonth
+      const dk = dateOnlyKey(d)
+      const inWorkWeek = dk >= monKey && dk <= friKey
+      const x = x0 + c * cell
+      const yCell = topY + titleBand + labelRow + 4 + r * cell
+      if (inWorkWeek) {
+        doc.setFillColor(198, 242, 212)
+      } else {
+        doc.setFillColor(248, 250, 252)
+      }
+      doc.rect(x + 0.5, yCell - 1, cell - 1, cell - 2, 'F')
+      doc.setDrawColor(200, 200, 210)
+      doc.rect(x + 0.5, yCell - 1, cell - 1, cell - 2, 'S')
+      doc.setTextColor(
+        inMonth ? (inWorkWeek ? 15 : 55) : 170,
+        inMonth ? (inWorkWeek ? 85 : 55) : 175,
+        inMonth ? (inWorkWeek ? 50 : 55) : 180,
+      )
+      doc.text(String(d.getDate()), x + cell / 2, yCell + cell / 2 - 2, {
+        align: 'center',
+      })
+    }
+  }
+  doc.setTextColor(0, 0, 0)
+  return titleBand + labelRow + 4 + gridH + 6
+}
+
 export function downloadWeeklyProgressPdf(
   bundles: WeeklyProgressPersonBundle[],
   meta: WeeklyReportMeta,
@@ -501,6 +603,14 @@ export function downloadWeeklyProgressPdf(
         text: c.itemTitle.trim() || '(untitled)',
         linkUrl: taskUrl,
       })
+      specs.push({
+        indent: 0,
+        size: 7,
+        bold: false,
+        text: taskUrl,
+        linkUrl: taskUrl,
+        textColor: [75, 85, 99],
+      })
       if (c.jiraResolvedStampKey) {
         const j = c.jiraLinks.find((x) => x.key === c.jiraResolvedStampKey)
         const t =
@@ -559,9 +669,24 @@ export function downloadWeeklyProgressPdf(
     return specs
   }
 
-  addParagraph('Weekly progress report', { bold: true, size: 16 })
-  y += 4
-  addParagraph(`Week: ${meta.weekLabel}`, { bold: true })
+  const calH = drawPdfWeekCalendar(doc, weekKeyForName, pageW - margin, margin)
+  const calW = 7 * 13 + 6
+  const titleMaxW = Math.max(160, maxW - calW - 16)
+  doc.setFontSize(16)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(0, 0, 0)
+  const titleLines = doc.splitTextToSize(
+    'Weekly progress report',
+    titleMaxW,
+  ) as string[]
+  let yTitle = margin + 14
+  for (const tl of titleLines) {
+    ensureSpace(18)
+    doc.text(tl, margin, yTitle)
+    yTitle += 18
+  }
+  y = Math.max(yTitle + 4, margin + calH + 8)
+
   if (meta.teamName?.trim()) addParagraph(`Team: ${meta.teamName.trim()}`)
   if (meta.scopeLabel?.trim()) addParagraph(`Scope: ${meta.scopeLabel.trim()}`)
   y += 6

@@ -170,6 +170,9 @@ function commentInWeek(iso: string, weekStart: Date, weekEnd: Date): boolean {
   return t >= weekStart.getTime() && t <= weekEnd.getTime()
 }
 
+/** Optional inclusive [start, end] for weekly cards instead of Mon–Sun of `weekStart`. */
+export type WeeklyCardCommentRange = { start: Date; end: Date }
+
 export type BulletTreeNode = { text: string; children: BulletTreeNode[] }
 
 /**
@@ -341,8 +344,11 @@ export function buildWeeklyProgressCards(
   teamRoster: string[],
   weekStart: Date,
   jiraBaseUrl: string,
+  /** When set (e.g. export buffer / full sprint), overrides the default calendar week window. */
+  commentRange?: WeeklyCardCommentRange,
 ): WeeklyProgressCard[] {
-  const weekEnd = endOfWeekSunday(weekStart)
+  const rangeStart = commentRange?.start ?? weekStart
+  const rangeEnd = commentRange?.end ?? endOfWeekSunday(weekStart)
   const base = jiraBaseUrl.trim()
   const out: WeeklyProgressCard[] = []
 
@@ -353,7 +359,7 @@ export function buildWeeklyProgressCards(
     if (!hasRosterAssignee) continue
 
     for (const c of item.comments) {
-      if (!commentInWeek(c.createdAt, weekStart, weekEnd)) continue
+      if (!commentInWeek(c.createdAt, rangeStart, rangeEnd)) continue
 
       const person = resolveWeeklyCardPerson(
         c.authorName,

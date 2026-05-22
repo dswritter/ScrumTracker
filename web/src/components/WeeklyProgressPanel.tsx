@@ -336,6 +336,7 @@ export function WeeklyProgressPanel({
   viewerIsAdmin = false,
   assigneeChartPinFullName = null,
   onClearAssigneeChartPin,
+  onPersonCardPinClick,
 }: {
   cards: WeeklyProgressCard[]
   peopleOptions: string[]
@@ -372,6 +373,8 @@ export function WeeklyProgressPanel({
   /** When set (e.g. from “Done % by person”), that card is sorted first and others collapsed. */
   assigneeChartPinFullName?: string | null
   onClearAssigneeChartPin?: () => void
+  /** Admin: click a person’s name to pin that card (same as Done % chart). */
+  onPersonCardPinClick?: (personName: string) => void
 }) {
   const [personExpand, setPersonExpand] = useState<Record<string, boolean>>({})
 
@@ -427,12 +430,13 @@ export function WeeklyProgressPanel({
     const pin = assigneeChartPinFullName?.trim()
     if (!pin) return bundlesForColumns
     const pl = pin.toLowerCase()
-    const head: WeeklyProgressPersonBundle[] = []
-    const tail: WeeklyProgressPersonBundle[] = []
-    for (const b of bundlesForColumns) {
-      ;(b.personName.trim().toLowerCase() === pl ? head : tail).push(b)
-    }
-    return [...head, ...tail]
+    const hit = bundlesForColumns.some(
+      (b) => b.personName.trim().toLowerCase() === pl,
+    )
+    if (!hit) return bundlesForColumns
+    return bundlesForColumns.filter(
+      (b) => b.personName.trim().toLowerCase() === pl,
+    )
   }, [bundlesForColumns, assigneeChartPinFullName])
 
   useEffect(() => {
@@ -728,26 +732,39 @@ export function WeeklyProgressPanel({
                   id={`weekly-person-card-${weeklyProgressPersonKey(b.personName)}`}
                   className={`flex flex-col rounded-2xl border p-4 shadow-sm ${shellClass(idx)}`}
                 >
-                  <div
-                    className={`flex items-start justify-between gap-2 border-b border-slate-200/70 pb-2 dark:border-slate-600/60 ${showToggle ? 'cursor-pointer select-none' : ''}`}
-                    role={showToggle ? 'button' : undefined}
-                    tabIndex={showToggle ? 0 : undefined}
-                    aria-expanded={showToggle ? expanded : undefined}
-                    onClick={showToggle ? toggleExpand : undefined}
-                    onKeyDown={
-                      showToggle
-                        ? (e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.preventDefault()
-                              toggleExpand()
+                  <div className="flex items-start justify-between gap-2 border-b border-slate-200/70 pb-2 dark:border-slate-600/60">
+                    <div className="min-w-0 flex-1">
+                      {onPersonCardPinClick ? (
+                        <button
+                          type="button"
+                          className="w-full truncate text-left text-sm font-bold text-slate-900 hover:text-[#007a3d] hover:underline dark:text-slate-50 dark:hover:text-emerald-200"
+                          onClick={() => onPersonCardPinClick(b.personName)}
+                        >
+                          {b.personName}
+                        </button>
+                      ) : (
+                        <p className="truncate text-sm font-bold text-slate-900 dark:text-slate-50">
+                          {b.personName}
+                        </p>
+                      )}
+                    </div>
+                    <div
+                      className={`flex shrink-0 items-center gap-1.5 ${showToggle ? 'cursor-pointer select-none' : ''}`}
+                      role={showToggle ? 'button' : undefined}
+                      tabIndex={showToggle ? 0 : undefined}
+                      aria-expanded={showToggle ? expanded : undefined}
+                      onClick={showToggle ? toggleExpand : undefined}
+                      onKeyDown={
+                        showToggle
+                          ? (e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault()
+                                toggleExpand()
+                              }
                             }
-                          }
-                        : undefined }
-                  >
-                    <p className="min-w-0 truncate text-sm font-bold text-slate-900 dark:text-slate-50">
-                      {b.personName}
-                    </p>
-                    <div className="flex shrink-0 items-center gap-1.5">
+                          : undefined
+                      }
+                    >
                       {b.tasks.length === 1 ? (
                         <time
                           className="text-[10px] tabular-nums text-slate-600 dark:text-slate-300"

@@ -60,6 +60,7 @@ import {
   mondayDateKey,
   parseMondayKey,
   weekMondayOffsets,
+  type WeeklyCardCommentRange,
 } from '../lib/weeklyProgress'
 import { miscLinesForPersonExport } from '../lib/weeklyReportExport'
 import { generateId } from '../lib/ids'
@@ -73,6 +74,26 @@ function displayInitials(name: string): string {
   const a = parts[0][0] ?? ''
   const b = parts[parts.length - 1][0] ?? ''
   return `${a}${b}`.toUpperCase()
+}
+
+function sprintDayStart(iso: string): Date {
+  const [y, m, d] = iso.split('-').map(Number)
+  const x = new Date(y, (m || 1) - 1, d || 1)
+  x.setHours(0, 0, 0, 0)
+  return x
+}
+
+function sprintDayEnd(iso: string): Date {
+  const [y, m, d] = iso.split('-').map(Number)
+  const x = new Date(y, (m || 1) - 1, d || 1)
+  x.setHours(23, 59, 59, 999)
+  return x
+}
+
+function nowEndOfDay(): Date {
+  const x = new Date()
+  x.setHours(23, 59, 59, 999)
+  return x
 }
 
 function latestCommentPreview(w: WorkItem): string {
@@ -443,6 +464,25 @@ export function Dashboard() {
     [ctx?.teamMembers],
   )
 
+  const weeklyCommentRange = useMemo((): WeeklyCardCommentRange | undefined => {
+    if (scope.type !== 'sprint' || !selectedSprint) return undefined
+    const mon = parseMondayKey(weeklyWeekKey)
+    const sprintStart = sprintDayStart(selectedSprint.start)
+    const sprintEnd = sprintDayEnd(selectedSprint.end)
+    const currentId = getCurrentSprint(sortedSprints)?.id ?? null
+    const isOpenCurrent = Boolean(currentId && currentId === selectedSprint.id)
+    if (isOpenCurrent) {
+      const rangeStart =
+        mon.getTime() < sprintStart.getTime() ? sprintStart : mon
+      const rangeEnd = new Date(
+        Math.min(nowEndOfDay().getTime(), sprintEnd.getTime()),
+      )
+      if (rangeEnd.getTime() < rangeStart.getTime()) return undefined
+      return { start: rangeStart, end: rangeEnd }
+    }
+    return { start: sprintStart, end: sprintEnd }
+  }, [scope.type, selectedSprint, sortedSprints, weeklyWeekKey])
+
   const weeklyCards = useMemo(() => {
     if (!weeklyOpen || !ctx) return []
     const mon = parseMondayKey(weeklyWeekKey)
@@ -452,6 +492,7 @@ export function Dashboard() {
       weeklyPersonRoster,
       mon,
       ctx.jiraBaseUrl,
+      weeklyCommentRange,
     )
   }, [
     weeklyOpen,
@@ -459,6 +500,7 @@ export function Dashboard() {
     scopedItems,
     weeklyPersonRoster,
     ctx,
+    weeklyCommentRange,
   ])
 
   const handleSetWeeklyMisc = useCallback(
@@ -820,12 +862,6 @@ export function Dashboard() {
             onTotalClick={onPieTotalClick}
           />
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
-          <h3 className="mb-0.5 text-center text-[10px] font-bold uppercase tracking-wide text-[#007a3d] dark:text-emerald-300">
-            Section (done %)
-          </h3>
-          <MetabuildSectionBars rows={sectionBarRows} compact />
-        </div>
         {actsAsAdmin ? (
           <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
             <h3 className="mb-0.5 text-center text-[10px] font-bold uppercase tracking-wide text-[#007a3d] dark:text-emerald-300">
@@ -842,6 +878,12 @@ export function Dashboard() {
             />
           </div>
         ) : null}
+        <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
+          <h3 className="mb-0.5 text-center text-[10px] font-bold uppercase tracking-wide text-[#007a3d] dark:text-emerald-300">
+            Section (done %)
+          </h3>
+          <MetabuildSectionBars rows={sectionBarRows} compact />
+        </div>
         {!actsAsAdmin && teammateNames.length > 0 ? (
           <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
             <h3 className="mb-2 text-center text-[10px] font-bold uppercase tracking-wide text-[#007a3d] dark:text-emerald-300">
@@ -972,6 +1014,14 @@ export function Dashboard() {
             viewerIsAdmin={actsAsAdmin}
             assigneeChartPinFullName={assigneeBarFocus}
             onClearAssigneeChartPin={() => setAssigneeBarFocus(null)}
+            onPersonCardPinClick={
+              actsAsAdmin
+                ? (name) =>
+                    setAssigneeBarFocus((cur) =>
+                      cur === name ? null : name,
+                    )
+                : undefined
+            }
           />
         </div>
       ) : null}

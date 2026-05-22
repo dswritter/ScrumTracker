@@ -327,9 +327,13 @@ export function ItemDetail() {
               rows={3}
               value={draft}
               placeholder="Write an update…"
-              onChange={(e) => setDraft(e.target.value)}
+              onChange={(e) => {
+                const v = e.target.value
+                setDraft(v)
+                if (!v.trim()) setAlsoToJira(false)
+              }}
             />
-            {syncJira && jiraKeysTrim.length > 0 ? (
+            {syncJira && jiraKeysTrim.length > 0 && draft.trim().length > 0 ? (
               <CommentJiraPostOptions
                 jiraKeys={jiraKeysTrim}
                 alsoToJira={alsoToJira}
