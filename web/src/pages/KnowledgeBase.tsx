@@ -28,7 +28,6 @@ import {
 import { KnowledgeVisualTableEditor } from '../components/KnowledgeVisualTableEditor'
 import { kbInteractiveSanitizeSchema } from '../lib/kbRehypeSchema'
 import { fetchConfluencePageBody, runConfluenceSync } from '../lib/confluenceApi'
-import { isAdmin, isUpperManagement } from '../lib/permissions'
 import { useCurrentUser } from '../hooks/useCurrentUser'
 import { useTeamContextNullable } from '../hooks/useTeamContext'
 import {
