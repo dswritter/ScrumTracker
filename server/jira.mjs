@@ -497,8 +497,19 @@ function jiraBoardNumericFromTrackerSprint(sp) {
  * saved JQL already filters on sprint (e.g. openSprints) and would otherwise exclude closed sprints.
  */
 function extractLeadingProjectClause(jql) {
-  const t = String(jql).trim()
+  let t = String(jql).trim()
   if (!t) return null
+  /** Strip redundant outer `( … )` wrappers so `(project in (...)) AND sprint in ...` works. */
+  for (let guard = 0; guard < 4; guard++) {
+    if (t.startsWith('(') && t.endsWith(')')) {
+      const inner = t.slice(1, -1).trim()
+      if (inner.toLowerCase().startsWith('project ')) {
+        t = inner
+        continue
+      }
+    }
+    break
+  }
   const low = t.toLowerCase()
   if (!low.startsWith('project ')) return null
   if (low.startsWith('project in')) {

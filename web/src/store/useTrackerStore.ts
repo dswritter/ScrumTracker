@@ -9,6 +9,8 @@ import type {
   TrackerTeam,
   TrackerTeamData,
   TrackerUserAccount,
+  WeeklyMiscChecklist,
+  WeeklyMiscLine,
   WorkComment,
   WorkItem,
   WorkItemSyncConflictState,
@@ -409,6 +411,56 @@ function normalizeConfluencePages(raw: unknown): ConfluencePageRef[] | undefined
   return out.length ? out : undefined
 }
 
+function normalizeWeeklyMiscChecklists(
+  raw: unknown,
+): WeeklyMiscChecklist[] | undefined {
+  if (!Array.isArray(raw)) return undefined
+  const out: WeeklyMiscChecklist[] = []
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue
+    const o = item as Record<string, unknown>
+    const weekMondayKey =
+      typeof o.weekMondayKey === 'string' ? o.weekMondayKey.trim() : ''
+    const personName =
+      typeof o.personName === 'string' ? o.personName.trim() : ''
+    if (!weekMondayKey || !personName) continue
+    const linesRaw = o.lines
+    const lines: WeeklyMiscLine[] = []
+    if (Array.isArray(linesRaw)) {
+      for (const row of linesRaw) {
+        if (!row || typeof row !== 'object') continue
+        const r = row as Record<string, unknown>
+        const text = typeof r.text === 'string' ? r.text : ''
+        const depth =
+          typeof r.depth === 'number' && Number.isFinite(r.depth)
+            ? Math.max(0, Math.min(8, Math.floor(r.depth)))
+            : 0
+        lines.push({
+          id:
+            typeof r.id === 'string' && r.id.trim()
+              ? r.id.trim()
+              : newId('wml'),
+          text,
+          done: Boolean(r.done),
+          depth,
+        })
+      }
+    }
+    out.push({
+      id:
+        typeof o.id === 'string' && o.id.trim() ? o.id.trim() : newId('wmisc'),
+      weekMondayKey,
+      personName,
+      lines,
+      updatedAt:
+        typeof o.updatedAt === 'string' && o.updatedAt.trim()
+          ? o.updatedAt.trim()
+          : new Date().toISOString(),
+    })
+  }
+  return out.length ? out : undefined
+}
+
 function normalizeTeamData(raw: unknown): TrackerTeamData {
   const o = raw as Record<string, unknown>
   const base: TrackerTeamData = {
@@ -447,6 +499,7 @@ function normalizeTeamData(raw: unknown): TrackerTeamData {
       typeof o.weeklyWikiPageUrl === 'string' && o.weeklyWikiPageUrl.trim()
         ? o.weeklyWikiPageUrl.trim()
         : undefined,
+    weeklyMiscChecklists: normalizeWeeklyMiscChecklists(o.weeklyMiscChecklists),
     teamChatThreads:
       o.teamChatThreads !== null &&
       typeof o.teamChatThreads === 'object' &&
@@ -651,6 +704,13 @@ export interface TrackerState {
     url: string,
   ) => { ok: true } | { ok: false; error: string }
   setWeeklyWikiPageUrl: (teamId: string, url: string) => void
+  /** Persist end-of-week checklist lines for one person/week (not full work items). */
+  setWeeklyMiscChecklist: (
+    teamId: string,
+    weekMondayKey: string,
+    personName: string,
+    lines: WeeklyMiscLine[],
+  ) => void
   setTeamName: (teamId: string, name: string) => void
 
   addTeamMemberAccount: (
@@ -1334,6 +1394,57 @@ export const useTrackerStore = create<TrackerState>()(
             weeklyWikiPageUrl: url.trim() || undefined,
           }),
         })),
+
+      setWeeklyMiscChecklist: (teamId, weekMondayKey, personName, lines) =>
+        set((s) => {
+          const d = getSlice(s, teamId)
+          const roster = d.teamMembers ?? []
+          const pk = personName.trim().toLowerCase()
+          const canonical =
+            roster.find((r) => r.trim().toLowerCase() === pk) ??
+            personName.trim()
+          const wk = weekMondayKey.trim()
+          const list = [...(d.weeklyMiscChecklists ?? [])]
+          const filteredLines = lines.filter((l) => l.text.trim() || l.done)
+          const idx = list.findIndex(
+            (m) =>
+              m.weekMondayKey === wk &&
+              m.personName.trim().toLowerCase() === canonical.toLowerCase(),
+          )
+          if (filteredLines.length === 0) {
+            if (idx >= 0) list.splice(idx, 1)
+            return {
+              teamsData: patchSlice(s, teamId, {
+                weeklyMiscChecklists: list.length ? list : undefined,
+              }),
+            }
+          }
+          const entry: WeeklyMiscChecklist = {
+            id: idx >= 0 ? list[idx]!.id : newId('wmisc'),
+            weekMondayKey: wk,
+            personName: canonical,
+            lines: filteredLines.map((l) => ({
+              id:
+                typeof l.id === 'string' && l.id.trim()
+                  ? l.id.trim()
+                  : newId('wml'),
+              text: typeof l.text === 'string' ? l.text : '',
+              done: Boolean(l.done),
+              depth:
+                typeof l.depth === 'number' && Number.isFinite(l.depth)
+                  ? Math.max(0, Math.min(8, Math.floor(l.depth)))
+                  : 0,
+            })),
+            updatedAt: new Date().toISOString(),
+          }
+          if (idx >= 0) list[idx] = entry
+          else list.push(entry)
+          return {
+            teamsData: patchSlice(s, teamId, {
+              weeklyMiscChecklists: list,
+            }),
+          }
+        }),
 
       setTeamName: (teamId, name) =>
         set((s) => ({

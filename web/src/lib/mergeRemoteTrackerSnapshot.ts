@@ -5,6 +5,7 @@ import type {
   TeamKnowledgePage,
   TrackerTeam,
   TrackerTeamData,
+  WeeklyMiscChecklist,
   WorkComment,
   WorkItem,
 } from '../types'
@@ -169,6 +170,24 @@ function mergeConfluencePages(
  * work-item comments and team chat messages are union-merged so offline-only entries
  * survive GET /api/tracker.
  */
+function mergeWeeklyMiscChecklists(
+  remote: WeeklyMiscChecklist[] | undefined,
+  local: WeeklyMiscChecklist[] | undefined,
+): WeeklyMiscChecklist[] | undefined {
+  if (!remote?.length && !local?.length) return undefined
+  const map = new Map<string, WeeklyMiscChecklist>()
+  const keyOf = (m: WeeklyMiscChecklist) =>
+    `${m.weekMondayKey}\u0000${m.personName.trim().toLowerCase()}`
+  for (const m of remote ?? []) map.set(keyOf(m), m)
+  for (const m of local ?? []) {
+    const k = keyOf(m)
+    const prev = map.get(k)
+    if (!prev || m.updatedAt > prev.updatedAt) map.set(k, m)
+  }
+  const out = [...map.values()]
+  return out.length ? out : undefined
+}
+
 export function mergeTeamDataWithRemote(
   local: TrackerTeamData,
   remote: TrackerTeamData,
@@ -187,6 +206,10 @@ export function mergeTeamDataWithRemote(
     confluencePages: mergeConfluencePages(
       remote.confluencePages,
       local.confluencePages,
+    ),
+    weeklyMiscChecklists: mergeWeeklyMiscChecklists(
+      remote.weeklyMiscChecklists,
+      local.weeklyMiscChecklists,
     ),
   }
 }

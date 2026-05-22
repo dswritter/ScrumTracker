@@ -13,6 +13,7 @@ const empty: TrackerTeamData = {
   jiraBaseUrl: '',
   slackDmUrlByDisplayName: undefined,
   weeklyWikiPageUrl: undefined,
+  weeklyMiscChecklists: undefined,
   teamChatThreads: undefined,
 }
 
@@ -59,6 +60,7 @@ export function useTeamContextNullable(): TeamContext | null {
       jiraSprintFieldId: d.jiraSprintFieldId,
       slackDmUrlByDisplayName: d.slackDmUrlByDisplayName,
       weeklyWikiPageUrl: d.weeklyWikiPageUrl,
+      weeklyMiscChecklists: d.weeklyMiscChecklists,
       teamChatThreads: d.teamChatThreads,
       teamKnowledgePages: d.teamKnowledgePages,
     }

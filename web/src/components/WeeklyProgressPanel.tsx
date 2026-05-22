@@ -22,6 +22,8 @@ import {
   type WeeklyProgressPersonBundle,
   type BulletTreeNode,
 } from '../lib/weeklyProgress'
+import { WeeklyMiscEditor } from './WeeklyMiscEditor'
+import type { WeeklyMiscChecklist, WeeklyMiscLine } from '../types'
 
 const CARD_SHELLS = [
   'border-violet-200/90 bg-violet-50/60 dark:border-violet-800/50 dark:bg-violet-950/25',
@@ -33,6 +35,28 @@ const CARD_SHELLS = [
 
 function shellClass(i: number): string {
   return CARD_SHELLS[i % CARD_SHELLS.length] ?? CARD_SHELLS[0]
+}
+
+function rosterCasePreservingName(
+  personName: string,
+  roster: readonly string[],
+): string {
+  const p = personName.trim().toLowerCase()
+  return roster.find((r) => r.trim().toLowerCase() === p) ?? personName.trim()
+}
+
+function miscLinesFor(
+  misc: WeeklyMiscChecklist[] | undefined,
+  weekKey: string,
+  personDisplay: string,
+): WeeklyMiscLine[] {
+  const needle = personDisplay.trim().toLowerCase()
+  const hit = misc?.find(
+    (m) =>
+      m.weekMondayKey === weekKey &&
+      m.personName.trim().toLowerCase() === needle,
+  )
+  return hit?.lines ?? []
 }
 
 /** Match Tailwind `sm` / `xl` so card columns follow the old grid breakpoints. */
@@ -61,13 +85,19 @@ function useWeeklyCardColumnCount(): number {
 }
 
 /** Rough pixel-ish score so the next card goes into the shortest column (denser layout). */
-function estimateBundleHeight(b: WeeklyProgressPersonBundle): number {
+function estimateBundleHeight(
+  b: WeeklyProgressPersonBundle,
+  miscLineCount: number,
+): number {
   let h = 72
   for (const t of b.tasks) {
     h += 44
     h += t.bulletLines.length * 26
     h += Math.min(120, Math.ceil(t.itemTitle.length / 48) * 18)
     h += t.jiraLinks.length * 22
+  }
+  if (miscLineCount > 0) {
+    h += 52 + miscLineCount * 30
   }
   return Math.max(h, 100)
 }
@@ -80,6 +110,7 @@ function estimateBundleHeight(b: WeeklyProgressPersonBundle): number {
 function splitBundlesIntoShortestColumns(
   items: WeeklyProgressPersonBundle[],
   columnCount: number,
+  miscLineCountByPerson: Map<string, number>,
 ): { item: WeeklyProgressPersonBundle; index: number }[][] {
   if (columnCount <= 1) {
     return [items.map((item, i) => ({ item, index: i }))]
@@ -97,8 +128,10 @@ function splitBundlesIntoShortestColumns(
         bestCol = c
       }
     }
+    const miscN =
+      miscLineCountByPerson.get(item.personName.trim().toLowerCase()) ?? 0
     cols[bestCol]!.push({ item, index: i })
-    heights[bestCol] += estimateBundleHeight(item)
+    heights[bestCol] += estimateBundleHeight(item, miscN)
   })
   return cols
 }
@@ -292,6 +325,11 @@ export function WeeklyProgressPanel({
   reportTeamName,
   reportScopeLabel,
   jiraBaseUrl = '',
+  weeklyMiscChecklists,
+  onSetWeeklyMisc,
+  teamMembersForMisc,
+  viewerDisplayName,
+  viewerIsAdmin = false,
 }: {
   cards: WeeklyProgressCard[]
   peopleOptions: string[]
@@ -310,6 +348,15 @@ export function WeeklyProgressPanel({
   reportScopeLabel?: string
   /** For compact Jira resolved-stamp links in cards */
   jiraBaseUrl?: string
+  weeklyMiscChecklists?: WeeklyMiscChecklist[]
+  onSetWeeklyMisc?: (
+    weekMondayKey: string,
+    personName: string,
+    lines: WeeklyMiscLine[],
+  ) => void
+  teamMembersForMisc?: string[]
+  viewerDisplayName?: string
+  viewerIsAdmin?: boolean
 }) {
   const [personExpand, setPersonExpand] = useState<Record<string, boolean>>({})
 
@@ -330,10 +377,85 @@ export function WeeklyProgressPanel({
     [filteredCards],
   )
 
+  const bundlesForColumns = useMemo(() => {
+    const roster = teamMembersForMisc ?? []
+    const misc = weeklyMiscChecklists ?? []
+    const known = new Set(
+      bundles.map((b) => b.personName.trim().toLowerCase()),
+    )
+    const extra: WeeklyProgressPersonBundle[] = []
+    for (const m of misc) {
+      if (m.weekMondayKey !== weekKey) continue
+      if (personFilter && m.personName.trim() !== personFilter.trim()) continue
+      if (!m.lines.some((l) => l.text.trim() || l.done)) continue
+      const pk = m.personName.trim().toLowerCase()
+      if (known.has(pk)) continue
+      known.add(pk)
+      const display = rosterCasePreservingName(m.personName, roster)
+      extra.push({
+        id: `person-misc:${m.weekMondayKey}:${display}`,
+        personName: display,
+        createdAt: m.updatedAt,
+        tasks: [],
+      })
+    }
+    return [...bundles, ...extra]
+  }, [
+    bundles,
+    weeklyMiscChecklists,
+    weekKey,
+    personFilter,
+    teamMembersForMisc,
+  ])
+
+  const hasMiscForWeek = useMemo(() => {
+    for (const cl of weeklyMiscChecklists ?? []) {
+      if (cl.weekMondayKey !== weekKey) continue
+      if (personFilter && cl.personName.trim() !== personFilter.trim())
+        continue
+      if (cl.lines.some((l) => l.text.trim() || l.done)) return true
+    }
+    return false
+  }, [weeklyMiscChecklists, weekKey, personFilter])
+
+  const miscLineCountByPerson = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const b of bundlesForColumns) {
+      const pk = b.personName.trim().toLowerCase()
+      const lines = miscLinesFor(weeklyMiscChecklists, weekKey, b.personName)
+      const n = lines.filter((l) => l.text.trim() || l.done).length
+      if (n > 0) {
+        map.set(pk, n)
+      } else if (
+        onSetWeeklyMisc &&
+        !projectFilter &&
+        (viewerIsAdmin ||
+          (viewerDisplayName &&
+            viewerDisplayName.trim().toLowerCase() === pk))
+      ) {
+        map.set(pk, 1)
+      }
+    }
+    return map
+  }, [
+    bundlesForColumns,
+    weeklyMiscChecklists,
+    weekKey,
+    onSetWeeklyMisc,
+    projectFilter,
+    viewerIsAdmin,
+    viewerDisplayName,
+  ])
+
   const columnCount = useWeeklyCardColumnCount()
   const bundleColumns = useMemo(
-    () => splitBundlesIntoShortestColumns(bundles, columnCount),
-    [bundles, columnCount],
+    () =>
+      splitBundlesIntoShortestColumns(
+        bundlesForColumns,
+        columnCount,
+        miscLineCountByPerson,
+      ),
+    [bundlesForColumns, columnCount, miscLineCountByPerson],
   )
 
   const weekLabel = useMemo(
@@ -375,7 +497,7 @@ export function WeeklyProgressPanel({
             Weekly progress
           </h3>
           <WeeklyReportExportMenu
-            disabled={bundles.length === 0}
+            disabled={bundles.length === 0 && !hasMiscForWeek}
             onExportDocx={handleExportDocx}
             onExportPdf={handleExportPdf}
           />
@@ -440,7 +562,7 @@ export function WeeklyProgressPanel({
         </label>
       </div>
 
-      {bundles.length === 0 ? (
+      {bundles.length === 0 && !hasMiscForWeek ? (
         <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-slate-300 bg-slate-50/50 px-4 py-10 text-center dark:border-slate-600 dark:bg-slate-900/40">
           <div
             className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-200/90 text-slate-600 dark:bg-slate-700 dark:text-slate-300"
@@ -508,6 +630,10 @@ export function WeeklyProgressPanel({
                         >
                           {b.tasks[0]!.dateLabel}
                         </time>
+                      ) : b.tasks.length === 0 ? (
+                        <span className="text-[10px] tabular-nums text-slate-500 dark:text-slate-400">
+                          Notes
+                        </span>
                       ) : (
                         <span className="text-[10px] tabular-nums text-slate-500 dark:text-slate-400">
                           {b.tasks.length} tasks
@@ -655,8 +781,49 @@ export function WeeklyProgressPanel({
                       {b.tasks.length} tasks hidden — click header to show
                     </p>
                   )}
+                  {(() => {
+                    const roster = teamMembersForMisc ?? []
+                    const canonicalName = rosterCasePreservingName(
+                      b.personName,
+                      roster,
+                    )
+                    const miscStored = miscLinesFor(
+                      weeklyMiscChecklists,
+                      weekKey,
+                      b.personName,
+                    )
+                    const canEditWeeklyMisc = Boolean(
+                      onSetWeeklyMisc &&
+                        !projectFilter &&
+                        (viewerIsAdmin ||
+                          (viewerDisplayName &&
+                            viewerDisplayName.trim().toLowerCase() ===
+                              b.personName.trim().toLowerCase())),
+                    )
+                    const showMiscBlock =
+                      Boolean(onSetWeeklyMisc && !projectFilter) &&
+                      (canEditWeeklyMisc ||
+                        miscStored.some((l) => l.text.trim() || l.done))
+                    if (!showMiscBlock) return null
+                    return (
+                      <WeeklyMiscEditor
+                        weekKey={weekKey}
+                        personDisplayName={b.personName}
+                        initialLines={miscStored}
+                        readOnly={!canEditWeeklyMisc}
+                        onSave={(lines) => {
+                          onSetWeeklyMisc?.(
+                            weekKey,
+                            canonicalName,
+                            lines,
+                          )
+                        }}
+                      />
+                    )
+                  })()}
                 </li>
-              )})}
+                )
+              })}
             </ul>
           ))}
         </div>

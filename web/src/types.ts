@@ -113,6 +113,25 @@ export interface TeamKnowledgePage {
   comments: WorkComment[]
 }
 
+/** One checklist row in the weekly progress “miscellaneous” block (not a full work item). */
+export interface WeeklyMiscLine {
+  id: string
+  text: string
+  done: boolean
+  /** 0 = top-level; Tab increases (wiki-style nesting), max 8. */
+  depth: number
+}
+
+/** Checklist notes for one person for one calendar week (Monday key). */
+export interface WeeklyMiscChecklist {
+  id: string
+  /** `mondayDateKey` from weekly UI (local Monday YYYY-MM-DD). */
+  weekMondayKey: string
+  personName: string
+  lines: WeeklyMiscLine[]
+  updatedAt: string
+}
+
 export interface TrackerTeamData {
   sprints: Sprint[]
   workItems: WorkItem[]
@@ -130,6 +149,8 @@ export interface TrackerTeamData {
   slackDmUrlByDisplayName?: Record<string, string>
   /** Confluence page to open when pasting weekly wiki snippet. */
   weeklyWikiPageUrl?: string
+  /** End-of-week checklist notes per person/week (weekly progress view). */
+  weeklyMiscChecklists?: WeeklyMiscChecklist[]
   /**
    * Direct-message threads keyed by canonical pair `"{nameA}|||{nameB}"` (sorted by localeCompare).
    * Same thread is shared for both participants.

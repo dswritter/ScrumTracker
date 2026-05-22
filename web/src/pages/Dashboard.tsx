@@ -17,6 +17,7 @@ import { StatusBadge } from '../components/StatusBadge'
 import { useCurrentUser } from '../hooks/useCurrentUser'
 import { useTeamContextNullable } from '../hooks/useTeamContext'
 import { useTrackerPersistHydrated } from '../hooks/useTrackerPersistHydrated'
+import { useTrackerStore } from '../store/useTrackerStore'
 import { isAdmin, isUpperManagement } from '../lib/permissions'
 import {
   buildItemsHref,
@@ -58,7 +59,7 @@ import {
   parseMondayKey,
   weekMondayOffsets,
 } from '../lib/weeklyProgress'
-import type { WorkItem } from '../types'
+import type { WeeklyMiscLine, WorkItem } from '../types'
 
 function displayInitials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean)
@@ -101,6 +102,7 @@ export function Dashboard() {
   const ctx = useTeamContextNullable()
   const storeHydrated = useTrackerPersistHydrated()
   const actsAsAdmin = isAdmin(user) || isUpperManagement(user)
+  const setWeeklyMiscChecklist = useTrackerStore((s) => s.setWeeklyMiscChecklist)
 
   const scopeSelectRef = useRef<HTMLSelectElement>(null)
   const weeklySearchInputRef = useRef<HTMLInputElement>(null)
@@ -403,6 +405,14 @@ export function Dashboard() {
     weeklyPersonRoster,
     ctx,
   ])
+
+  const handleSetWeeklyMisc = useCallback(
+    (weekMondayKey: string, personName: string, lines: WeeklyMiscLine[]) => {
+      if (!ctx?.teamId) return
+      setWeeklyMiscChecklist(ctx.teamId, weekMondayKey, personName, lines)
+    },
+    [ctx?.teamId, setWeeklyMiscChecklist],
+  )
 
   useEffect(() => {
     savePersistedWeekKey(weeklyWeekKey)
@@ -854,6 +864,11 @@ export function Dashboard() {
             reportTeamName={ctx.teamName}
             reportScopeLabel={scopeShortLabel(scope, sortedSprints)}
             jiraBaseUrl={ctx.jiraBaseUrl}
+            weeklyMiscChecklists={ctx.weeklyMiscChecklists}
+            onSetWeeklyMisc={handleSetWeeklyMisc}
+            teamMembersForMisc={ctx.teamMembers}
+            viewerDisplayName={user?.displayName}
+            viewerIsAdmin={actsAsAdmin}
           />
         </div>
       ) : null}
