@@ -158,7 +158,15 @@ export function WorkItemTitleLink({
       {disableLink ? (
         <span className={className}>{title}</span>
       ) : (
-        <Link to={itemDetailPath(item.id)} className={className}>
+        <Link
+          to={itemDetailPath(item.id)}
+          className={className}
+          title={
+            item.jiraKeys.length === 0
+              ? 'Open work item — link Jira keys or edit on the detail page'
+              : undefined
+          }
+        >
           {title}
         </Link>
       )}

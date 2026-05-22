@@ -58,8 +58,12 @@ import {
   mondayDateKey,
   parseMondayKey,
   weekMondayOffsets,
+  workStatusLabel,
 } from '../lib/weeklyProgress'
-import type { WeeklyMiscLine, WorkItem } from '../types'
+import { miscLinesForPersonExport } from '../lib/weeklyReportExport'
+import { generateId } from '../lib/ids'
+import { itemDetailPath } from '../lib/workItemRoutes'
+import type { WeeklyMiscLine, WorkItem, WorkStatus } from '../types'
 
 function displayInitials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean)
@@ -69,6 +73,16 @@ function displayInitials(name: string): string {
   const b = parts[parts.length - 1][0] ?? ''
   return `${a}${b}`.toUpperCase()
 }
+
+const WORK_ITEM_STATUS_FILTERS: WorkStatus[] = [
+  'todo',
+  'blocked',
+  'in_progress',
+  'to_test',
+  'to_track',
+  'ready_for_prod',
+  'done',
+]
 
 function latestCommentPreview(w: WorkItem): string {
   if (!w.comments.length) return '—'
@@ -103,6 +117,7 @@ export function Dashboard() {
   const storeHydrated = useTrackerPersistHydrated()
   const actsAsAdmin = isAdmin(user) || isUpperManagement(user)
   const setWeeklyMiscChecklist = useTrackerStore((s) => s.setWeeklyMiscChecklist)
+  const addWorkItem = useTrackerStore((s) => s.addWorkItem)
 
   const scopeSelectRef = useRef<HTMLSelectElement>(null)
   const weeklySearchInputRef = useRef<HTMLInputElement>(null)
@@ -130,6 +145,7 @@ export function Dashboard() {
   const wPerson = searchParams.get('wperson') ?? ''
   const [wProject, setWProject] = useState('')
   const [wQuery, setWQuery] = useState('')
+  const [tableStatusFilter, setTableStatusFilter] = useState<WorkStatus | ''>('')
 
   const weekChoices = useMemo(
     () =>
@@ -324,10 +340,13 @@ export function Dashboard() {
     [rosterForAssigneeChart, assigneeLabelByName, filteredItems],
   )
 
-  const tableItems = useMemo(
-    () => [...filteredItems].sort((a, b) => a.title.localeCompare(b.title)),
-    [filteredItems],
-  )
+  const tableItems = useMemo(() => {
+    let list = filteredItems
+    if (tableStatusFilter) {
+      list = list.filter((w) => w.status === tableStatusFilter)
+    }
+    return [...list].sort((a, b) => a.title.localeCompare(b.title))
+  }, [filteredItems, tableStatusFilter])
 
   function primaryAssigneeLabel(w: WorkItem): string {
     const names = [...w.assignees].map((a) => a.trim()).filter(Boolean)
@@ -412,6 +431,40 @@ export function Dashboard() {
       setWeeklyMiscChecklist(ctx.teamId, weekMondayKey, personName, lines)
     },
     [ctx?.teamId, setWeeklyMiscChecklist],
+  )
+
+  const handlePromoteMiscLineToTask = useCallback(
+    (args: { weekMondayKey: string; personName: string; line: WeeklyMiscLine }) => {
+      if (!ctx?.teamId) return
+      const title = args.line.text.trim()
+      if (!title) return
+      const id = `wi-${generateId().slice(0, 10)}`
+      const sprintIds =
+        scope.type === 'sprint' ? [scope.sprintId] : ([] as string[])
+      addWorkItem(ctx.teamId, {
+        id,
+        title: title.slice(0, 500),
+        assignees: [args.personName],
+        sprintIds,
+        section: 'Miscellaneous',
+        status: 'todo',
+      })
+      const slice = useTrackerStore.getState().teamsData[ctx.teamId]
+      const prev = miscLinesForPersonExport(
+        slice?.weeklyMiscChecklists,
+        args.weekMondayKey,
+        args.personName,
+      )
+      const next = prev.filter((l) => l.id !== args.line.id)
+      setWeeklyMiscChecklist(
+        ctx.teamId,
+        args.weekMondayKey,
+        args.personName,
+        next,
+      )
+      navigate(itemDetailPath(id))
+    },
+    [ctx?.teamId, scope, addWorkItem, setWeeklyMiscChecklist, navigate],
   )
 
   useEffect(() => {
@@ -866,6 +919,7 @@ export function Dashboard() {
             jiraBaseUrl={ctx.jiraBaseUrl}
             weeklyMiscChecklists={ctx.weeklyMiscChecklists}
             onSetWeeklyMisc={handleSetWeeklyMisc}
+            onPromoteMiscLineToTask={handlePromoteMiscLineToTask}
             teamMembersForMisc={ctx.teamMembers}
             viewerDisplayName={
               user?.displayName?.trim() || user?.username?.trim() || ''
@@ -879,8 +933,27 @@ export function Dashboard() {
           <div className="border-b border-[#00B050]/30 bg-[#00B050] px-3 py-2">
             <h3 className="text-sm font-bold text-white">Work items</h3>
           </div>
+          <div className="flex flex-wrap items-end gap-3 border-b border-slate-200 bg-slate-50/90 px-3 py-2 dark:border-slate-700 dark:bg-slate-900/60">
+            <label className="flex min-w-[10rem] flex-col gap-1 text-[10px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-400">
+              Status filter
+              <select
+                className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-medium text-slate-900 shadow-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                value={tableStatusFilter}
+                onChange={(e) =>
+                  setTableStatusFilter((e.target.value || '') as WorkStatus | '')
+                }
+              >
+                <option value="">All statuses</option>
+                {WORK_ITEM_STATUS_FILTERS.map((st) => (
+                  <option key={st} value={st}>
+                    {workStatusLabel(st)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[56rem] border-collapse text-left text-xs">
+            <table className="w-full min-w-[48rem] border-collapse text-left text-xs">
               <thead>
                 <tr className="border-b border-slate-200 bg-[#00B050]/12 dark:border-slate-700 dark:bg-[#00B050]/18">
                   <th className="px-3 py-2 font-bold text-[#0d5c2e] dark:text-emerald-300">
@@ -889,11 +962,6 @@ export function Dashboard() {
                   <th className="px-3 py-2 font-bold text-[#0d5c2e] dark:text-emerald-300">
                     Section
                   </th>
-                  {actsAsAdmin ? (
-                    <th className="px-3 py-2 font-bold text-[#0d5c2e] dark:text-emerald-300">
-                      Assignees
-                    </th>
-                  ) : null}
                   <th className="px-3 py-2 font-bold text-[#0d5c2e] dark:text-emerald-300">
                     Status
                   </th>
@@ -901,14 +969,14 @@ export function Dashboard() {
                     Jira
                   </th>
                   <th className="min-w-[12rem] px-3 py-2 font-bold text-[#0d5c2e] dark:text-emerald-300">
-                    Latest comment
+                    Updates
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                 {tableItems.length === 0 ? (
                   <tr>
-                    <td colSpan={actsAsAdmin ? 6 : 5} className="px-4 py-10">
+                    <td colSpan={5} className="px-4 py-10">
                       <div className="flex flex-col items-center justify-center gap-3 text-center">
                         <div
                           className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-200/80 text-slate-600 dark:bg-slate-700 dark:text-slate-300"
@@ -948,7 +1016,7 @@ export function Dashboard() {
                         className="bg-[#00B050]/10 dark:bg-[#00B050]/15"
                       >
                         <td
-                          colSpan={actsAsAdmin ? 6 : 5}
+                          colSpan={5}
                           className="px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-[#0d5c2e] dark:text-emerald-300"
                         >
                           {g.name}
@@ -973,11 +1041,6 @@ export function Dashboard() {
                         <td className="px-3 py-2 align-top font-medium text-slate-800 dark:text-slate-200">
                           {w.section || '—'}
                         </td>
-                        {actsAsAdmin ? (
-                          <td className="px-3 py-2 align-top text-slate-700 dark:text-slate-200">
-                            {w.assignees.length ? w.assignees.join(', ') : '—'}
-                          </td>
-                        ) : null}
                         <td className="px-3 py-2 align-top text-slate-800 dark:text-slate-100">
                           <StatusBadge status={w.status} />
                         </td>

@@ -12,6 +12,8 @@ import { itemDetailPath } from '../lib/workItemRoutes'
 import {
   downloadWeeklyProgressDocx,
   downloadWeeklyProgressPdf,
+  miscLinesForPersonExport,
+  weeklyCardHasExportableContent,
 } from '../lib/weeklyReportExport'
 import {
   buildBulletTree,
@@ -328,6 +330,7 @@ export function WeeklyProgressPanel({
   jiraBaseUrl = '',
   weeklyMiscChecklists,
   onSetWeeklyMisc,
+  onPromoteMiscLineToTask,
   teamMembersForMisc,
   viewerDisplayName,
   viewerIsAdmin = false,
@@ -355,6 +358,12 @@ export function WeeklyProgressPanel({
     personName: string,
     lines: WeeklyMiscLine[],
   ) => void
+  /** Turn one misc checklist line into a tracker work item (Dashboard wiring). */
+  onPromoteMiscLineToTask?: (args: {
+    weekMondayKey: string
+    personName: string
+    line: WeeklyMiscLine
+  }) => void
   teamMembersForMisc?: string[]
   viewerDisplayName?: string
   viewerIsAdmin?: boolean
@@ -464,9 +473,21 @@ export function WeeklyProgressPanel({
     [weekChoices, weekKey],
   )
 
+  const canExportReport = useMemo(
+    () =>
+      bundlesForColumns.some(
+        (b) =>
+          b.tasks.some((c) => weeklyCardHasExportableContent(c)) ||
+          miscLinesForPersonExport(weeklyMiscChecklists, weekKey, b.personName).some(
+            (l) => l.text.trim() || l.done,
+          ),
+      ),
+    [bundlesForColumns, weeklyMiscChecklists, weekKey],
+  )
+
   const handleExportDocx = useCallback(async () => {
     await downloadWeeklyProgressDocx(
-      bundles,
+      bundlesForColumns,
       {
         weekLabel,
         teamName: reportTeamName,
@@ -474,12 +495,20 @@ export function WeeklyProgressPanel({
       },
       window.location.origin,
       weekKey,
+      { weekMondayKey: weekKey, weeklyMiscChecklists },
     )
-  }, [bundles, weekLabel, reportTeamName, reportScopeLabel, weekKey])
+  }, [
+    bundlesForColumns,
+    weekLabel,
+    reportTeamName,
+    reportScopeLabel,
+    weekKey,
+    weeklyMiscChecklists,
+  ])
 
   const handleExportPdf = useCallback(() => {
     downloadWeeklyProgressPdf(
-      bundles,
+      bundlesForColumns,
       {
         weekLabel,
         teamName: reportTeamName,
@@ -487,8 +516,16 @@ export function WeeklyProgressPanel({
       },
       window.location.origin,
       weekKey,
+      { weekMondayKey: weekKey, weeklyMiscChecklists },
     )
-  }, [bundles, weekLabel, reportTeamName, reportScopeLabel, weekKey])
+  }, [
+    bundlesForColumns,
+    weekLabel,
+    reportTeamName,
+    reportScopeLabel,
+    weekKey,
+    weeklyMiscChecklists,
+  ])
 
   return (
     <>
@@ -498,7 +535,7 @@ export function WeeklyProgressPanel({
             Weekly progress
           </h3>
           <WeeklyReportExportMenu
-            disabled={bundles.length === 0 && !hasMiscForWeek}
+            disabled={!canExportReport}
             onExportDocx={handleExportDocx}
             onExportPdf={handleExportPdf}
           />
@@ -678,6 +715,16 @@ export function WeeklyProgressPanel({
                       personDisplayName={b.personName}
                       initialLines={miscStored}
                       readOnly={!canEditWeeklyMisc}
+                      onPromoteLineToTask={
+                        canEditWeeklyMisc && onPromoteMiscLineToTask
+                          ? (line) =>
+                              onPromoteMiscLineToTask({
+                                weekMondayKey: weekKey,
+                                personName: canonicalName,
+                                line,
+                              })
+                          : undefined
+                      }
                       onSave={(lines) => {
                         onSetWeeklyMisc?.(weekKey, canonicalName, lines)
                       }}

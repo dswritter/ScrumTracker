@@ -21,12 +21,15 @@ export function WeeklyMiscEditor({
   initialLines,
   readOnly,
   onSave,
+  onPromoteLineToTask,
 }: {
   weekKey: string
   personDisplayName: string
   initialLines: WeeklyMiscLine[]
   readOnly: boolean
   onSave: (lines: WeeklyMiscLine[]) => void
+  /** When set, non-empty lines can be turned into tracker work items in one click. */
+  onPromoteLineToTask?: (line: WeeklyMiscLine) => void
 }) {
   const [lines, setLines] = useState<WeeklyMiscLine[]>(() =>
     initialLines.length ? cloneLines(initialLines) : [newLine(0)],
@@ -109,6 +112,7 @@ export function WeeklyMiscEditor({
         {!readOnly ? (
           <span className="text-[10px] text-slate-500 dark:text-slate-400">
             Tab / Shift+Tab indent · Enter new line
+            {onPromoteLineToTask ? ' · Arrow: make task' : ''}
           </span>
         ) : null}
       </div>
@@ -157,6 +161,17 @@ export function WeeklyMiscEditor({
                 }
               }}
             />
+            {!readOnly && onPromoteLineToTask && line.text.trim() ? (
+              <button
+                type="button"
+                className="mt-1 shrink-0 rounded px-1 py-0.5 text-[10px] font-semibold text-slate-500 opacity-80 hover:bg-slate-200/90 hover:text-[#00B050] hover:opacity-100 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-emerald-300"
+                title="Create work item from this line — open it to link Jira"
+                aria-label="Create work item from line"
+                onClick={() => onPromoteLineToTask(line)}
+              >
+                <i className="fa-solid fa-square-arrow-up-right" aria-hidden />
+              </button>
+            ) : null}
           </li>
         ))}
       </ul>
