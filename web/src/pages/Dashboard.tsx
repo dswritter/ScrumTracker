@@ -40,7 +40,6 @@ import {
   savePersistedWeeklyOpen,
 } from '../lib/dashboardUiPersistence'
 import {
-  allAssignees,
   assigneeChartUniqueLabels,
   BLOCKED_TODO_GROUP,
   countByStatus,
@@ -345,10 +344,10 @@ export function Dashboard() {
 
   const rosterForAssigneeChart = useMemo(
     () =>
-      allAssignees(ctx?.teamMembers ?? [], ctx?.workItems ?? []).sort((a, b) =>
-        a.localeCompare(b),
+      [...new Set((ctx?.teamMembers ?? []).map((t) => t.trim()).filter(Boolean))].sort(
+        (a, b) => a.localeCompare(b),
       ),
-    [ctx],
+    [ctx?.teamMembers],
   )
 
   const assigneeLabelByName = useMemo(
@@ -594,6 +593,9 @@ export function Dashboard() {
 
   const onWeeklyPersonChange = useCallback(
     (v: string) => {
+      if (!v.trim()) {
+        setAssigneeBarFocus(null)
+      }
       const sp = new URLSearchParams(searchParams)
       if (v) sp.set('wperson', v)
       else sp.delete('wperson')

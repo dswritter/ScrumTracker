@@ -397,6 +397,7 @@ export function WeeklyProgressPanel({
 
   const bundlesForColumns = useMemo(() => {
     const roster = teamMembersForMisc ?? []
+    const rosterNorm = new Set(roster.map((r) => r.trim().toLowerCase()))
     const misc = weeklyMiscChecklists ?? []
     const known = new Set(
       bundles.map((b) => b.personName.trim().toLowerCase()),
@@ -407,6 +408,7 @@ export function WeeklyProgressPanel({
       if (personFilter && m.personName.trim() !== personFilter.trim()) continue
       if (!m.lines.some((l) => l.text.trim() || l.done)) continue
       const pk = m.personName.trim().toLowerCase()
+      if (rosterNorm.size > 0 && !rosterNorm.has(pk)) continue
       if (known.has(pk)) continue
       known.add(pk)
       const display = rosterCasePreservingName(m.personName, roster)
