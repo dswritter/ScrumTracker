@@ -25,7 +25,12 @@ project in ("CT AGM", "CT SVG", "CT Color-ACE", "CT ARE", "CT AGM-Print", "CoreT
 * **Header sync (web):** sends the sprint implied by the URL (`scope=sprint&sprint=<id>`), i.e. the same choice as the Dashboard scope control. When the user picks **All sprints** (or month/year scope), `syncSprintId` is omitted and the server keeps the previous calendar-today behaviour for reporter windows and “active” Jira sprint detection.
 * **Settings “Sync now”** and **daily auto-sync** send the default **current** tracker sprint (newest sprint whose dates include today, else the newest sprint in the list).
 
-The **team JQL** is not auto-appended with `Sprint = …` (that excluded issues only on older board sprints from search results). To narrow by sprint, add your own Sprint clause in Settings. Sprint field values from Jira are **merged** with existing `jira-sprint-*` tags on each item so refetch does not drop prior sprint associations when Jira returns a smaller sprint list.
+The **team JQL** is augmented when **`syncSprintId`** matches a tracker sprint whose id is **`jira-sprint-<n>`** (Jira Software board sprint):
+
+* If the saved JQL **does not** contain the word `sprint` (case-insensitive), the server runs **`(<team JQL>) AND Sprint = n`** so the selected sprint (including **closed** board sprints) is what Jira returns.
+* If the JQL **already** mentions sprint (e.g. `sprint in openSprints()`), the server still runs the saved JQL, **plus** a second query **`(<leading project clause>) AND Sprint = n`** when the JQL starts with a `project in (...)` or `project = …` clause, and merges results. That way choosing an older sprint in the UI can still refresh issues that `openSprints()` would exclude.
+
+Sprint field values from Jira are **merged** with existing `jira-sprint-*` tags on each item so refetch does not drop prior sprint associations when Jira returns a smaller sprint list.
 
 For **individual** sync, the secondary `reporter = currentUser()` query uses the **selected sprint’s `start`/`end` dates`** instead of merging all sprints that overlap today.
 

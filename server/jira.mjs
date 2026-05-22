@@ -485,6 +485,62 @@ function findTrackerSprintById(sprints, sprintId) {
   return list.find((s) => s && s.id === id) ?? null
 }
 
+/** Board sprint id from tracker sprint row `jira-sprint-123` (numeric only for JQL `Sprint =`). */
+function jiraBoardNumericFromTrackerSprint(sp) {
+  if (!sp || typeof sp.id !== 'string') return null
+  const m = sp.id.match(/^jira-sprint-(\d+)$/)
+  return m ? m[1] : null
+}
+
+/**
+ * Leading `project in (...)` or `project = X` so we can run `… AND Sprint = n` when the
+ * saved JQL already filters on sprint (e.g. openSprints) and would otherwise exclude closed sprints.
+ */
+function extractLeadingProjectClause(jql) {
+  const t = String(jql).trim()
+  if (!t) return null
+  const low = t.toLowerCase()
+  if (!low.startsWith('project ')) return null
+  if (low.startsWith('project in')) {
+    const openIdx = t.indexOf('(')
+    if (openIdx === -1) return null
+    let depth = 0
+    for (let i = openIdx; i < t.length; i++) {
+      const c = t[i]
+      if (c === '(') depth++
+      else if (c === ')') {
+        depth--
+        if (depth === 0) return t.slice(0, i + 1).trim()
+      }
+    }
+    return null
+  }
+  const m = t.match(/^project\s*=\s*("[^"]+"|'[^']+'|\w+)/i)
+  return m ? m[0].trim() : null
+}
+
+/**
+ * When `syncSprintId` maps to a Jira board sprint, narrow the primary search so closed
+ * sprints still sync when the user picks that sprint in the UI.
+ * @returns {{ primary: string, extraJqls: string[] }}
+ */
+function buildPrimaryJqlVariantsForSync(jqlBase, sprints, syncSprintId) {
+  const trimmed = String(jqlBase ?? '').trim()
+  if (!trimmed || !syncSprintId) return { primary: trimmed, extraJqls: [] }
+  const sp = findTrackerSprintById(sprints, syncSprintId)
+  const n = jiraBoardNumericFromTrackerSprint(sp)
+  if (!n) return { primary: trimmed, extraJqls: [] }
+  if (!/\bsprint\b/i.test(trimmed)) {
+    return { primary: `(${trimmed}) AND Sprint = ${n}`, extraJqls: [] }
+  }
+  const proj = extractLeadingProjectClause(trimmed)
+  if (!proj) return { primary: trimmed, extraJqls: [] }
+  return {
+    primary: trimmed,
+    extraJqls: [`(${proj}) AND Sprint = ${n}`],
+  }
+}
+
 /** @param {{ start: string, end: string }} sprint */
 function sprintBoundsToJql(sprint) {
   if (!sprint || typeof sprint.start !== 'string' || typeof sprint.end !== 'string')
@@ -1202,7 +1258,11 @@ export function registerJiraRoutes(app, opts) {
       return
     }
 
-    const jql = jqlBase
+    const { primary: jqlPrimary, extraJqls } = buildPrimaryJqlVariantsForSync(
+      jqlBase,
+      teamData.sprints,
+      syncSprintId,
+    )
 
     const sprintFieldRaw =
       (typeof teamData.jiraSprintFieldId === 'string' &&
@@ -1235,7 +1295,24 @@ export function registerJiraRoutes(app, opts) {
         todayYmd,
       )
 
-      const primaryIssues = await fetchAllIssues(jiraBase, pat, jql, searchFields)
+      const mergedPrimary = new Map()
+      const runPrimary = async (q) => {
+        const rows = await fetchAllIssues(jiraBase, pat, q, searchFields)
+        for (const issue of rows) {
+          if (issue?.key && !mergedPrimary.has(issue.key))
+            mergedPrimary.set(issue.key, issue)
+        }
+      }
+      await runPrimary(jqlPrimary)
+      for (const q of extraJqls) {
+        try {
+          await runPrimary(q)
+        } catch {
+          /* optional sprint-scoped query may fail on unusual JQL; keep primary results */
+        }
+      }
+      const primaryIssues = [...mergedPrimary.values()]
+
       let secondaryIssues = []
       const secondaryKeySet = new Set()
       if (syncMode === 'individual') {
