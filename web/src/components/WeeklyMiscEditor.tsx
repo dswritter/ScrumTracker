@@ -31,7 +31,8 @@ export function WeeklyMiscEditor({
   const [lines, setLines] = useState<WeeklyMiscLine[]>(() =>
     initialLines.length ? cloneLines(initialLines) : [newLine(0)],
   )
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  /** Browser timer id (`number`); avoid `ReturnType<typeof setTimeout>` which picks Node’s `Timeout` when @types/node is present. */
+  const saveTimer = useRef<ReturnType<typeof window.setTimeout> | null>(null)
 
   const flushSave = useCallback(
     (next: WeeklyMiscLine[]) => {
