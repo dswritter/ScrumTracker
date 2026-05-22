@@ -5,6 +5,11 @@ import { StatusBadge } from '../components/StatusBadge'
 import { WorkItemTitleLink } from '../components/WorkItemTitleLink'
 import { useTeamContextNullable } from '../hooks/useTeamContext'
 import {
+  filterWorkItemsByScope,
+  personDetailHref,
+} from '../lib/dashboardScope'
+import { getCurrentSprint, sprintsSortedNewestFirst } from '../lib/sdates'
+import {
   formerTeammatesWithItems,
   itemsForAssignee,
   personCompletionPercent,
@@ -27,17 +32,40 @@ export function People() {
     [ctx],
   )
 
-  if (!ctx) return null
+  const sortedSprints = useMemo(() => {
+    if (!ctx?.sprints?.length) return []
+    return sprintsSortedNewestFirst(ctx.sprints)
+  }, [ctx?.sprints])
 
-  const { workItems } = ctx
+  const defaultSprintId = useMemo(() => {
+    if (sortedSprints.length === 0) return null
+    return getCurrentSprint(sortedSprints)?.id ?? sortedSprints[0]?.id ?? null
+  }, [sortedSprints])
+
+  /** Same default window as the Dashboard (current sprint), so counts line up. */
+  const dashboardDefaultScope = useMemo(() => {
+    if (defaultSprintId) return { type: 'sprint' as const, sprintId: defaultSprintId }
+    return { type: 'all' as const }
+  }, [defaultSprintId])
+
+  const scopedWorkItems = useMemo(() => {
+    if (!ctx) return []
+    return filterWorkItemsByScope(
+      ctx.workItems,
+      ctx.sprints,
+      dashboardDefaultScope,
+    )
+  }, [ctx, dashboardDefaultScope])
+
+  if (!ctx) return null
 
   return (
     <div className="space-y-8">
       <section>
         <div className="grid gap-4 lg:grid-cols-2">
           {roster.map((name) => {
-            const mine = itemsForAssignee(name, workItems)
-            const pct = personCompletionPercent(name, workItems)
+            const mine = itemsForAssignee(name, scopedWorkItems)
+            const pct = personCompletionPercent(name, scopedWorkItems)
             return (
               <div
                 key={name}
@@ -47,7 +75,7 @@ export function People() {
                   name={name}
                   percent={pct}
                   itemCount={mine.length}
-                  to={`/people/${encodeURIComponent(name)}`}
+                  to={personDetailHref(name, dashboardDefaultScope)}
                   slackUrl={resolveSlackDmUrl(
                     name,
                     ctx.slackDmUrlByDisplayName,
@@ -94,7 +122,7 @@ export function People() {
             {former.map((name) => (
               <li key={name}>
                 <Link
-                  to={`/people/${encodeURIComponent(name)}`}
+                  to={personDetailHref(name, dashboardDefaultScope)}
                   className="inline-block rounded-full border border-slate-200 bg-white px-3 py-1 text-sm font-medium text-slate-800 shadow-sm hover:border-indigo-200 hover:text-indigo-800 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:border-slate-400 dark:hover:text-white"
                 >
                   {name}

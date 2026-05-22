@@ -72,12 +72,21 @@ function mapJiraStatus(name) {
   )
     return 'done'
   if (n.includes('block')) return 'blocked'
+  // Ship-ready: treat as done in the tracker. Must run before generic
+  // "progress" / "development" checks so compound Jira names like
+  // "In progress - Ready for production" do not map to in_progress.
+  if (
+    n.includes('ready for production') ||
+    n.includes('ready for prod') ||
+    n.includes('production ready') ||
+    n === 'release ready' ||
+    n === 'ready for release'
+  )
+    return 'done'
   if (n.includes('progress') || n.includes('development') || n.includes('implement'))
     return 'in_progress'
   if (n.includes('test') || n.includes('qa') || n.includes('verify'))
     return 'to_test'
-  if (n.includes('production') || n.includes('ready for prod') || n === 'release ready' || n === 'ready for release')
-    return 'ready_for_prod'
   if (n.includes('track') || n.includes('review') || n.includes('ready'))
     return 'to_track'
   if (n.includes('to do') || n === 'open' || n === 'new' || n === 'backlog')

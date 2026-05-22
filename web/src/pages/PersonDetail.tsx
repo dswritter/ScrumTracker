@@ -14,6 +14,10 @@ import {
   scopeToParams,
 } from '../lib/dashboardScope'
 import {
+  getCurrentSprint,
+  sprintsSortedNewestFirst,
+} from '../lib/sdates'
+import {
   itemsForAssignee,
   personCompletionPercent,
 } from '../lib/stats'
@@ -33,19 +37,30 @@ export function PersonDetail() {
     }
   }, [personName])
 
+  const sortedSprints = useMemo(() => {
+    if (!ctx?.sprints?.length) return []
+    return sprintsSortedNewestFirst(ctx.sprints)
+  }, [ctx?.sprints])
+
+  const defaultSprintId = useMemo(() => {
+    if (sortedSprints.length === 0) return null
+    return getCurrentSprint(sortedSprints)?.id ?? sortedSprints[0]?.id ?? null
+  }, [sortedSprints])
+
   const scope = useMemo(
-    () => parseDashboardScope(searchParams, ctx?.sprints ?? [], null),
-    [searchParams, ctx],
+    () =>
+      parseDashboardScope(searchParams, sortedSprints, defaultSprintId),
+    [searchParams, sortedSprints, defaultSprintId],
   )
 
   const scopedItems = useMemo(() => {
     const mine = itemsForAssignee(name, ctx?.workItems ?? [])
     return filterWorkItemsByScope(
       mine,
-      ctx?.sprints ?? [],
+      sortedSprints,
       scope,
     )
-  }, [name, ctx, scope])
+  }, [name, ctx, scope, sortedSprints])
 
   const pct = personCompletionPercent(name, scopedItems)
 
@@ -144,13 +159,23 @@ export function PersonDetail() {
             </span>
             .
             <Link
-              to={`/people/${encodeURIComponent(name)}`}
+              to={`/people/${encodeURIComponent(name)}?scope=all`}
               className="ml-2 font-medium text-indigo-700 underline dark:text-slate-100 dark:hover:text-white"
             >
               Show all time
             </Link>
           </p>
-        ) : null}
+        ) : (
+          <p className="mt-2 text-sm text-slate-600">
+            Showing all sprints.{' '}
+            <Link
+              to={`/people/${encodeURIComponent(name)}`}
+              className="font-medium text-indigo-700 underline dark:text-slate-100 dark:hover:text-white"
+            >
+              Match Dashboard (current sprint)
+            </Link>
+          </p>
+        )}
       </div>
 
       <PersonProgressBar
