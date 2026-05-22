@@ -307,17 +307,30 @@ function mergeJiraCommentsIntoWorkItem(existingComments, jiraApiComments, issueK
   )
 }
 
-/** When syncSprints is true, Jira sprint ids replace previous jira-sprint-* on the item (manual sprint ids kept). */
+/**
+ * When syncSprints is true, merge Jira board sprint ids into the item (manual sprint ids
+ * kept). Union with existing `jira-sprint-*` so a narrow Jira payload does not drop prior
+ * sprint tags (items stay visible under older tracker/Jira sprints after refetch).
+ */
 function mergeSprintIds(existingSprintIds, jiraSprintIds, syncSprints) {
   if (!syncSprints) return existingSprintIds || []
   const manual = (existingSprintIds || []).filter(
     (id) => !String(id).startsWith('jira-sprint-'),
+  )
+  const existingJira = (existingSprintIds || []).filter((id) =>
+    String(id).startsWith('jira-sprint-'),
   )
   const list = jiraSprintIds || []
   // Keep existing sprint ids when Jira returns no sprint payload (avoid wiping jira-sprint-*).
   if (list.length === 0) return existingSprintIds || []
   const seen = new Set(manual)
   const merged = [...manual]
+  for (const id of existingJira) {
+    if (!seen.has(id)) {
+      seen.add(id)
+      merged.push(id)
+    }
+  }
   for (const id of list) {
     if (!seen.has(id)) {
       seen.add(id)
@@ -481,12 +494,6 @@ function sprintBoundsToJql(sprint) {
   return { start: sprint.start, end: sprint.end, jqlStart, jqlEnd }
 }
 
-/** Jira board sprint id embedded in tracker sprint id `jira-sprint-123`. */
-function jiraBoardNumericFromTrackerSprintId(sprintId) {
-  const m = String(sprintId ?? '').match(/^jira-sprint-(\d+)$/)
-  return m ? m[1] : null
-}
-
 /**
  * When client passes a tracker sprint id, use that sprint for Jira board matching and
  * reporter date windows; otherwise keep calendar-today behaviour.
@@ -507,24 +514,6 @@ function reporterDateBoundsForSync(sprints, syncSprintId) {
   const sp = findTrackerSprintById(sprints, syncSprintId)
   if (sp) return sprintBoundsToJql(sp)
   return currentSprintDateBoundsForJql(sprints)
-}
-
-/**
- * Narrow admin/team JQL to a specific board sprint when the tracker sprint is backed by
- * Jira (`jira-sprint-N`) and the saved JQL does not already reference Sprint.
- * @param {string} jql
- * @param {unknown[]} sprints
- * @param {string} syncSprintId
- */
-function maybeAugmentJqlWithSelectedSprint(jql, sprints, syncSprintId) {
-  const trimmed = String(jql ?? '').trim()
-  if (!trimmed || !syncSprintId) return trimmed
-  if (/\bsprint\b/i.test(trimmed)) return trimmed
-  const sp = findTrackerSprintById(sprints, syncSprintId)
-  if (!sp || typeof sp.id !== 'string') return trimmed
-  const num = jiraBoardNumericFromTrackerSprintId(sp.id)
-  if (!num) return trimmed
-  return `(${trimmed}) AND Sprint = ${num}`
 }
 
 /** Sprint ids like jira-sprint-123 active on today's calendar. */
@@ -1213,11 +1202,7 @@ export function registerJiraRoutes(app, opts) {
       return
     }
 
-    const jql = maybeAugmentJqlWithSelectedSprint(
-      jqlBase,
-      teamData.sprints,
-      syncSprintId,
-    )
+    const jql = jqlBase
 
     const sprintFieldRaw =
       (typeof teamData.jiraSprintFieldId === 'string' &&

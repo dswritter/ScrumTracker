@@ -1,6 +1,7 @@
 import { isTrackerSyncEnabled } from './syncConfigured'
 import { syncFetch } from './syncFetch'
 import { writePersistedTrackerServerRev } from './trackerSyncRev'
+import { useTrackerStore } from '../store/useTrackerStore'
 import type { WorkItem } from '../types'
 
 const MERGEABLE_KEYS: (keyof WorkItem)[] = [
@@ -44,8 +45,9 @@ function pendingKey(teamId: string, itemId: string) {
 const DEBOUNCE_MS = 380
 
 /**
- * Debounced PATCH of mergeable work-item fields (HTTP sync). Avoids static import
- * cycle with the tracker store by dynamic-importing it in the flush step.
+ * Debounced PATCH of mergeable work-item fields (HTTP sync). Imports the store
+ * statically; `useTrackerStore` is only used inside the async flush (after modules
+ * have finished loading), which avoids circular-init issues with the store.
  */
 export function scheduleRemoteWorkItemPatch(
   teamId: string,
@@ -101,7 +103,6 @@ async function flushRemoteWorkItemPatch(teamId: string, itemId: string) {
       },
     )
     const text = await res.text()
-    const { useTrackerStore } = await import('../store/useTrackerStore')
 
     if (res.status === 409) {
       let parsed: {

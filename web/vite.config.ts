@@ -18,4 +18,8 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: { proxy: { ...syncProxy } },
   preview: { proxy: { ...syncProxy } },
+  build: {
+    // Main bundle includes MD editor, charts, and tracker store; raise until route-level splits land.
+    chunkSizeWarningLimit: 900,
+  },
 })
