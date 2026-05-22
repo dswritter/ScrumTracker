@@ -31,16 +31,19 @@ export function WeeklyMiscEditor({
   const [lines, setLines] = useState<WeeklyMiscLine[]>(() =>
     initialLines.length ? cloneLines(initialLines) : [newLine(0)],
   )
-  /** Browser timer id (`number`); avoid `ReturnType<typeof setTimeout>` which picks Node’s `Timeout` when @types/node is present. */
-  const saveTimer = useRef<ReturnType<typeof window.setTimeout> | null>(null)
+  /**
+   * Real browsers return a numeric handle; with `@types/node`, `window.setTimeout` is often
+   * typed as `NodeJS.Timeout`, so we store an explicit `number` and cast the return value.
+   */
+  const saveTimer = useRef<number | null>(null)
 
   const flushSave = useCallback(
     (next: WeeklyMiscLine[]) => {
-      if (saveTimer.current) clearTimeout(saveTimer.current)
+      if (saveTimer.current != null) window.clearTimeout(saveTimer.current)
       saveTimer.current = window.setTimeout(() => {
         saveTimer.current = null
         onSave(next)
-      }, 450)
+      }, 450) as unknown as number
     },
     [onSave],
   )
@@ -53,7 +56,7 @@ export function WeeklyMiscEditor({
 
   useEffect(
     () => () => {
-      if (saveTimer.current) clearTimeout(saveTimer.current)
+      if (saveTimer.current != null) window.clearTimeout(saveTimer.current)
     },
     [],
   )
