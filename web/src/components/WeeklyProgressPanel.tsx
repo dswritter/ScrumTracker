@@ -436,9 +436,9 @@ export function WeeklyProgressPanel({
       (b) => b.personName.trim().toLowerCase() === pl,
     )
     if (!hit) return bundlesForColumns
-    return bundlesForColumns.filter(
-      (b) => b.personName.trim().toLowerCase() === pl,
-    )
+    const head = bundlesForColumns.filter((b) => b.personName.trim().toLowerCase() === pl)
+    const tail = bundlesForColumns.filter((b) => b.personName.trim().toLowerCase() !== pl)
+    return [...head, ...tail]
   }, [bundlesForColumns, assigneeChartPinFullName])
 
   useEffect(() => {
