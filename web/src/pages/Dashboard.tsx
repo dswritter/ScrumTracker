@@ -62,6 +62,7 @@ import {
   type WeeklyCardCommentRange,
 } from '../lib/weeklyProgress'
 import { miscLinesForPersonExport } from '../lib/weeklyReportExport'
+import { sprintDayEnd, sprintDayStart } from '../lib/sprintLocalBounds'
 import { generateId } from '../lib/ids'
 import { itemDetailPath } from '../lib/workItemRoutes'
 import type { WeeklyMiscLine, WorkItem } from '../types'
@@ -73,20 +74,6 @@ function displayInitials(name: string): string {
   const a = parts[0][0] ?? ''
   const b = parts[parts.length - 1][0] ?? ''
   return `${a}${b}`.toUpperCase()
-}
-
-function sprintDayStart(iso: string): Date {
-  const [y, m, d] = iso.split('-').map(Number)
-  const x = new Date(y, (m || 1) - 1, d || 1)
-  x.setHours(0, 0, 0, 0)
-  return x
-}
-
-function sprintDayEnd(iso: string): Date {
-  const [y, m, d] = iso.split('-').map(Number)
-  const x = new Date(y, (m || 1) - 1, d || 1)
-  x.setHours(23, 59, 59, 999)
-  return x
 }
 
 function nowEndOfDay(): Date {

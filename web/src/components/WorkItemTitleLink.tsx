@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
+import { commentIsoInSprintWindow } from '../lib/sprintLocalBounds'
 import { dedupeWorkCommentsForDisplay } from '../lib/dedupeWorkComments'
 import { formatIsoDateTime } from '../lib/formatIso'
 import { itemDetailPath } from '../lib/workItemRoutes'
@@ -49,10 +50,9 @@ export function WorkItemTitleLink({
     )
     if (sprintCommentWindow) {
       const { start, end } = sprintCommentWindow
-      list = list.filter((c) => {
-        const d = c.createdAt.slice(0, 10)
-        return d >= start && d <= end
-      })
+      list = list.filter((c) =>
+        commentIsoInSprintWindow(c.createdAt, start, end),
+      )
     }
     if (maxPreviewComments != null && maxPreviewComments > 0) {
       list = list.slice(0, maxPreviewComments)
