@@ -171,7 +171,12 @@ function commentInWeek(iso: string, weekStart: Date, weekEnd: Date): boolean {
 }
 
 /** Optional inclusive [start, end] for weekly cards instead of Mon–Sun of `weekStart`. */
-export type WeeklyCardCommentRange = { start: Date; end: Date }
+export type WeeklyCardCommentRange = {
+  start: Date
+  end: Date
+  /** When true, treat as no matching window (e.g. selected week does not overlap sprint). */
+  empty?: boolean
+}
 
 export type BulletTreeNode = { text: string; children: BulletTreeNode[] }
 
@@ -347,6 +352,7 @@ export function buildWeeklyProgressCards(
   /** When set (e.g. export buffer / full sprint), overrides the default calendar week window. */
   commentRange?: WeeklyCardCommentRange,
 ): WeeklyProgressCard[] {
+  if (commentRange?.empty) return []
   const rangeStart = commentRange?.start ?? weekStart
   const rangeEnd = commentRange?.end ?? endOfWeekSunday(weekStart)
   const base = jiraBaseUrl.trim()

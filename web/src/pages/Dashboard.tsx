@@ -55,6 +55,7 @@ import {
 } from '../lib/sdates'
 import {
   buildWeeklyProgressCards,
+  endOfWeekSunday,
   formatWeekRangeLabel,
   mondayDateKey,
   parseMondayKey,
@@ -453,20 +454,24 @@ export function Dashboard() {
   const weeklyCommentRange = useMemo((): WeeklyCardCommentRange | undefined => {
     if (scope.type !== 'sprint' || !selectedSprint) return undefined
     const mon = parseMondayKey(weeklyWeekKey)
+    const weekEnd = endOfWeekSunday(mon)
     const sprintStart = sprintDayStart(selectedSprint.start)
     const sprintEnd = sprintDayEnd(selectedSprint.end)
     const currentId = getCurrentSprint(sortedSprints)?.id ?? null
     const isOpenCurrent = Boolean(currentId && currentId === selectedSprint.id)
+
+    /** Selected calendar week ∩ sprint; open sprint also capped at today (no future comments). */
+    const rangeStart =
+      mon.getTime() < sprintStart.getTime() ? sprintStart : mon
+    let rangeEndMs = Math.min(weekEnd.getTime(), sprintEnd.getTime())
     if (isOpenCurrent) {
-      const rangeStart =
-        mon.getTime() < sprintStart.getTime() ? sprintStart : mon
-      const rangeEnd = new Date(
-        Math.min(nowEndOfDay().getTime(), sprintEnd.getTime()),
-      )
-      if (rangeEnd.getTime() < rangeStart.getTime()) return undefined
-      return { start: rangeStart, end: rangeEnd }
+      rangeEndMs = Math.min(rangeEndMs, nowEndOfDay().getTime())
     }
-    return { start: sprintStart, end: sprintEnd }
+    const rangeEnd = new Date(rangeEndMs)
+    if (rangeEnd.getTime() < rangeStart.getTime()) {
+      return { start: sprintStart, end: sprintStart, empty: true }
+    }
+    return { start: rangeStart, end: rangeEnd }
   }, [scope.type, selectedSprint, sortedSprints, weeklyWeekKey])
 
   const weeklyCards = useMemo(() => {

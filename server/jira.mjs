@@ -893,9 +893,11 @@ async function fetchAllIssues(jiraBase, pat, jql, fieldList) {
     const data = await res.json()
     const issues = Array.isArray(data.issues) ? data.issues : []
     out.push(...issues)
-    const total = typeof data.total === 'number' ? data.total : issues.length
+    if (issues.length === 0) break
     startAt += issues.length
-    if (startAt >= total || issues.length === 0) break
+    const totalKnown = typeof data.total === 'number' ? data.total : null
+    if (totalKnown != null && startAt >= totalKnown) break
+    if (issues.length < maxResults) break
   }
   return out
 }
@@ -925,9 +927,11 @@ async function fetchIssueComments(jiraBase, pat, issueKey) {
     const data = await res.json()
     const list = Array.isArray(data.comments) ? data.comments : []
     all.push(...list)
-    const total = typeof data.total === 'number' ? data.total : list.length
+    if (list.length === 0) break
     startAt += list.length
-    if (startAt >= total || list.length === 0) break
+    const totalKnown = typeof data.total === 'number' ? data.total : null
+    if (totalKnown != null && startAt >= totalKnown) break
+    if (list.length < maxResults) break
   }
   return all
 }
