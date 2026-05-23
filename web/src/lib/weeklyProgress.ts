@@ -359,12 +359,16 @@ export function buildWeeklyProgressCards(
   const out: WeeklyProgressCard[] = []
 
   for (const item of items) {
+    /** Jira often has empty / automation / non-roster assignees; still show teammate comments. */
     const hasRosterAssignee = item.assignees.some((a) =>
       inEligible(a, teamRoster),
     )
-    if (!hasRosterAssignee) continue
+    const hasRosterCommentAuthor = (item.comments ?? []).some((c) =>
+      inEligible(c.authorName, teamRoster),
+    )
+    if (!hasRosterAssignee && !hasRosterCommentAuthor) continue
 
-    for (const c of item.comments) {
+    for (const c of item.comments ?? []) {
       if (!commentInWeek(c.createdAt, rangeStart, rangeEnd)) continue
 
       const person = resolveWeeklyCardPerson(
