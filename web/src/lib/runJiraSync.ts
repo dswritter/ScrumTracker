@@ -28,6 +28,7 @@ export async function runJiraSyncFromStore(
     const data = (await res.json()) as {
       snapshot?: string
       issueCount?: number
+      commentFetchFailureCount?: number
     }
     if (!data.snapshot) {
       return { ok: false, message: 'No snapshot in response' }
@@ -36,9 +37,15 @@ export async function runJiraSyncFromStore(
     if (!r.ok) {
       return { ok: false, message: r.error }
     }
+    const n = data.issueCount ?? 0
+    const cf = data.commentFetchFailureCount ?? 0
+    const warn =
+      cf > 0
+        ? ` ${cf} issue(s) had a Jira comment fetch error (previous Jira comments were kept where possible; check server logs and PAT permissions).`
+        : ''
     return {
       ok: true,
-      message: `Synced ${data.issueCount ?? 0} Jira issue(s); comments refreshed and sprints updated if Sprint field is configured.`,
+      message: `Synced ${n} Jira issue(s); comments refreshed and sprints updated if Sprint field is configured.${warn}`,
     }
   } catch (e) {
     return {

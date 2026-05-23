@@ -261,18 +261,49 @@ function adfBlocksToPlainText(nodes) {
   return s
 }
 
-function mergeJiraCommentsIntoWorkItem(existingComments, jiraApiComments, issueKey) {
-  const jiraList = jiraApiComments || []
+/**
+ * Merge Jira REST comments into a work item. `jiraFetchResult` is either a legacy
+ * comment array or `{ ok: boolean, comments?: unknown[], error?: string }`.
+ * When `ok === false` (per-issue fetch error), existing `jira-cmt-*` rows are kept
+ * so a transient Jira failure does not wipe comments from the tracker snapshot.
+ */
+function mergeJiraCommentsIntoWorkItem(existingComments, jiraFetchResult, issueKey) {
   const key =
     typeof issueKey === 'string' && issueKey.trim()
       ? issueKey.trim().toUpperCase()
       : ''
+  const fetchFailed =
+    jiraFetchResult &&
+    typeof jiraFetchResult === 'object' &&
+    jiraFetchResult.ok === false
+  const jiraList = fetchFailed
+    ? []
+    : Array.isArray(jiraFetchResult)
+      ? jiraFetchResult
+      : Array.isArray(jiraFetchResult?.comments)
+        ? jiraFetchResult.comments
+        : []
+
+  const prevJiraMirror = (existingComments || []).filter(
+    (c) => c && String(c.id).startsWith('jira-cmt-'),
+  )
+  /** For deduping local-only comments vs Jira: use API rows, or preserved mirrors on fetch failure. */
+  const jiraRowsForDedupe = fetchFailed
+    ? prevJiraMirror.map((c) => ({
+        body: c.body,
+        created: c.createdAt,
+      }))
+    : jiraList
+
   const local = (existingComments || []).filter((c) => {
     if (!c || String(c.id).startsWith('jira-cmt-')) return false
     const plain = (c.body || '').trim()
     if (!plain || !key) return true
-    for (const jc of jiraList) {
-      const jb = bodyToPlainText(jc.body).trim()
+    for (const jc of jiraRowsForDedupe) {
+      const jb =
+        typeof jc.body === 'string'
+          ? jc.body.trim()
+          : bodyToPlainText(jc.body).trim()
       if (jb !== plain) continue
       const ca = typeof c.createdAt === 'string' ? c.createdAt : ''
       const cb = typeof jc.created === 'string' ? jc.created : ''
@@ -286,22 +317,25 @@ function mergeJiraCommentsIntoWorkItem(existingComments, jiraApiComments, issueK
     }
     return true
   })
-  const jiraMapped = jiraList.map((jc) => ({
-    id: `jira-cmt-${jc.id}`,
-    authorName:
-      (jc.author &&
-        typeof jc.author.displayName === 'string' &&
-        jc.author.displayName) ||
-      (jc.author && typeof jc.author.name === 'string' && jc.author.name) ||
-      'Jira',
-    body: (() => {
-      const t = bodyToPlainText(jc.body).trim()
-      return t || '(empty)'
-    })(),
-    createdAt:
-      typeof jc.created === 'string' ? jc.created : new Date().toISOString(),
-    ...(key ? { jiraIssueKey: key } : {}),
-  }))
+
+  const jiraMapped = fetchFailed
+    ? prevJiraMirror
+    : jiraList.map((jc) => ({
+        id: `jira-cmt-${jc.id}`,
+        authorName:
+          (jc.author &&
+            typeof jc.author.displayName === 'string' &&
+            jc.author.displayName) ||
+          (jc.author && typeof jc.author.name === 'string' && jc.author.name) ||
+          'Jira',
+        body: (() => {
+          const t = bodyToPlainText(jc.body).trim()
+          return t || '(empty)'
+        })(),
+        createdAt:
+          typeof jc.created === 'string' ? jc.created : new Date().toISOString(),
+        ...(key ? { jiraIssueKey: key } : {}),
+      }))
   return [...local, ...jiraMapped].sort((a, b) =>
     a.createdAt.localeCompare(b.createdAt),
   )
@@ -669,7 +703,8 @@ function extractJiraSprintFieldValue(issue, sprintFieldId) {
 function upsertWorkItemFromIssue(
   workItems,
   issue,
-  jiraComments,
+  /** @type {unknown[] | { ok: boolean, comments?: unknown[] }} */
+  jiraCommentsOrFetchResult,
   jiraSprintIds,
   syncSprintsFromJira,
   jiraNeedsSprintLabel,
@@ -692,7 +727,11 @@ function upsertWorkItemFromIssue(
 
   if (idx >= 0) {
     const w = workItems[idx]
-    let comments = mergeJiraCommentsIntoWorkItem(w.comments, jiraComments, key)
+    let comments = mergeJiraCommentsIntoWorkItem(
+      w.comments,
+      jiraCommentsOrFetchResult,
+      key,
+    )
     const resTs = resolutionTimestampFromFields(fields)
     if (
       trackerReachedDone(w.status, status) &&
@@ -720,12 +759,19 @@ function upsertWorkItemFromIssue(
   }
 
   const id = `wi-jira-${key.replace(/[^a-zA-Z0-9_-]/g, '')}`
-  let createdComments = mergeJiraCommentsIntoWorkItem([], jiraComments, key)
+  let createdComments = mergeJiraCommentsIntoWorkItem(
+    [],
+    jiraCommentsOrFetchResult,
+    key,
+  )
   const resTsNew = resolutionTimestampFromFields(fields)
   if (
     status === 'done' &&
     !hasJiraResolvedStamp(createdComments, key) &&
-    jiraComments.length === 0
+    (Array.isArray(jiraCommentsOrFetchResult)
+      ? jiraCommentsOrFetchResult
+      : jiraCommentsOrFetchResult?.comments || []
+    ).length === 0
   ) {
     createdComments = appendJiraResolvedStamp(
       createdComments,
@@ -939,6 +985,11 @@ async function updateIssueComment(jiraBase, pat, issueKey, jiraCommentNumericId,
   return res.json()
 }
 
+/**
+ * Per-issue Jira comment list. `ok: false` means the REST call failed — merge will
+ * retain existing `jira-cmt-*` rows for that issue instead of replacing with [].
+ * @returns {Map<string, { ok: boolean, comments: unknown[], error?: string }>}
+ */
 async function fetchCommentsForIssues(jiraBase, pat, issueKeys, concurrency = 8) {
   const map = new Map()
   for (let i = 0; i < issueKeys.length; i += concurrency) {
@@ -947,9 +998,11 @@ async function fetchCommentsForIssues(jiraBase, pat, issueKeys, concurrency = 8)
       batch.map(async (key) => {
         try {
           const comments = await fetchIssueComments(jiraBase, pat, key)
-          return [key, comments]
-        } catch {
-          return [key, []]
+          return [key, { ok: true, comments }]
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e)
+          console.warn(`[jira sync] comments fetch failed for ${key}: ${msg}`)
+          return [key, { ok: false, comments: [], error: msg }]
         }
       }),
     )
@@ -1374,9 +1427,14 @@ export function registerJiraRoutes(app, opts) {
 
       let workItems = Array.isArray(teamData.workItems) ? [...teamData.workItems] : []
       let sprints = Array.isArray(teamData.sprints) ? [...teamData.sprints] : []
+      let commentFetchFailureCount = 0
 
       for (const issue of issues) {
-        const jiraComments = commentMap.get(issue.key) || []
+        const jiraCommentResult = commentMap.get(issue.key) ?? {
+          ok: true,
+          comments: [],
+        }
+        if (jiraCommentResult.ok === false) commentFetchFailureCount += 1
         let jiraSprintIds = []
         let issueForSync = issue
         let rawSprints = extractJiraSprintFieldValue(issueForSync, sprintFieldRaw)
@@ -1497,7 +1555,7 @@ export function registerJiraRoutes(app, opts) {
         workItems = upsertWorkItemFromIssue(
           workItems,
           issueForSync,
-          jiraComments,
+          jiraCommentResult,
           jiraSprintIds,
           syncSprintsFromJira,
           syncMode === 'individual' ? jiraNeedsSprintLabel : false,
@@ -1506,7 +1564,12 @@ export function registerJiraRoutes(app, opts) {
 
       snap.teamsData[tid] = { ...teamData, workItems, sprints }
       const out = JSON.stringify(snap)
-      res.json({ ok: true, snapshot: out, issueCount: issues.length })
+      res.json({
+        ok: true,
+        snapshot: out,
+        issueCount: issues.length,
+        commentFetchFailureCount,
+      })
     } catch (e) {
       res.status(502).json({
         error: e instanceof Error ? e.message : 'Jira sync failed',
