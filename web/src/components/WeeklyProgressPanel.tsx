@@ -442,25 +442,12 @@ export function WeeklyProgressPanel({
   }, [bundlesForColumns, assigneeChartPinFullName])
 
   useEffect(() => {
-    const pin = assigneeChartPinFullName?.trim()
-    if (!pin) {
-      setPersonExpand({})
-      return
-    }
-    const pl = pin.toLowerCase()
-    const hit = bundlesForColumns.some(
-      (b) => b.personName.trim().toLowerCase() === pl,
-    )
-    if (!hit) {
-      setPersonExpand({})
-      return
-    }
-    const next: Record<string, boolean> = {}
-    for (const b of bundlesForColumns) {
-      next[b.id] = b.personName.trim().toLowerCase() === pl
-    }
-    setPersonExpand(next)
-  }, [assigneeChartPinFullName, bundlesForColumns])
+    // When the pin changes, keep all cards expanded.
+    // The pin's job is to reorder (move pinned person to top) and scroll to them,
+    // not to collapse others — cards with fewer than COLLAPSE_WHEN_TASKS_GTE tasks
+    // have no visible toggle, so collapsing them silently hides task content.
+    setPersonExpand({})
+  }, [assigneeChartPinFullName])
 
   useEffect(() => {
     const pin = assigneeChartPinFullName?.trim()
