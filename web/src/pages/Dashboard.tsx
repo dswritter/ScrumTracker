@@ -136,9 +136,12 @@ export function Dashboard() {
   const [searchParams, setSearchParams] = useSearchParams()
   const weeklyOpen = searchParams.get('weekly') === '1'
   const [weeklyWeekKey, setWeeklyWeekKey] = useState(() => {
+    const currentKey = mondayDateKey(weekMondayOffsets(12)[0])
     const persisted = loadPersistedWeekKey()
-    if (persisted) return persisted
-    return mondayDateKey(weekMondayOffsets(12)[0])
+    // Only restore if it's the current week — past weeks may have no data
+    // and would silently show an empty panel on every page load.
+    if (persisted === currentKey) return persisted
+    return currentKey
   })
 
   const wPerson = searchParams.get('wperson') ?? ''

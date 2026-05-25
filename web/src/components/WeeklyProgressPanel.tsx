@@ -655,25 +655,6 @@ export function WeeklyProgressPanel({
         </label>
       </div>
 
-      {/* TEMP DEBUG — remove once weekly-view issue is diagnosed */}
-      {(() => {
-        const persons = [...new Set(cards.map((c) => c.personName))].sort()
-        return (
-          <details className="rounded border border-amber-300 bg-amber-50 px-3 py-1 text-[11px] text-amber-900 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-200">
-            <summary className="cursor-pointer font-bold">🔍 Debug info (click to expand)</summary>
-            <div className="mt-1 space-y-0.5 font-mono">
-              <div>personFilter: <b>{personFilter || '(empty — All teammates)'}</b></div>
-              <div>projectFilter: <b>{projectFilter || '(empty)'}</b></div>
-              <div>searchQuery: <b>{searchQuery || '(empty)'}</b></div>
-              <div>total cards (prop): <b>{cards.length}</b></div>
-              <div>filteredCards: <b>{filteredCards.length}</b></div>
-              <div>bundles (persons): <b>{bundles.length}</b></div>
-              <div>persons in raw cards: <b>{persons.join(', ') || '(none)'}</b></div>
-            </div>
-          </details>
-        )
-      })()}
-
       {bundles.length === 0 && !hasMiscForWeek ? (
         <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-slate-300 bg-slate-50/50 px-4 py-10 text-center dark:border-slate-600 dark:bg-slate-900/40">
           <div
