@@ -156,15 +156,6 @@ export function Dashboard() {
   const [pieTableFilter, setPieTableFilter] = useState<PieTableFilter>('')
   const [assigneeBarFocus, setAssigneeBarFocus] = useState<string | null>(null)
 
-  const weekChoices = useMemo(
-    () =>
-      weekMondayOffsets(12).map((d) => ({
-        key: mondayDateKey(d),
-        label: formatWeekRangeLabel(d),
-      })),
-    [],
-  )
-
   const scope = useMemo(
     () =>
       parseDashboardScope(searchParams, sortedSprints, defaultSprintId),
@@ -228,6 +219,39 @@ export function Dashboard() {
   const sprintIndex = selectedSprint
     ? sortedSprints.findIndex((s) => s.id === selectedSprint.id)
     : -1
+
+  const weekChoices = useMemo(() => {
+    let weeksBack = 12
+    if (selectedSprint?.start) {
+      const todayMonday = parseMondayKey(
+        new Date().toISOString().slice(0, 10),
+      )
+      const sprintStartMonday = parseMondayKey(selectedSprint.start)
+      const diffWeeks = Math.ceil(
+        (todayMonday.getTime() - sprintStartMonday.getTime()) /
+          (7 * 24 * 60 * 60 * 1000),
+      )
+      weeksBack = Math.max(weeksBack, diffWeeks + 1)
+    }
+    return weekMondayOffsets(weeksBack).map((d) => ({
+      key: mondayDateKey(d),
+      label: formatWeekRangeLabel(d),
+    }))
+  }, [selectedSprint])
+
+  /** When the user changes sprint, snap the weekly panel to a relevant week:
+   * - Current sprint (today within dates): this calendar week.
+   * - Past/future sprint: the last week of that sprint, capped at today's week. */
+  const lastAutoSnappedSprintIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!selectedSprint) return
+    if (lastAutoSnappedSprintIdRef.current === selectedSprint.id) return
+    lastAutoSnappedSprintIdRef.current = selectedSprint.id
+    const todayYmd = new Date().toISOString().slice(0, 10)
+    const targetYmd =
+      selectedSprint.end < todayYmd ? selectedSprint.end : todayYmd
+    setWeeklyWeekKey(mondayDateKey(parseMondayKey(targetYmd)))
+  }, [selectedSprint])
 
   const goSprint = useCallback(
     (delta: number) => {
