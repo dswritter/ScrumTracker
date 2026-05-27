@@ -43,6 +43,10 @@ export type WeeklyReportExportOptions = {
    * automatically capped at today, so mid-sprint or mid-week exports never
    * highlight future days. Defaults to the Mon–Fri of `weekMondayKey`. */
   calendarRange?: { start: Date; end: Date }
+  /** When false, standup notes are omitted from the rendered report.
+   * Default true. (Notes themselves are not yet stored anywhere; this option
+   * is wired through ahead of that feature so the export pipeline is ready.) */
+  includeNotes?: boolean
 }
 
 /** Light fills aligned with weekly card shell tints (DOCX hex without #). */

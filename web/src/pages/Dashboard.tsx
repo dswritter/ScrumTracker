@@ -580,33 +580,41 @@ export function Dashboard() {
     }
   }, [selectedSprint])
 
-  const handleExportSprintDocx = useCallback(async () => {
-    if (!sprintBundles.length || !selectedSprint) return
-    await downloadWeeklyProgressDocx(
-      sprintBundles,
-      sprintReportMeta,
-      window.location.origin,
-      selectedSprint.id,
-      {
-        weekMondayKey: selectedSprint.start,
-        calendarRange: sprintExportCalendarRange,
-      },
-    )
-  }, [sprintBundles, sprintReportMeta, selectedSprint, sprintExportCalendarRange])
+  const handleExportSprintDocx = useCallback(
+    async ({ includeNotes }: { includeNotes: boolean }) => {
+      if (!sprintBundles.length || !selectedSprint) return
+      await downloadWeeklyProgressDocx(
+        sprintBundles,
+        sprintReportMeta,
+        window.location.origin,
+        selectedSprint.id,
+        {
+          weekMondayKey: selectedSprint.start,
+          calendarRange: sprintExportCalendarRange,
+          includeNotes,
+        },
+      )
+    },
+    [sprintBundles, sprintReportMeta, selectedSprint, sprintExportCalendarRange],
+  )
 
-  const handleExportSprintPdf = useCallback(() => {
-    if (!sprintBundles.length || !selectedSprint) return
-    downloadWeeklyProgressPdf(
-      sprintBundles,
-      sprintReportMeta,
-      window.location.origin,
-      selectedSprint.id,
-      {
-        weekMondayKey: selectedSprint.start,
-        calendarRange: sprintExportCalendarRange,
-      },
-    )
-  }, [sprintBundles, sprintReportMeta, selectedSprint, sprintExportCalendarRange])
+  const handleExportSprintPdf = useCallback(
+    ({ includeNotes }: { includeNotes: boolean }) => {
+      if (!sprintBundles.length || !selectedSprint) return
+      downloadWeeklyProgressPdf(
+        sprintBundles,
+        sprintReportMeta,
+        window.location.origin,
+        selectedSprint.id,
+        {
+          weekMondayKey: selectedSprint.start,
+          calendarRange: sprintExportCalendarRange,
+          includeNotes,
+        },
+      )
+    },
+    [sprintBundles, sprintReportMeta, selectedSprint, sprintExportCalendarRange],
+  )
 
   const handleSetWeeklyMisc = useCallback(
     (weekMondayKey: string, personName: string, lines: WeeklyMiscLine[]) => {

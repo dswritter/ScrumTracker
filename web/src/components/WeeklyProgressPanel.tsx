@@ -210,6 +210,32 @@ function authorLineVisible(authorRaw: string, personName: string): boolean {
   return chunks[0] !== personName.trim()
 }
 
+/** Persisted toggle for the "Include standup notes" checkbox in the export menu. */
+const INCLUDE_NOTES_KEY = 'scrum-tracker-export-include-notes'
+
+function loadIncludeNotesPref(): boolean {
+  try {
+    const v = localStorage.getItem(INCLUDE_NOTES_KEY)
+    return v == null ? true : v === '1'
+  } catch {
+    return true
+  }
+}
+
+function saveIncludeNotesPref(on: boolean): void {
+  try {
+    localStorage.setItem(INCLUDE_NOTES_KEY, on ? '1' : '0')
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Options forwarded to export handlers when the user picks a format. */
+export type ReportExportInvocation = {
+  /** Whether to include standup notes in the rendered report. */
+  includeNotes: boolean
+}
+
 export function ReportExportMenu({
   disabled,
   onExportDocx,
@@ -218,12 +244,13 @@ export function ReportExportMenu({
   ariaLabel = 'Export report',
 }: {
   disabled: boolean
-  onExportDocx: () => Promise<void>
-  onExportPdf: () => void
+  onExportDocx: (opts: ReportExportInvocation) => Promise<void>
+  onExportPdf: (opts: ReportExportInvocation) => void
   title?: string
   ariaLabel?: string
 }) {
   const [open, setOpen] = useState(false)
+  const [includeNotes, setIncludeNotes] = useState(loadIncludeNotesPref)
   const wrapRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -253,16 +280,29 @@ export function ReportExportMenu({
       </button>
       {open && !disabled ? (
         <div
-          className="absolute right-0 top-[calc(100%+4px)] z-50 min-w-[11rem] rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-600 dark:bg-slate-900"
+          className="absolute right-0 top-[calc(100%+4px)] z-50 min-w-[13rem] rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-600 dark:bg-slate-900"
           role="menu"
         >
+          <label className="flex cursor-pointer items-center gap-2 border-b border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
+            <input
+              type="checkbox"
+              className="h-3.5 w-3.5 accent-[#00B050]"
+              checked={includeNotes}
+              onChange={(e) => {
+                const v = e.target.checked
+                setIncludeNotes(v)
+                saveIncludeNotesPref(v)
+              }}
+            />
+            Include standup notes
+          </label>
           <button
             type="button"
             role="menuitem"
             className="block w-full px-3 py-2 text-left text-xs font-medium text-slate-800 hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-slate-800"
             onClick={() => {
               setOpen(false)
-              void onExportDocx()
+              void onExportDocx({ includeNotes })
             }}
           >
             Word (.docx)
@@ -273,7 +313,7 @@ export function ReportExportMenu({
             className="block w-full px-3 py-2 text-left text-xs font-medium text-slate-800 hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-slate-800"
             onClick={() => {
               setOpen(false)
-              onExportPdf()
+              onExportPdf({ includeNotes })
             }}
           >
             PDF (.pdf)
@@ -533,47 +573,53 @@ export function WeeklyProgressPanel({
     [bundlesForColumns, weeklyMiscChecklists, weekKey],
   )
 
-  const handleExportDocx = useCallback(async () => {
-    await downloadWeeklyProgressDocx(
+  const handleExportDocx = useCallback(
+    async ({ includeNotes }: ReportExportInvocation) => {
+      await downloadWeeklyProgressDocx(
+        bundlesForColumns,
+        {
+          weekLabel,
+          teamName: reportTeamName,
+          scopeLabel: reportScopeLabel,
+        },
+        window.location.origin,
+        weekKey,
+        { weekMondayKey: weekKey, weeklyMiscChecklists, includeNotes },
+      )
+    },
+    [
       bundlesForColumns,
-      {
-        weekLabel,
-        teamName: reportTeamName,
-        scopeLabel: reportScopeLabel,
-      },
-      window.location.origin,
+      weekLabel,
+      reportTeamName,
+      reportScopeLabel,
       weekKey,
-      { weekMondayKey: weekKey, weeklyMiscChecklists },
-    )
-  }, [
-    bundlesForColumns,
-    weekLabel,
-    reportTeamName,
-    reportScopeLabel,
-    weekKey,
-    weeklyMiscChecklists,
-  ])
+      weeklyMiscChecklists,
+    ],
+  )
 
-  const handleExportPdf = useCallback(() => {
-    downloadWeeklyProgressPdf(
+  const handleExportPdf = useCallback(
+    ({ includeNotes }: ReportExportInvocation) => {
+      downloadWeeklyProgressPdf(
+        bundlesForColumns,
+        {
+          weekLabel,
+          teamName: reportTeamName,
+          scopeLabel: reportScopeLabel,
+        },
+        window.location.origin,
+        weekKey,
+        { weekMondayKey: weekKey, weeklyMiscChecklists, includeNotes },
+      )
+    },
+    [
       bundlesForColumns,
-      {
-        weekLabel,
-        teamName: reportTeamName,
-        scopeLabel: reportScopeLabel,
-      },
-      window.location.origin,
+      weekLabel,
+      reportTeamName,
+      reportScopeLabel,
       weekKey,
-      { weekMondayKey: weekKey, weeklyMiscChecklists },
-    )
-  }, [
-    bundlesForColumns,
-    weekLabel,
-    reportTeamName,
-    reportScopeLabel,
-    weekKey,
-    weeklyMiscChecklists,
-  ])
+      weeklyMiscChecklists,
+    ],
+  )
 
   return (
     <>
