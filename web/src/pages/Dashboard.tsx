@@ -529,91 +529,166 @@ export function Dashboard() {
     weeklyCommentRange,
   ])
 
-  /** Cards spanning the entire selected sprint, used for the sprint-view export.
-   * Sprint window capped at today for an open sprint so we never include future-dated comments. */
-  const sprintCards = useMemo(() => {
-    if (!ctx || !selectedSprint) return []
-    const sprintStart = sprintDayStart(selectedSprint.start)
-    const sprintEnd = sprintDayEnd(selectedSprint.end)
-    const currentId = getCurrentSprint(sortedSprints)?.id ?? null
-    const isOpenCurrent = currentId === selectedSprint.id
-    const rangeEnd = isOpenCurrent
-      ? new Date(Math.min(sprintEnd.getTime(), nowEndOfDay().getTime()))
-      : sprintEnd
+  /** Resolved export spec for the current dashboard scope. Builds the date range,
+   * filename, hover label, and report metadata so any scope (sprint / month / year
+   * / all sprints to date) can be exported from the Work items panel header. */
+  const scopeExportSpec = useMemo(() => {
+    if (!ctx) return null
+    const todayEnd = nowEndOfDay()
+    const cap = (d: Date) => (d.getTime() > todayEnd.getTime() ? todayEnd : d)
+    if (scope.type === 'sprint') {
+      const sp = sortedSprints.find((s) => s.id === scope.sprintId)
+      if (!sp) return null
+      const start = sprintDayStart(sp.start)
+      const end = cap(sprintDayEnd(sp.end))
+      return {
+        rangeStart: start,
+        rangeEnd: end,
+        filenameKey: sp.id,
+        weekMondayKey: sp.start,
+        calendarRange: { start, end },
+        meta: {
+          weekLabel: sp.name,
+          teamName: ctx.teamName,
+          scopeLabel: sp.name,
+          reportTitle: 'Sprint progress report',
+          rangeLabelPrefix: 'Sprint:',
+          filenamePrefix: 'sprint-report',
+        },
+        hoverText: `Download sprint report for ${sp.name}`,
+      }
+    }
+    if (scope.type === 'month') {
+      const start = new Date(scope.year, scope.month - 1, 1)
+      const end = cap(
+        new Date(scope.year, scope.month, 0, 23, 59, 59, 999),
+      )
+      const label = start.toLocaleString(undefined, {
+        month: 'long',
+        year: 'numeric',
+      })
+      const ymd = `${scope.year}-${String(scope.month).padStart(2, '0')}-01`
+      return {
+        rangeStart: start,
+        rangeEnd: end,
+        filenameKey: `${scope.year}-${String(scope.month).padStart(2, '0')}`,
+        weekMondayKey: ymd,
+        calendarRange: { start, end },
+        meta: {
+          weekLabel: label,
+          teamName: ctx.teamName,
+          scopeLabel: label,
+          reportTitle: 'Monthly progress report',
+          rangeLabelPrefix: 'Month:',
+          filenamePrefix: 'month-report',
+        },
+        hoverText: `Download ${label} report`,
+      }
+    }
+    if (scope.type === 'year') {
+      const start = new Date(scope.year, 0, 1)
+      const end = cap(new Date(scope.year, 11, 31, 23, 59, 59, 999))
+      const ymd = `${scope.year}-01-01`
+      return {
+        rangeStart: start,
+        rangeEnd: end,
+        filenameKey: String(scope.year),
+        weekMondayKey: ymd,
+        calendarRange: { start, end },
+        meta: {
+          weekLabel: String(scope.year),
+          teamName: ctx.teamName,
+          scopeLabel: String(scope.year),
+          reportTitle: 'Yearly progress report',
+          rangeLabelPrefix: 'Year:',
+          filenamePrefix: 'year-report',
+        },
+        hoverText: `Download ${scope.year} report`,
+      }
+    }
+    /** scope.type === 'all' */
+    const startYmds = sortedSprints
+      .map((s) => s.start)
+      .filter((s): s is string => Boolean(s))
+      .sort()
+    if (!startYmds.length) return null
+    const startYmd = startYmds[0]!
+    const start = sprintDayStart(startYmd)
+    return {
+      rangeStart: start,
+      rangeEnd: todayEnd,
+      filenameKey: startYmd,
+      weekMondayKey: startYmd,
+      calendarRange: { start, end: todayEnd },
+      meta: {
+        weekLabel: 'All sprints to date',
+        teamName: ctx.teamName,
+        scopeLabel: 'All sprints to date',
+        reportTitle: 'Team progress report',
+        rangeLabelPrefix: 'All time:',
+        filenamePrefix: 'team-report',
+      },
+      hoverText: 'Download full team report (all sprints to date)',
+    }
+  }, [scope, ctx, sortedSprints])
+
+  /** Cards spanning the full date window of the resolved scope export spec. */
+  const scopeExportCards = useMemo(() => {
+    if (!scopeExportSpec || !ctx) return []
     return buildWeeklyProgressCards(
       scopedItems,
       weeklyPersonRoster,
-      sprintStart,
+      scopeExportSpec.rangeStart,
       ctx.jiraBaseUrl,
-      { start: sprintStart, end: rangeEnd },
+      {
+        start: scopeExportSpec.rangeStart,
+        end: scopeExportSpec.rangeEnd,
+      },
     )
-  }, [
-    ctx,
-    selectedSprint,
-    sortedSprints,
-    scopedItems,
-    weeklyPersonRoster,
-  ])
+  }, [scopeExportSpec, ctx, scopedItems, weeklyPersonRoster])
 
-  const sprintBundles = useMemo(
-    () => (sprintCards.length ? bundleWeeklyProgressByPerson(sprintCards) : []),
-    [sprintCards],
+  const scopeExportBundles = useMemo(
+    () =>
+      scopeExportCards.length
+        ? bundleWeeklyProgressByPerson(scopeExportCards)
+        : [],
+    [scopeExportCards],
   )
 
-  const sprintReportMeta = useMemo(
-    () => ({
-      weekLabel: selectedSprint?.name ?? 'Sprint',
-      teamName: ctx?.teamName,
-      scopeLabel: selectedSprint?.name ?? scopeShortLabel(scope, sortedSprints),
-      reportTitle: 'Sprint progress report',
-      rangeLabelPrefix: 'Sprint:',
-      filenamePrefix: 'sprint-report',
-    }),
-    [selectedSprint, ctx?.teamName, scope, sortedSprints],
-  )
-
-  const sprintExportCalendarRange = useMemo(() => {
-    if (!selectedSprint) return undefined
-    return {
-      start: sprintDayStart(selectedSprint.start),
-      end: sprintDayEnd(selectedSprint.end),
-    }
-  }, [selectedSprint])
-
-  const handleExportSprintDocx = useCallback(
+  const handleExportScopeDocx = useCallback(
     async ({ includeNotes }: { includeNotes: boolean }) => {
-      if (!sprintBundles.length || !selectedSprint) return
+      if (!scopeExportSpec || !scopeExportBundles.length) return
       await downloadWeeklyProgressDocx(
-        sprintBundles,
-        sprintReportMeta,
+        scopeExportBundles,
+        scopeExportSpec.meta,
         window.location.origin,
-        selectedSprint.id,
+        scopeExportSpec.filenameKey,
         {
-          weekMondayKey: selectedSprint.start,
-          calendarRange: sprintExportCalendarRange,
+          weekMondayKey: scopeExportSpec.weekMondayKey,
+          calendarRange: scopeExportSpec.calendarRange,
           includeNotes,
         },
       )
     },
-    [sprintBundles, sprintReportMeta, selectedSprint, sprintExportCalendarRange],
+    [scopeExportSpec, scopeExportBundles],
   )
 
-  const handleExportSprintPdf = useCallback(
+  const handleExportScopePdf = useCallback(
     ({ includeNotes }: { includeNotes: boolean }) => {
-      if (!sprintBundles.length || !selectedSprint) return
+      if (!scopeExportSpec || !scopeExportBundles.length) return
       downloadWeeklyProgressPdf(
-        sprintBundles,
-        sprintReportMeta,
+        scopeExportBundles,
+        scopeExportSpec.meta,
         window.location.origin,
-        selectedSprint.id,
+        scopeExportSpec.filenameKey,
         {
-          weekMondayKey: selectedSprint.start,
-          calendarRange: sprintExportCalendarRange,
+          weekMondayKey: scopeExportSpec.weekMondayKey,
+          calendarRange: scopeExportSpec.calendarRange,
           includeNotes,
         },
       )
     },
-    [sprintBundles, sprintReportMeta, selectedSprint, sprintExportCalendarRange],
+    [scopeExportSpec, scopeExportBundles],
   )
 
   const handleSetWeeklyMisc = useCallback(
@@ -1145,13 +1220,13 @@ export function Dashboard() {
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
           <div className="flex items-center justify-between gap-2 border-b border-[#00B050]/30 bg-[#00B050] px-3 py-2">
             <h3 className="min-w-0 text-sm font-bold text-white">Work items</h3>
-            {selectedSprint ? (
+            {scopeExportSpec ? (
               <ReportExportMenu
-                disabled={sprintBundles.length === 0}
-                onExportDocx={handleExportSprintDocx}
-                onExportPdf={handleExportSprintPdf}
-                title={`Download sprint report for ${selectedSprint.name}`}
-                ariaLabel="Export sprint report"
+                disabled={scopeExportBundles.length === 0}
+                onExportDocx={handleExportScopeDocx}
+                onExportPdf={handleExportScopePdf}
+                title={scopeExportSpec.hoverText}
+                ariaLabel={scopeExportSpec.hoverText}
               />
             ) : null}
           </div>
