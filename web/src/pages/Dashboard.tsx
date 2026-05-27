@@ -11,7 +11,10 @@ import {
   MetabuildSectionBars,
   MetabuildStatusPie,
 } from '../components/MetabuildCharts'
-import { WeeklyProgressPanel } from '../components/WeeklyProgressPanel'
+import {
+  ReportExportMenu,
+  WeeklyProgressPanel,
+} from '../components/WeeklyProgressPanel'
 import { WorkItemTitleLink } from '../components/WorkItemTitleLink'
 import { StatusBadge } from '../components/StatusBadge'
 import { useCurrentUser } from '../hooks/useCurrentUser'
@@ -55,6 +58,7 @@ import {
 } from '../lib/sdates'
 import {
   buildWeeklyProgressCards,
+  bundleWeeklyProgressByPerson,
   endOfWeekSunday,
   formatWeekRangeLabel,
   mondayDateKey,
@@ -62,7 +66,11 @@ import {
   weekMondayOffsets,
   type WeeklyCardCommentRange,
 } from '../lib/weeklyProgress'
-import { miscLinesForPersonExport } from '../lib/weeklyReportExport'
+import {
+  downloadWeeklyProgressDocx,
+  downloadWeeklyProgressPdf,
+  miscLinesForPersonExport,
+} from '../lib/weeklyReportExport'
 import { sprintDayEnd, sprintDayStart } from '../lib/sprintLocalBounds'
 import { generateId } from '../lib/ids'
 import { itemDetailPath } from '../lib/workItemRoutes'
@@ -521,11 +529,10 @@ export function Dashboard() {
     weeklyCommentRange,
   ])
 
-  /** Cards spanning the entire selected sprint (for the "Full sprint" export option).
-   * Same filtering as weeklyCards but the comment window is the sprint range, capped
-   * at today for open sprints so we never include future-dated comments. */
+  /** Cards spanning the entire selected sprint, used for the sprint-view export.
+   * Sprint window capped at today for an open sprint so we never include future-dated comments. */
   const sprintCards = useMemo(() => {
-    if (!weeklyOpen || !ctx || !selectedSprint) return []
+    if (!ctx || !selectedSprint) return []
     const sprintStart = sprintDayStart(selectedSprint.start)
     const sprintEnd = sprintDayEnd(selectedSprint.end)
     const currentId = getCurrentSprint(sortedSprints)?.id ?? null
@@ -541,13 +548,51 @@ export function Dashboard() {
       { start: sprintStart, end: rangeEnd },
     )
   }, [
-    weeklyOpen,
     ctx,
     selectedSprint,
     sortedSprints,
     scopedItems,
     weeklyPersonRoster,
   ])
+
+  const sprintBundles = useMemo(
+    () => (sprintCards.length ? bundleWeeklyProgressByPerson(sprintCards) : []),
+    [sprintCards],
+  )
+
+  const sprintReportMeta = useMemo(
+    () => ({
+      weekLabel: selectedSprint?.name ?? 'Sprint',
+      teamName: ctx?.teamName,
+      scopeLabel: selectedSprint?.name ?? scopeShortLabel(scope, sortedSprints),
+      reportTitle: 'Sprint progress report',
+      rangeLabelPrefix: 'Sprint:',
+      filenamePrefix: 'sprint-report',
+    }),
+    [selectedSprint, ctx?.teamName, scope, sortedSprints],
+  )
+
+  const handleExportSprintDocx = useCallback(async () => {
+    if (!sprintBundles.length || !selectedSprint) return
+    await downloadWeeklyProgressDocx(
+      sprintBundles,
+      sprintReportMeta,
+      window.location.origin,
+      selectedSprint.id,
+      { weekMondayKey: selectedSprint.start },
+    )
+  }, [sprintBundles, sprintReportMeta, selectedSprint])
+
+  const handleExportSprintPdf = useCallback(() => {
+    if (!sprintBundles.length || !selectedSprint) return
+    downloadWeeklyProgressPdf(
+      sprintBundles,
+      sprintReportMeta,
+      window.location.origin,
+      selectedSprint.id,
+      { weekMondayKey: selectedSprint.start },
+    )
+  }, [sprintBundles, sprintReportMeta, selectedSprint])
 
   const handleSetWeeklyMisc = useCallback(
     (weekMondayKey: string, personName: string, lines: WeeklyMiscLine[]) => {
@@ -1071,16 +1116,22 @@ export function Dashboard() {
                     )
                 : undefined
             }
-            sprintCards={sprintCards}
-            sprintLabel={selectedSprint?.name}
-            sprintFilenameKey={selectedSprint?.id}
           />
         </div>
       ) : null}
       {sortedSprints.length > 0 && !weeklyOpen ? (
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
-          <div className="border-b border-[#00B050]/30 bg-[#00B050] px-3 py-2">
-            <h3 className="text-sm font-bold text-white">Work items</h3>
+          <div className="flex items-center justify-between gap-2 border-b border-[#00B050]/30 bg-[#00B050] px-3 py-2">
+            <h3 className="min-w-0 text-sm font-bold text-white">Work items</h3>
+            {selectedSprint ? (
+              <ReportExportMenu
+                disabled={sprintBundles.length === 0}
+                onExportDocx={handleExportSprintDocx}
+                onExportPdf={handleExportSprintPdf}
+                title={`Download sprint report for ${selectedSprint.name}`}
+                ariaLabel="Export sprint report"
+              />
+            ) : null}
           </div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[48rem] border-collapse text-left text-xs">

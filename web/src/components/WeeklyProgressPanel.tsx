@@ -210,20 +210,18 @@ function authorLineVisible(authorRaw: string, personName: string): boolean {
   return chunks[0] !== personName.trim()
 }
 
-function WeeklyReportExportMenu({
+export function ReportExportMenu({
   disabled,
   onExportDocx,
   onExportPdf,
-  onExportSprintDocx,
-  onExportSprintPdf,
-  sprintExportEnabled,
+  title = 'Download report as Word or PDF',
+  ariaLabel = 'Export report',
 }: {
   disabled: boolean
   onExportDocx: () => Promise<void>
   onExportPdf: () => void
-  onExportSprintDocx?: () => Promise<void>
-  onExportSprintPdf?: () => void
-  sprintExportEnabled?: boolean
+  title?: string
+  ariaLabel?: string
 }) {
   const [open, setOpen] = useState(false)
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -245,8 +243,8 @@ function WeeklyReportExportMenu({
         type="button"
         disabled={disabled}
         className="inline-flex h-7 w-7 items-center justify-center rounded text-white hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-40"
-        title="Download weekly report as Word or PDF"
-        aria-label="Export weekly report"
+        title={title}
+        aria-label={ariaLabel}
         aria-expanded={open}
         aria-haspopup="true"
         onClick={() => setOpen((o) => !o)}
@@ -258,9 +256,6 @@ function WeeklyReportExportMenu({
           className="absolute right-0 top-[calc(100%+4px)] z-50 min-w-[11rem] rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-600 dark:bg-slate-900"
           role="menu"
         >
-          <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-            This week
-          </div>
           <button
             type="button"
             role="menuitem"
@@ -283,36 +278,6 @@ function WeeklyReportExportMenu({
           >
             PDF (.pdf)
           </button>
-          {sprintExportEnabled && onExportSprintDocx && onExportSprintPdf ? (
-            <>
-              <div className="my-1 border-t border-slate-200 dark:border-slate-700" />
-              <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                Full sprint
-              </div>
-              <button
-                type="button"
-                role="menuitem"
-                className="block w-full px-3 py-2 text-left text-xs font-medium text-slate-800 hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-slate-800"
-                onClick={() => {
-                  setOpen(false)
-                  void onExportSprintDocx()
-                }}
-              >
-                Word (.docx)
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                className="block w-full px-3 py-2 text-left text-xs font-medium text-slate-800 hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-slate-800"
-                onClick={() => {
-                  setOpen(false)
-                  onExportSprintPdf()
-                }}
-              >
-                PDF (.pdf)
-              </button>
-            </>
-          ) : null}
         </div>
       ) : null}
     </div>
@@ -376,9 +341,6 @@ export function WeeklyProgressPanel({
   assigneeChartPinFullName = null,
   onClearAssigneeChartPin,
   onPersonCardPinClick,
-  sprintCards,
-  sprintLabel,
-  sprintFilenameKey,
 }: {
   cards: WeeklyProgressCard[]
   peopleOptions: string[]
@@ -417,10 +379,6 @@ export function WeeklyProgressPanel({
   onClearAssigneeChartPin?: () => void
   /** Admin: click a person’s name to pin that card (same as Done % chart). */
   onPersonCardPinClick?: (personName: string) => void
-  /** When provided (scope=sprint), enables a "Full sprint" option in the export menu. */
-  sprintCards?: WeeklyProgressCard[]
-  sprintLabel?: string
-  sprintFilenameKey?: string
 }) {
   const [personExpand, setPersonExpand] = useState<Record<string, boolean>>({})
 
@@ -617,68 +575,6 @@ export function WeeklyProgressPanel({
     weeklyMiscChecklists,
   ])
 
-  const sprintBundles = useMemo(
-    () =>
-      sprintCards && sprintCards.length
-        ? bundleWeeklyProgressByPerson(sprintCards)
-        : [],
-    [sprintCards],
-  )
-
-  const canExportSprintReport = sprintBundles.length > 0
-
-  const handleExportSprintDocx = useCallback(async () => {
-    if (!canExportSprintReport) return
-    await downloadWeeklyProgressDocx(
-      sprintBundles,
-      {
-        weekLabel: sprintLabel || reportScopeLabel || 'Sprint',
-        teamName: reportTeamName,
-        scopeLabel: reportScopeLabel,
-        reportTitle: 'Sprint progress report',
-        rangeLabelPrefix: 'Sprint:',
-        filenamePrefix: 'sprint-report',
-      },
-      window.location.origin,
-      sprintFilenameKey || weekKey,
-      { weekMondayKey: weekKey },
-    )
-  }, [
-    canExportSprintReport,
-    sprintBundles,
-    sprintLabel,
-    reportTeamName,
-    reportScopeLabel,
-    sprintFilenameKey,
-    weekKey,
-  ])
-
-  const handleExportSprintPdf = useCallback(() => {
-    if (!canExportSprintReport) return
-    downloadWeeklyProgressPdf(
-      sprintBundles,
-      {
-        weekLabel: sprintLabel || reportScopeLabel || 'Sprint',
-        teamName: reportTeamName,
-        scopeLabel: reportScopeLabel,
-        reportTitle: 'Sprint progress report',
-        rangeLabelPrefix: 'Sprint:',
-        filenamePrefix: 'sprint-report',
-      },
-      window.location.origin,
-      sprintFilenameKey || weekKey,
-      { weekMondayKey: weekKey },
-    )
-  }, [
-    canExportSprintReport,
-    sprintBundles,
-    sprintLabel,
-    reportTeamName,
-    reportScopeLabel,
-    sprintFilenameKey,
-    weekKey,
-  ])
-
   return (
     <>
       {showReportHeader ? (
@@ -696,13 +592,12 @@ export function WeeklyProgressPanel({
                 Expand all
               </button>
             ) : null}
-            <WeeklyReportExportMenu
-              disabled={!canExportReport && !canExportSprintReport}
+            <ReportExportMenu
+              disabled={!canExportReport}
               onExportDocx={handleExportDocx}
               onExportPdf={handleExportPdf}
-              onExportSprintDocx={handleExportSprintDocx}
-              onExportSprintPdf={handleExportSprintPdf}
-              sprintExportEnabled={canExportSprintReport}
+              title="Download weekly report as Word or PDF"
+              ariaLabel="Export weekly report"
             />
           </div>
         </div>
