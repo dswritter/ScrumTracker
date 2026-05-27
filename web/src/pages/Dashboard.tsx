@@ -521,6 +521,34 @@ export function Dashboard() {
     weeklyCommentRange,
   ])
 
+  /** Cards spanning the entire selected sprint (for the "Full sprint" export option).
+   * Same filtering as weeklyCards but the comment window is the sprint range, capped
+   * at today for open sprints so we never include future-dated comments. */
+  const sprintCards = useMemo(() => {
+    if (!weeklyOpen || !ctx || !selectedSprint) return []
+    const sprintStart = sprintDayStart(selectedSprint.start)
+    const sprintEnd = sprintDayEnd(selectedSprint.end)
+    const currentId = getCurrentSprint(sortedSprints)?.id ?? null
+    const isOpenCurrent = currentId === selectedSprint.id
+    const rangeEnd = isOpenCurrent
+      ? new Date(Math.min(sprintEnd.getTime(), nowEndOfDay().getTime()))
+      : sprintEnd
+    return buildWeeklyProgressCards(
+      scopedItems,
+      weeklyPersonRoster,
+      sprintStart,
+      ctx.jiraBaseUrl,
+      { start: sprintStart, end: rangeEnd },
+    )
+  }, [
+    weeklyOpen,
+    ctx,
+    selectedSprint,
+    sortedSprints,
+    scopedItems,
+    weeklyPersonRoster,
+  ])
+
   const handleSetWeeklyMisc = useCallback(
     (weekMondayKey: string, personName: string, lines: WeeklyMiscLine[]) => {
       if (!ctx?.teamId) return
@@ -1043,6 +1071,9 @@ export function Dashboard() {
                     )
                 : undefined
             }
+            sprintCards={sprintCards}
+            sprintLabel={selectedSprint?.name}
+            sprintFilenameKey={selectedSprint?.id}
           />
         </div>
       ) : null}

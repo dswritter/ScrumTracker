@@ -27,6 +27,12 @@ export type WeeklyReportMeta = {
   weekLabel: string
   teamName?: string
   scopeLabel?: string
+  /** Heading shown at top of the document; defaults to "Weekly progress report". */
+  reportTitle?: string
+  /** Prefix label before weekLabel; defaults to "Week:". Used to say "Sprint:" for sprint exports. */
+  rangeLabelPrefix?: string
+  /** Filename prefix; defaults to "weekly-report". */
+  filenamePrefix?: string
 }
 
 export type WeeklyReportExportOptions = {
@@ -172,25 +178,6 @@ function pushConsolidatedItemDocx(
     }),
   )
 
-  children.push(
-    new Paragraph({
-      spacing: { after: 80 },
-      children: [
-        new ExternalHyperlink({
-          link: taskUrl,
-          children: [
-            new TextRun({
-              text: taskUrl,
-              style: 'Hyperlink',
-              size: 16,
-              color: '64748B',
-            }),
-          ],
-        }),
-      ],
-    }),
-  )
-
   if (c.jiraResolvedStampKey) {
     const j = c.jiraLinks.find((x) => x.key === c.jiraResolvedStampKey)
     if (j?.href && j.href !== '#') {
@@ -315,11 +302,16 @@ export async function downloadWeeklyProgressDocx(
   const children: (Paragraph | Table)[] = [
     new Paragraph({
       heading: HeadingLevel.TITLE,
-      children: [new TextRun({ text: 'Weekly progress report' })],
+      children: [
+        new TextRun({ text: meta.reportTitle || 'Weekly progress report' }),
+      ],
     }),
     new Paragraph({
       children: [
-        new TextRun({ text: `Week: ${meta.weekLabel}`, bold: true }),
+        new TextRun({
+          text: `${meta.rangeLabelPrefix || 'Week:'} ${meta.weekLabel}`,
+          bold: true,
+        }),
       ],
     }),
   ]
@@ -399,7 +391,8 @@ export async function downloadWeeklyProgressDocx(
     sections: [{ children }],
   })
   const blob = await Packer.toBlob(doc)
-  const name = `weekly-report-${sanitizeFilenamePart(weekKeyForName)}.docx`
+  const namePrefix = meta.filenamePrefix || 'weekly-report'
+  const name = `${namePrefix}-${sanitizeFilenamePart(weekKeyForName)}.docx`
   triggerDownload(blob, name)
 }
 
@@ -603,14 +596,6 @@ export function downloadWeeklyProgressPdf(
         text: c.itemTitle.trim() || '(untitled)',
         linkUrl: taskUrl,
       })
-      specs.push({
-        indent: 0,
-        size: 7,
-        bold: false,
-        text: taskUrl,
-        linkUrl: taskUrl,
-        textColor: [75, 85, 99],
-      })
       if (c.jiraResolvedStampKey) {
         const j = c.jiraLinks.find((x) => x.key === c.jiraResolvedStampKey)
         const t =
@@ -676,7 +661,7 @@ export function downloadWeeklyProgressPdf(
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(0, 0, 0)
   const titleLines = doc.splitTextToSize(
-    'Weekly progress report',
+    meta.reportTitle || 'Weekly progress report',
     titleMaxW,
   ) as string[]
   let yTitle = margin + 14
@@ -707,6 +692,7 @@ export function downloadWeeklyProgressPdf(
     drawSpecs(specs, rgb)
   }
 
-  const name = `weekly-report-${sanitizeFilenamePart(weekKeyForName)}.pdf`
+  const namePrefix = meta.filenamePrefix || 'weekly-report'
+  const name = `${namePrefix}-${sanitizeFilenamePart(weekKeyForName)}.pdf`
   doc.save(name)
 }
