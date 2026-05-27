@@ -572,6 +572,14 @@ export function Dashboard() {
     [selectedSprint, ctx?.teamName, scope, sortedSprints],
   )
 
+  const sprintExportCalendarRange = useMemo(() => {
+    if (!selectedSprint) return undefined
+    return {
+      start: sprintDayStart(selectedSprint.start),
+      end: sprintDayEnd(selectedSprint.end),
+    }
+  }, [selectedSprint])
+
   const handleExportSprintDocx = useCallback(async () => {
     if (!sprintBundles.length || !selectedSprint) return
     await downloadWeeklyProgressDocx(
@@ -579,9 +587,12 @@ export function Dashboard() {
       sprintReportMeta,
       window.location.origin,
       selectedSprint.id,
-      { weekMondayKey: selectedSprint.start },
+      {
+        weekMondayKey: selectedSprint.start,
+        calendarRange: sprintExportCalendarRange,
+      },
     )
-  }, [sprintBundles, sprintReportMeta, selectedSprint])
+  }, [sprintBundles, sprintReportMeta, selectedSprint, sprintExportCalendarRange])
 
   const handleExportSprintPdf = useCallback(() => {
     if (!sprintBundles.length || !selectedSprint) return
@@ -590,9 +601,12 @@ export function Dashboard() {
       sprintReportMeta,
       window.location.origin,
       selectedSprint.id,
-      { weekMondayKey: selectedSprint.start },
+      {
+        weekMondayKey: selectedSprint.start,
+        calendarRange: sprintExportCalendarRange,
+      },
     )
-  }, [sprintBundles, sprintReportMeta, selectedSprint])
+  }, [sprintBundles, sprintReportMeta, selectedSprint, sprintExportCalendarRange])
 
   const handleSetWeeklyMisc = useCallback(
     (weekMondayKey: string, personName: string, lines: WeeklyMiscLine[]) => {

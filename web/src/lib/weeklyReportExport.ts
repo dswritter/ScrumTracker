@@ -39,6 +39,10 @@ export type WeeklyReportExportOptions = {
   /** Monday key (YYYY-MM-DD) matching weekly UI */
   weekMondayKey: string
   weeklyMiscChecklists?: WeeklyMiscChecklist[]
+  /** Inclusive [start, end] window to highlight in the PDF mini-calendar. End is
+   * automatically capped at today, so mid-sprint or mid-week exports never
+   * highlight future days. Defaults to the Mon–Fri of `weekMondayKey`. */
+  calendarRange?: { start: Date; end: Date }
 }
 
 /** Light fills aligned with weekly card shell tints (DOCX hex without #). */
@@ -403,20 +407,18 @@ function dateOnlyKey(d: Date): string {
   return `${y}-${m}-${da}`
 }
 
-/** Top-right mini month grid; highlights Mon–Fri of the report week. Returns total height used. */
-function drawPdfWeekCalendar(
+/** Top-right mini month grid; highlights every day from range.start through range.end.
+ * Caller is responsible for capping range.end at today before calling. Returns total height used. */
+function drawPdfRangeCalendar(
   doc: jsPDF,
-  weekMondayKey: string,
+  range: { start: Date; end: Date },
   anchorRight: number,
   topY: number,
 ): number {
-  const mon = parseMondayKey(weekMondayKey)
-  const fri = new Date(mon)
-  fri.setDate(fri.getDate() + 4)
-  const monKey = dateOnlyKey(mon)
-  const friKey = dateOnlyKey(fri)
-  const calYear = mon.getFullYear()
-  const calMonth = mon.getMonth()
+  const startKey = dateOnlyKey(range.start)
+  const endKey = dateOnlyKey(range.end)
+  const calYear = range.start.getFullYear()
+  const calMonth = range.start.getMonth()
   const first = new Date(calYear, calMonth, 1)
   const firstDow = first.getDay()
   const startOffset = (firstDow + 6) % 7
@@ -433,7 +435,7 @@ function drawPdfWeekCalendar(
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(8)
   doc.setTextColor(0, 100, 55)
-  const monthTitle = mon.toLocaleString(undefined, {
+  const monthTitle = range.start.toLocaleString(undefined, {
     month: 'short',
     year: 'numeric',
   })
@@ -453,10 +455,10 @@ function drawPdfWeekCalendar(
       d.setDate(d.getDate() + idx)
       const inMonth = d.getMonth() === calMonth
       const dk = dateOnlyKey(d)
-      const inWorkWeek = dk >= monKey && dk <= friKey
+      const inRange = dk >= startKey && dk <= endKey
       const x = x0 + c * cell
       const yCell = topY + titleBand + labelRow + 4 + r * cell
-      if (inWorkWeek) {
+      if (inRange) {
         doc.setFillColor(198, 242, 212)
       } else {
         doc.setFillColor(248, 250, 252)
@@ -465,9 +467,9 @@ function drawPdfWeekCalendar(
       doc.setDrawColor(200, 200, 210)
       doc.rect(x + 0.5, yCell - 1, cell - 1, cell - 2, 'S')
       doc.setTextColor(
-        inMonth ? (inWorkWeek ? 15 : 55) : 170,
-        inMonth ? (inWorkWeek ? 85 : 55) : 175,
-        inMonth ? (inWorkWeek ? 50 : 55) : 180,
+        inMonth ? (inRange ? 15 : 55) : 170,
+        inMonth ? (inRange ? 85 : 55) : 175,
+        inMonth ? (inRange ? 50 : 55) : 180,
       )
       doc.text(String(d.getDate()), x + cell / 2, yCell + cell / 2 - 2, {
         align: 'center',
@@ -529,54 +531,88 @@ export function downloadWeeklyProgressPdf(
     }
   }
 
-  function measureSpecs(specs: PdfLineSpec[]): number {
-    let total = 0
-    for (const s of specs) {
-      doc.setFontSize(s.size)
-      doc.setFont('helvetica', s.bold ? 'bold' : 'normal')
-      const w = Math.max(40, innerW - s.indent)
-      const split = doc.splitTextToSize(s.text, w) as string[]
-      total += split.length * lineH
-    }
-    return total
-  }
-
   function drawSpecs(specs: PdfLineSpec[], rgb: [number, number, number]) {
     const padV = 12
-    const contentH = measureSpecs(specs)
-    const blockH = contentH + padV * 2
-    ensureSpace(blockH + 14)
-    const y0 = y
-    doc.setFillColor(rgb[0], rgb[1], rgb[2])
-    doc.roundedRect(margin, y0 - 4, maxW, blockH + 8, 8, 8, 'F')
-    doc.setDrawColor(160, 175, 190)
-    doc.setLineWidth(0.6)
-    doc.roundedRect(margin, y0 - 4, maxW, blockH + 8, 8, 8, 'S')
-    doc.setLineWidth(1)
-    y = y0 + padV
-
+    /** Flatten specs into per-line records so we can paginate after wrapping. */
+    type FlatLine = {
+      text: string
+      size: number
+      bold: boolean
+      indent: number
+      linkUrl?: string
+      textColor?: [number, number, number]
+    }
+    const flat: FlatLine[] = []
     for (const s of specs) {
       doc.setFontSize(s.size)
       doc.setFont('helvetica', s.bold ? 'bold' : 'normal')
       const w = Math.max(40, innerW - s.indent)
-      const x = ix + s.indent
       const split = doc.splitTextToSize(s.text, w) as string[]
-      const tc = s.textColor ?? [0, 0, 0]
-      doc.setTextColor(tc[0], tc[1], tc[2])
-      for (let i = 0; i < split.length; i++) {
-        const line = split[i]!
-        ensureSpace(lineH)
-        doc.text(line, x, y)
-        if (s.linkUrl) {
-          const tw = doc.getTextWidth(line)
-          doc.link(x, y - s.size + 2, tw, lineH + 2, { url: s.linkUrl })
+      for (const line of split) {
+        flat.push({
+          text: line,
+          size: s.size,
+          bold: s.bold,
+          indent: s.indent,
+          linkUrl: s.linkUrl,
+          textColor: s.textColor,
+        })
+      }
+    }
+    if (flat.length === 0) return
+
+    /** Walk the line buffer one page-fitting chunk at a time. For each chunk we
+     * paint the colored background to exactly cover its lines, then render the
+     * text. When more lines remain we addPage and repeat so continuation pages
+     * keep the same tinted card look as the first. */
+    let i = 0
+    while (i < flat.length) {
+      const availableForContent = pageH - margin - y - padV * 2 - 8
+      if (availableForContent < lineH) {
+        doc.addPage()
+        y = margin
+        continue
+      }
+      const maxFit = Math.floor(availableForContent / lineH)
+      const chunkLines = Math.min(maxFit, flat.length - i)
+      const chunkH = chunkLines * lineH
+      const blockH = chunkH + padV * 2
+
+      const y0 = y
+      doc.setFillColor(rgb[0], rgb[1], rgb[2])
+      doc.roundedRect(margin, y0 - 4, maxW, blockH + 8, 8, 8, 'F')
+      doc.setDrawColor(160, 175, 190)
+      doc.setLineWidth(0.6)
+      doc.roundedRect(margin, y0 - 4, maxW, blockH + 8, 8, 8, 'S')
+      doc.setLineWidth(1)
+      y = y0 + padV
+
+      for (let j = 0; j < chunkLines; j++) {
+        const ln = flat[i + j]!
+        doc.setFontSize(ln.size)
+        doc.setFont('helvetica', ln.bold ? 'bold' : 'normal')
+        const x = ix + ln.indent
+        const tc = ln.textColor ?? [0, 0, 0]
+        doc.setTextColor(tc[0], tc[1], tc[2])
+        doc.text(ln.text, x, y)
+        if (ln.linkUrl) {
+          const tw = doc.getTextWidth(ln.text)
+          doc.link(x, y - ln.size + 2, tw, lineH + 2, { url: ln.linkUrl })
         }
         y += lineH
       }
+
+      i += chunkLines
+      if (i < flat.length) {
+        doc.addPage()
+        y = margin
+      } else {
+        y = y0 + blockH + 14
+      }
     }
+
     doc.setTextColor(0, 0, 0)
     doc.setFont('helvetica', 'normal')
-    y = y0 + blockH + 14
   }
 
   function buildMemberSpecs(
@@ -654,7 +690,27 @@ export function downloadWeeklyProgressPdf(
     return specs
   }
 
-  const calH = drawPdfWeekCalendar(doc, weekKeyForName, pageW - margin, margin)
+  const calRange = (() => {
+    const today = new Date()
+    const todayMs = today.getTime()
+    if (opts?.calendarRange) {
+      const end =
+        opts.calendarRange.end.getTime() > todayMs
+          ? today
+          : opts.calendarRange.end
+      return { start: opts.calendarRange.start, end }
+    }
+    const mon = parseMondayKey(weekMondayKey)
+    const fri = new Date(mon)
+    fri.setDate(fri.getDate() + 4)
+    return { start: mon, end: fri.getTime() > todayMs ? today : fri }
+  })()
+  const calH = drawPdfRangeCalendar(
+    doc,
+    calRange,
+    pageW - margin,
+    margin,
+  )
   const calW = 7 * 13 + 6
   const titleMaxW = Math.max(160, maxW - calW - 16)
   doc.setFontSize(16)
