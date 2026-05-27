@@ -400,9 +400,16 @@ function normalizeJiraSprintRows(jiraSprintObjs) {
       ) {
         const idM = t.match(/\bid=(\d+)/)
         const nameM = t.match(/\bname=([^,[\]]+)/)
+        const startM = t.match(/\bstartDate=([^,[\]]+)/)
+        const endM = t.match(/\bendDate=([^,[\]]+)/)
         if (idM) {
           const nm = nameM ? nameM[1].trim() : `Sprint ${idM[1]}`
-          out.push({ id: idM[1], name: nm })
+          const row = { id: idM[1], name: nm }
+          const sd = startM ? startM[1].trim() : ''
+          const ed = endM ? endM[1].trim() : ''
+          if (sd && sd !== '<null>') row.startDate = sd
+          if (ed && ed !== '<null>') row.endDate = ed
+          out.push(row)
           continue
         }
       }
