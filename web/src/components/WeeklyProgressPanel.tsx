@@ -1,5 +1,4 @@
 import {
-  Fragment,
   useCallback,
   useEffect,
   useMemo,
@@ -16,11 +15,14 @@ import {
   weeklyCardHasExportableContent,
 } from '../lib/weeklyReportExport'
 import {
-  buildBulletTree,
+  blocksFromBulletLines,
   bundleWeeklyProgressByPerson,
+  isCommentHeading,
   isCommentSeparator,
+  isCommentTable,
   workStatusLabel,
   weeklyProgressPersonKey,
+  type CommentBlock,
   type WeeklyProgressCard,
   type WeeklyProgressPersonBundle,
   type BulletTreeNode,
@@ -170,32 +172,89 @@ function CommentBulletTreeView({
   )
 }
 
-/** Splits separators; renders each segment as a nested Jira-like bullet list (disc → circle → disc…). */
-function WeeklyCommentBody({ lines }: { lines: WeeklyProgressCard['bulletLines'] }) {
-  const segments: Array<Array<{ depth: number; text: string }>> = []
-  let cur: Array<{ depth: number; text: string }> = []
-  for (const L of lines) {
-    if (isCommentSeparator(L)) {
-      if (cur.length) segments.push(cur)
-      cur = []
-    } else {
-      cur.push(L)
-    }
-  }
-  if (cur.length) segments.push(cur)
+function CommentHeading({ level, text }: { level: number; text: string }) {
+  const base = 'whitespace-pre-wrap break-words text-slate-800 dark:text-slate-100'
+  const cls =
+    level <= 2
+      ? `mb-1 mt-2 text-sm font-bold ${base}`
+      : level === 3
+        ? `mb-1 mt-2 text-sm font-semibold ${base}`
+        : `mb-0.5 mt-1.5 text-xs font-semibold uppercase tracking-wide text-slate-700 dark:text-slate-200`
+  return <div className={cls}>{text}</div>
+}
 
+function CommentTable({
+  headers,
+  rows,
+}: {
+  headers: string[]
+  rows: string[][]
+}) {
+  const colCount = Math.max(headers.length, ...rows.map((r) => r.length), 1)
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full border-collapse text-[11px] leading-snug">
+        {headers.length ? (
+          <thead>
+            <tr>
+              {Array.from({ length: colCount }).map((_, i) => (
+                <th
+                  key={i}
+                  className="border border-slate-300 bg-slate-100 px-2 py-1 text-left font-semibold text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                >
+                  {headers[i] ?? ''}
+                </th>
+              ))}
+            </tr>
+          </thead>
+        ) : null}
+        <tbody>
+          {rows.map((row, ri) => (
+            <tr
+              key={ri}
+              className={
+                ri % 2 === 1
+                  ? 'bg-slate-50/70 dark:bg-slate-800/40'
+                  : undefined
+              }
+            >
+              {Array.from({ length: colCount }).map((_, ci) => (
+                <td
+                  key={ci}
+                  className="whitespace-nowrap border border-slate-200 px-2 py-1 font-mono text-[11px] text-slate-700 dark:border-slate-700 dark:text-slate-200"
+                >
+                  {row[ci] ?? ''}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+/** Renders the comment as a mix of bullet trees, headings, and tables (Jira wiki). */
+function WeeklyCommentBody({ lines }: { lines: WeeklyProgressCard['bulletLines'] }) {
+  const blocks: CommentBlock[] = blocksFromBulletLines(lines)
   return (
     <div className="space-y-2">
-      {segments.map((seg, si) => {
-        const tree = buildBulletTree(seg)
-        return (
-          <Fragment key={si}>
-            {si > 0 ? (
-              <hr className="my-2 border-slate-200/80 dark:border-slate-600/60" />
-            ) : null}
-            <CommentBulletTreeView nodes={tree} />
-          </Fragment>
-        )
+      {blocks.map((b, i) => {
+        if (b.kind === 'separator') {
+          return (
+            <hr
+              key={i}
+              className="my-2 border-slate-200/80 dark:border-slate-600/60"
+            />
+          )
+        }
+        if (b.kind === 'heading') {
+          return <CommentHeading key={i} level={b.level} text={b.text} />
+        }
+        if (b.kind === 'table') {
+          return <CommentTable key={i} headers={b.headers} rows={b.rows} />
+        }
+        return <CommentBulletTreeView key={i} nodes={b.tree} />
       })}
     </div>
   )
@@ -344,9 +403,16 @@ function filterWeeklyCards(
       workStatusLabel(c.itemStatus),
       c.jiraStatusName ?? '',
       c.jiraResolvedStampKey ?? '',
-      ...c.bulletLines.map((bl) =>
-        isCommentSeparator(bl) ? '' : bl.text,
-      ),
+      ...c.bulletLines.map((bl) => {
+        if (isCommentSeparator(bl)) return ''
+        if (isCommentHeading(bl)) return bl.heading.text
+        if (isCommentTable(bl))
+          return [
+            ...bl.table.headers,
+            ...bl.table.rows.flatMap((r) => r),
+          ].join(' ')
+        return bl.text
+      }),
       ...c.jiraLinks.map((j) => j.key),
     ]
       .join('\n')

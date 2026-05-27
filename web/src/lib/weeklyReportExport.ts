@@ -14,8 +14,11 @@ import {
 import { jsPDF } from 'jspdf'
 import { itemDetailPath } from './workItemRoutes'
 import {
+  blocksFromBulletLines,
   buildBulletTree,
+  isCommentHeading,
   isCommentSeparator,
+  isCommentTable,
   parseMondayKey,
   type BulletTreeNode,
   type WeeklyProgressCard,
@@ -67,6 +70,9 @@ const MEMBER_SECTION_PDF_RGB: Array<[number, number, number]> = [
   [254, 243, 199],
 ]
 
+/** PDF fallback path: collapses headings and tables into plain depth-0 bullets so
+ * the existing bullet renderer still produces a readable result. Used by the PDF
+ * renderer until it grows native heading/table support. */
 function segmentsFromBulletLines(
   lines: WeeklyProgressCard['bulletLines'],
 ): Array<Array<{ depth: number; text: string }>> {
@@ -76,9 +82,22 @@ function segmentsFromBulletLines(
     if (isCommentSeparator(L)) {
       if (cur.length) segments.push(cur)
       cur = []
-    } else {
-      cur.push(L)
+      continue
     }
+    if (isCommentHeading(L)) {
+      cur.push({ depth: 0, text: L.heading.text })
+      continue
+    }
+    if (isCommentTable(L)) {
+      if (L.table.headers.length) {
+        cur.push({ depth: 0, text: L.table.headers.join(' | ') })
+      }
+      for (const row of L.table.rows) {
+        cur.push({ depth: 0, text: row.join(' | ') })
+      }
+      continue
+    }
+    cur.push(L)
   }
   if (cur.length) segments.push(cur)
   return segments
@@ -88,7 +107,16 @@ function segmentsFromBulletLines(
 export function weeklyCardHasExportableContent(c: WeeklyProgressCard): boolean {
   if (c.jiraResolvedStampKey) return true
   for (const L of c.bulletLines) {
-    if (!isCommentSeparator(L) && L.text.trim()) return true
+    if (isCommentSeparator(L)) continue
+    if (isCommentHeading(L)) {
+      if (L.heading.text.trim()) return true
+      continue
+    }
+    if (isCommentTable(L)) {
+      if (L.table.headers.length || L.table.rows.length) return true
+      continue
+    }
+    if (L.text.trim()) return true
   }
   return false
 }
@@ -129,6 +157,81 @@ function bulletTreeToDocxParagraphs(
   return out
 }
 
+function commentHeadingDocx(level: number, text: string): Paragraph {
+  const heading =
+    level <= 2
+      ? HeadingLevel.HEADING_3
+      : level === 3
+        ? HeadingLevel.HEADING_4
+        : HeadingLevel.HEADING_5
+  return new Paragraph({
+    heading,
+    spacing: { before: 120, after: 60 },
+    children: [new TextRun({ text })],
+  })
+}
+
+function commentTableDocx(
+  headers: string[],
+  rows: string[][],
+): Table {
+  const colCount = Math.max(
+    headers.length,
+    ...rows.map((r) => r.length),
+    1,
+  )
+  const border = {
+    top: { style: BorderStyle.SINGLE, size: 4, color: '94A3B8' },
+    bottom: { style: BorderStyle.SINGLE, size: 4, color: '94A3B8' },
+    left: { style: BorderStyle.SINGLE, size: 4, color: '94A3B8' },
+    right: { style: BorderStyle.SINGLE, size: 4, color: '94A3B8' },
+  }
+  const mkCell = (
+    text: string,
+    opts?: { header?: boolean },
+  ): TableCell =>
+    new TableCell({
+      borders: border,
+      shading: opts?.header ? { fill: 'E2E8F0' } : undefined,
+      children: [
+        new Paragraph({
+          children: [
+            new TextRun({
+              text,
+              bold: !!opts?.header,
+              size: 18,
+              font: opts?.header ? undefined : 'Consolas',
+            }),
+          ],
+        }),
+      ],
+    })
+  const docxRows: TableRow[] = []
+  if (headers.length) {
+    docxRows.push(
+      new TableRow({
+        tableHeader: true,
+        children: Array.from({ length: colCount }).map((_, i) =>
+          mkCell(headers[i] ?? '', { header: true }),
+        ),
+      }),
+    )
+  }
+  for (const row of rows) {
+    docxRows.push(
+      new TableRow({
+        children: Array.from({ length: colCount }).map((_, i) =>
+          mkCell(row[i] ?? ''),
+        ),
+      }),
+    )
+  }
+  return new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    rows: docxRows,
+  })
+}
+
 function bulletTreeToPdfLines(nodes: BulletTreeNode[], depth: number): string[] {
   const lines: string[] = []
   for (const n of nodes) {
@@ -162,7 +265,7 @@ function triggerDownload(blob: Blob, filename: string) {
 }
 
 function pushConsolidatedItemDocx(
-  children: Paragraph[],
+  children: (Paragraph | Table)[],
   c: WeeklyProgressCard,
   origin: string,
 ): void {
@@ -216,17 +319,23 @@ function pushConsolidatedItemDocx(
     }
   }
 
-  const segments = segmentsFromBulletLines(c.bulletLines)
-  for (let si = 0; si < segments.length; si++) {
-    if (si > 0) {
+  const blocks = blocksFromBulletLines(c.bulletLines)
+  for (const b of blocks) {
+    if (b.kind === 'separator') {
       children.push(
         new Paragraph({
           children: [new TextRun({ text: '—', italics: true, size: 18 })],
         }),
       )
+    } else if (b.kind === 'heading') {
+      children.push(commentHeadingDocx(b.level, b.text))
+    } else if (b.kind === 'table') {
+      children.push(commentTableDocx(b.headers, b.rows))
+      /** Trailing empty paragraph: docx tables collapse together when adjacent. */
+      children.push(new Paragraph({ children: [] }))
+    } else {
+      children.push(...bulletTreeToDocxParagraphs(b.tree, 0))
     }
-    const tree = buildBulletTree(segments[si]!)
-    children.push(...bulletTreeToDocxParagraphs(tree, 0))
   }
 
   if (c.jiraLinks.length > 0) {
@@ -264,7 +373,10 @@ function pushConsolidatedItemDocx(
   children.push(new Paragraph({ children: [] }))
 }
 
-function pushMiscDocx(children: Paragraph[], lines: WeeklyMiscLine[]): void {
+function pushMiscDocx(
+  children: (Paragraph | Table)[],
+  lines: WeeklyMiscLine[],
+): void {
   if (lines.length === 0) return
   children.push(
     new Paragraph({
@@ -352,7 +464,7 @@ export async function downloadWeeklyProgressDocx(
     const fill = MEMBER_SECTION_DOCX_FILLS[memberIdx % MEMBER_SECTION_DOCX_FILLS.length]!
     memberIdx++
 
-    const inner: Paragraph[] = [
+    const inner: (Paragraph | Table)[] = [
       new Paragraph({
         spacing: { after: 160 },
         children: [new TextRun({ text: b.personName, bold: true, size: 28 })],

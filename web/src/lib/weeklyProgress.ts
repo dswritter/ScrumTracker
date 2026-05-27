@@ -17,11 +17,37 @@ export function workStatusLabel(s: WorkStatus): string {
 export type CommentBulletLine =
   | { depth: number; text: string }
   | { separator: true }
+  | { heading: { level: number; text: string } }
+  | { table: { headers: string[]; rows: string[][] } }
 
 export function isCommentSeparator(
   line: CommentBulletLine,
 ): line is { separator: true } {
   return 'separator' in line && line.separator === true
+}
+
+export function isCommentHeading(
+  line: CommentBulletLine,
+): line is { heading: { level: number; text: string } } {
+  return 'heading' in line
+}
+
+export function isCommentTable(
+  line: CommentBulletLine,
+): line is { table: { headers: string[]; rows: string[][] } } {
+  return 'table' in line
+}
+
+/** Strip the common JIRA inline-markup wrappers from a cell or heading.
+ * Limited to wrappers that rarely conflict with content; strikethrough is
+ * skipped because its `-text-` form collides too easily with hyphens in real text. */
+function stripWikiInline(s: string): string {
+  let r = s
+  r = r.replace(/\{\{([^}]+)\}\}/g, '$1')
+  r = r.replace(/\*([^*\n]+)\*/g, '$1')
+  r = r.replace(/_([^_\n]+)_/g, '$1')
+  r = r.replace(/\+([^+\n]+)\+/g, '$1')
+  return r.trim()
 }
 
 export type WeeklyProgressCard = {
@@ -214,10 +240,67 @@ export function buildBulletTree(
 export function bulletLinesFromBody(body: string): CommentBulletLine[] {
   const raw = body.split(/\r?\n/)
   const out: CommentBulletLine[] = []
+  /** Buffer for consecutive table rows so a JIRA wiki table renders as one block. */
+  let tableBuf: string[][] | null = null
+  let tableHasHeader = false
+  const flushTable = () => {
+    if (!tableBuf || tableBuf.length === 0) {
+      tableBuf = null
+      tableHasHeader = false
+      return
+    }
+    const rows = tableBuf
+    tableBuf = null
+    const hadHeader = tableHasHeader
+    tableHasHeader = false
+    const headers = hadHeader ? rows[0]! : []
+    const bodyRows = hadHeader ? rows.slice(1) : rows
+    out.push({ table: { headers, rows: bodyRows } })
+  }
+
   for (const line of raw) {
     const trimmedEnd = line.trimEnd()
     const t = trimmedEnd.trim()
-    if (!t) continue
+    if (!t) {
+      flushTable()
+      continue
+    }
+
+    if (t.startsWith('||')) {
+      const inner = t.endsWith('||') ? t.slice(2, -2) : t.slice(2)
+      const cells = inner.split('||').map((c) => stripWikiInline(c.trim()))
+      if (!tableBuf) {
+        tableBuf = [cells]
+        tableHasHeader = true
+      } else {
+        tableBuf.push(cells)
+      }
+      continue
+    }
+    if (t.startsWith('|')) {
+      const inner = t.endsWith('|') ? t.slice(1, -1) : t.slice(1)
+      const cells = inner.split('|').map((c) => stripWikiInline(c.trim()))
+      if (!tableBuf) {
+        tableBuf = [cells]
+      } else {
+        tableBuf.push(cells)
+      }
+      continue
+    }
+
+    flushTable()
+
+    const headingM = t.match(/^h([1-6])\.\s+(.*)$/)
+    if (headingM) {
+      out.push({
+        heading: {
+          level: Number(headingM[1]),
+          text: stripWikiInline(headingM[2]!),
+        },
+      })
+      continue
+    }
+
     if (t === '—' || t === '---') {
       out.push({ separator: true })
       continue
@@ -237,7 +320,54 @@ export function bulletLinesFromBody(body: string): CommentBulletLine[] {
     }
     out.push({ depth: 0, text: t })
   }
+  flushTable()
   if (out.length === 0) return [{ depth: 0, text: '(empty)' }]
+  return out
+}
+
+/** Block-level view of a parsed comment body. Bullet runs are grouped into
+ * a single block and pre-built into a tree; headings, tables, and separators
+ * become their own blocks. Use this from rich renderers (UI, DOCX).
+ * Plain-text renderers (current PDF) can continue using `segmentsFromBulletLines`. */
+export type CommentBlock =
+  | { kind: 'bullets'; tree: BulletTreeNode[] }
+  | { kind: 'heading'; level: number; text: string }
+  | { kind: 'table'; headers: string[]; rows: string[][] }
+  | { kind: 'separator' }
+
+export function blocksFromBulletLines(
+  lines: CommentBulletLine[],
+): CommentBlock[] {
+  const out: CommentBlock[] = []
+  let bulletBuf: Array<{ depth: number; text: string }> = []
+  const flushBullets = () => {
+    if (bulletBuf.length === 0) return
+    out.push({ kind: 'bullets', tree: buildBulletTree(bulletBuf) })
+    bulletBuf = []
+  }
+  for (const L of lines) {
+    if (isCommentSeparator(L)) {
+      flushBullets()
+      out.push({ kind: 'separator' })
+    } else if (isCommentHeading(L)) {
+      flushBullets()
+      out.push({
+        kind: 'heading',
+        level: L.heading.level,
+        text: L.heading.text,
+      })
+    } else if (isCommentTable(L)) {
+      flushBullets()
+      out.push({
+        kind: 'table',
+        headers: L.table.headers,
+        rows: L.table.rows,
+      })
+    } else {
+      bulletBuf.push(L)
+    }
+  }
+  flushBullets()
   return out
 }
 
