@@ -474,10 +474,16 @@ function upsertSprintsFromJiraObjects(sprints, jiraSprintObjs) {
       typeof js.name === 'string' && js.name.trim() ? js.name.trim() : `Sprint ${js.id}`
     let start = ymdFromJiraDate(js.startDate) || ymdFromJiraDate(js.start)
     let end = ymdFromJiraDate(js.endDate) || ymdFromJiraDate(js.end)
-    if (!start) start = new Date().toISOString().slice(0, 10)
-    if (!end) end = addDaysYmd(start, 14)
 
     const idx = out.findIndex((s) => s.id === sid)
+    const existing = idx >= 0 ? out[idx] : null
+    /** Preserve previously-stored dates when JIRA returns the sprint without them
+     * (older JIRA installs surface the Sprint field as bare ids or `{value}` envelopes
+     * that carry no startDate/endDate). Falling back to today would clobber every
+     * sprint touched in a single sync with the same artificial date range. */
+    if (!start) start = existing?.start || new Date().toISOString().slice(0, 10)
+    if (!end) end = existing?.end || addDaysYmd(start, 14)
+
     const row = { id: sid, name, start, end }
     if (idx >= 0) {
       out[idx] = { ...out[idx], ...row }
