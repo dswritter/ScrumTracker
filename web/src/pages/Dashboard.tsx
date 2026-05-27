@@ -841,11 +841,11 @@ export function Dashboard() {
   }
 
   const chartAside = (
-    <aside className="order-2 w-full max-w-full space-y-3 xl:order-1 xl:flex xl:max-w-[20rem] xl:flex-col xl:gap-3 xl:space-y-0 xl:self-start xl:pr-1">
+    <aside className="order-2 w-full max-w-full space-y-3 xl:order-1 xl:flex xl:max-w-[20rem] xl:flex-col xl:gap-3 xl:space-y-0 xl:sticky xl:top-24 xl:max-h-[calc(100vh-6rem)] xl:min-h-0 xl:overflow-y-auto xl:overscroll-contain xl:pr-1">
       {sortedSprints.length > 0 ? (
         <div className="hidden shrink-0 xl:block">{renderScopeCard('sidebar')}</div>
       ) : null}
-      <div className="space-y-3 xl:sticky xl:top-24 xl:z-0 xl:max-h-[calc(100vh-6rem)] xl:min-h-0 xl:overflow-y-auto xl:overscroll-contain">
+      <div className="space-y-3">
         <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
           <h3 className="mb-0.5 text-center text-[10px] font-bold uppercase tracking-wide text-[#007a3d] dark:text-emerald-300">
             {actsAsAdmin ? 'Team progress' : 'My progress'}
