@@ -92,6 +92,7 @@ export function JiraCreateIssueModal({
   const [requiredFields, setRequiredFields] = useState<JiraRequiredField[]>([])
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, unknown>>({})
   const [loadingReqFields, setLoadingReqFields] = useState(false)
+  const [reqFieldsErr, setReqFieldsErr] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [formErr, setFormErr] = useState<string | null>(null)
 
@@ -107,6 +108,7 @@ export function JiraCreateIssueModal({
     setIssueTypes([])
     setRequiredFields([])
     setCustomFieldValues({})
+    setReqFieldsErr(null)
     let cancelled = false
     ;(async () => {
       setLoadingProjects(true)
@@ -190,11 +192,13 @@ export function JiraCreateIssueModal({
     if (!open || !projectKey || !selectedIssueTypeId) {
       setRequiredFields([])
       setCustomFieldValues({})
+      setReqFieldsErr(null)
       return
     }
     let cancelled = false
     ;(async () => {
       setLoadingReqFields(true)
+      setReqFieldsErr(null)
       const r = await fetchJiraRequiredFields({
         teamId: syncCtx.teamId,
         projectKey,
@@ -205,6 +209,7 @@ export function JiraCreateIssueModal({
       setLoadingReqFields(false)
       if (cancelled) return
       if (!r.ok) {
+        setReqFieldsErr(r.message)
         setRequiredFields([])
         setCustomFieldValues({})
         return
@@ -449,6 +454,11 @@ export function JiraCreateIssueModal({
           {loadingReqFields ? (
             <p className="text-[10px] text-slate-500 dark:text-slate-400">
               Loading required fields…
+            </p>
+          ) : null}
+          {reqFieldsErr ? (
+            <p className="rounded-md border border-rose-200 bg-rose-50 px-2 py-1.5 text-xs text-rose-900 dark:border-rose-900 dark:bg-rose-950/80 dark:text-rose-100">
+              Could not load required fields: {reqFieldsErr}
             </p>
           ) : null}
           {requiredFields.map((rf) => (

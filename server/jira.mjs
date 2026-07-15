@@ -1854,6 +1854,52 @@ export function registerJiraRoutes(app, opts) {
       return
     }
     try {
+      const knownAutoFields = new Set([
+        'project', 'summary', 'issuetype', 'description', 'reporter',
+      ])
+
+      function extractRequiredFields(fieldsObj) {
+        const requiredFields = []
+        for (const [fieldKey, meta] of Object.entries(fieldsObj)) {
+          if (!meta || !meta.required) continue
+          if (knownAutoFields.has(fieldKey)) continue
+          requiredFields.push({
+            key: fieldKey,
+            name: typeof meta.name === 'string' ? meta.name : fieldKey,
+            type: meta.schema?.type ?? 'string',
+            allowedValues: Array.isArray(meta.allowedValues)
+              ? meta.allowedValues.map((v) => ({
+                  id: String(v.id ?? ''),
+                  name: String(v.name ?? v.value ?? v.id ?? ''),
+                  value: v.value ?? undefined,
+                }))
+              : null,
+          })
+        }
+        return requiredFields
+      }
+
+      /** Try newer per-issueType createmeta endpoint first (Jira Cloud + Server 9+). */
+      const newPath = `/rest/api/2/issue/createmeta/${encodeURIComponent(projectKey)}/issuetypes/${encodeURIComponent(issueTypeId)}`
+      const newRes = await jiraGet(conn.jiraBase, conn.pat, newPath)
+      console.log(`[jira required-fields] new API ${newPath} → ${newRes.status}`)
+      if (newRes.ok) {
+        const data = await newRes.json()
+        const values = Array.isArray(data.values) ? data.values : []
+        console.log(`[jira required-fields] new API returned ${values.length} field(s)`)
+        const fieldsObj = {}
+        for (const f of values) {
+          if (f && typeof f.fieldId === 'string') {
+            fieldsObj[f.fieldId] = f
+          }
+        }
+        const requiredFields = extractRequiredFields(fieldsObj)
+        console.log(`[jira required-fields] extracted ${requiredFields.length} required field(s):`, requiredFields.map((f) => f.key))
+        res.json({ requiredFields })
+        return
+      }
+
+      /** Fall back to legacy createmeta with expand (older Jira Server). */
       const q = new URLSearchParams({
         projectKeys: projectKey,
         issuetypeIds: issueTypeId,
@@ -1861,8 +1907,10 @@ export function registerJiraRoutes(app, opts) {
       })
       const metaPath = `/rest/api/2/issue/createmeta?${q}`
       const jiraRes = await jiraGet(conn.jiraBase, conn.pat, metaPath)
+      console.log(`[jira required-fields] legacy API ${metaPath.slice(0, 80)} → ${jiraRes.status}`)
       if (!jiraRes.ok) {
         const t = await jiraRes.text()
+        console.log(`[jira required-fields] legacy API error body:`, t.slice(0, 300))
         res.status(502).json({
           error: `Jira createmeta failed ${jiraRes.status}: ${t.slice(0, 400)}`,
         })
@@ -1874,27 +1922,8 @@ export function registerJiraRoutes(app, opts) {
       const types = Array.isArray(proj?.issuetypes) ? proj.issuetypes : []
       const issueType = types.find((t) => String(t.id) === issueTypeId)
       const fieldsObj = issueType?.fields ?? {}
-      const knownAutoFields = new Set([
-        'project', 'summary', 'issuetype', 'description', 'reporter',
-      ])
-      const requiredFields = []
-      for (const [fieldKey, meta] of Object.entries(fieldsObj)) {
-        if (!meta || !meta.required) continue
-        if (knownAutoFields.has(fieldKey)) continue
-        const entry = {
-          key: fieldKey,
-          name: typeof meta.name === 'string' ? meta.name : fieldKey,
-          type: meta.schema?.type ?? 'string',
-          allowedValues: Array.isArray(meta.allowedValues)
-            ? meta.allowedValues.map((v) => ({
-                id: String(v.id ?? ''),
-                name: String(v.name ?? v.value ?? v.id ?? ''),
-                value: v.value ?? undefined,
-              }))
-            : null,
-        }
-        requiredFields.push(entry)
-      }
+      const requiredFields = extractRequiredFields(fieldsObj)
+      console.log(`[jira required-fields] legacy API extracted ${requiredFields.length} required field(s):`, requiredFields.map((f) => f.key))
       res.json({ requiredFields })
     } catch (e) {
       res.status(502).json({
