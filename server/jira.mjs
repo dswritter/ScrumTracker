@@ -1622,6 +1622,11 @@ export function registerJiraRoutes(app, opts) {
     }
     const { pat, jiraBase } = conn
 
+    const rawCustomFields =
+      req.body?.customFields && typeof req.body.customFields === 'object'
+        ? req.body.customFields
+        : {}
+
     /** @type {Record<string, unknown>} */
     const fields = {
       project: { key: projectKey },
@@ -1630,6 +1635,11 @@ export function registerJiraRoutes(app, opts) {
     }
     if (description) {
       fields.description = description
+    }
+    for (const [k, v] of Object.entries(rawCustomFields)) {
+      if (typeof k === 'string' && k.startsWith('customfield_') && v != null) {
+        fields[k] = v
+      }
     }
 
     try {
@@ -1821,6 +1831,74 @@ export function registerJiraRoutes(app, opts) {
     } catch (e) {
       res.status(502).json({
         error: e instanceof Error ? e.message : 'Jira meta failed',
+      })
+    }
+  })
+
+  app.get('/api/jira/meta/required-fields', requireJiraSecret, async (req, res) => {
+    const teamId = typeof req.query.teamId === 'string' ? req.query.teamId.trim() : ''
+    const projectKey =
+      typeof req.query.projectKey === 'string' ? req.query.projectKey.trim().toUpperCase() : ''
+    const issueTypeId =
+      typeof req.query.issueTypeId === 'string' ? req.query.issueTypeId.trim() : ''
+    const syncMode =
+      req.query.syncMode === 'individual' ? 'individual' : 'admin'
+    const trackerUsername = normalizeTrackerUsername(req.query.trackerUsername)
+    if (!projectKey || !issueTypeId) {
+      res.status(400).json({ error: 'Query projectKey and issueTypeId are required' })
+      return
+    }
+    const conn = await resolvePatAndJiraBase(teamId, syncMode, trackerUsername)
+    if (!conn.ok) {
+      res.status(conn.status).json({ error: conn.error })
+      return
+    }
+    try {
+      const q = new URLSearchParams({
+        projectKeys: projectKey,
+        issuetypeIds: issueTypeId,
+        expand: 'projects.issuetypes.fields',
+      })
+      const metaPath = `/rest/api/2/issue/createmeta?${q}`
+      const jiraRes = await jiraGet(conn.jiraBase, conn.pat, metaPath)
+      if (!jiraRes.ok) {
+        const t = await jiraRes.text()
+        res.status(502).json({
+          error: `Jira createmeta failed ${jiraRes.status}: ${t.slice(0, 400)}`,
+        })
+        return
+      }
+      const data = await jiraRes.json()
+      const projects = Array.isArray(data.projects) ? data.projects : []
+      const proj = projects.find((p) => p && String(p.key).toUpperCase() === projectKey)
+      const types = Array.isArray(proj?.issuetypes) ? proj.issuetypes : []
+      const issueType = types.find((t) => String(t.id) === issueTypeId)
+      const fieldsObj = issueType?.fields ?? {}
+      const knownAutoFields = new Set([
+        'project', 'summary', 'issuetype', 'description', 'reporter',
+      ])
+      const requiredFields = []
+      for (const [fieldKey, meta] of Object.entries(fieldsObj)) {
+        if (!meta || !meta.required) continue
+        if (knownAutoFields.has(fieldKey)) continue
+        const entry = {
+          key: fieldKey,
+          name: typeof meta.name === 'string' ? meta.name : fieldKey,
+          type: meta.schema?.type ?? 'string',
+          allowedValues: Array.isArray(meta.allowedValues)
+            ? meta.allowedValues.map((v) => ({
+                id: String(v.id ?? ''),
+                name: String(v.name ?? v.value ?? v.id ?? ''),
+                value: v.value ?? undefined,
+              }))
+            : null,
+        }
+        requiredFields.push(entry)
+      }
+      res.json({ requiredFields })
+    } catch (e) {
+      res.status(502).json({
+        error: e instanceof Error ? e.message : 'Jira required-fields meta failed',
       })
     }
   })

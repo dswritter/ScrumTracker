@@ -97,6 +97,7 @@ export async function postJiraCreateIssue(body: {
   issueType: string
   summary: string
   description?: string
+  customFields?: Record<string, unknown>
   syncMode?: 'admin' | 'individual'
   trackerUsername?: string
 }) {
@@ -204,6 +205,51 @@ export async function fetchJiraIssueTypesForProject(q: {
     return {
       ok: true,
       issueTypes: Array.isArray(data.issueTypes) ? data.issueTypes : [],
+    }
+  } catch (e) {
+    return {
+      ok: false,
+      message: e instanceof Error ? e.message : 'Request failed',
+    }
+  }
+}
+
+export type JiraRequiredField = {
+  key: string
+  name: string
+  type: string
+  allowedValues: { id: string; name: string; value?: string }[] | null
+}
+
+export async function fetchJiraRequiredFields(q: {
+  teamId: string
+  projectKey: string
+  issueTypeId: string
+  syncMode: 'admin' | 'individual'
+  trackerUsername?: string
+}): Promise<
+  | { ok: true; requiredFields: JiraRequiredField[] }
+  | { ok: false; message: string }
+> {
+  const params = jiraMetaQuery(q.teamId, q.syncMode, q.trackerUsername, {
+    projectKey: q.projectKey,
+    issueTypeId: q.issueTypeId,
+  })
+  try {
+    const res = await syncFetch(`/api/jira/meta/required-fields?${params}`, {
+      headers: jiraHeaders(),
+    })
+    if (!res.ok) {
+      return { ok: false, message: await res.text() }
+    }
+    const data = (await res.json()) as {
+      requiredFields?: JiraRequiredField[]
+    }
+    return {
+      ok: true,
+      requiredFields: Array.isArray(data.requiredFields)
+        ? data.requiredFields
+        : [],
     }
   } catch (e) {
     return {

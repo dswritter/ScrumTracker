@@ -7,7 +7,9 @@ import {
   fetchJiraIssueTypesForProject,
   fetchJiraLookupIssue,
   fetchJiraProjectsForTeam,
+  fetchJiraRequiredFields,
   postJiraCreateIssue,
+  type JiraRequiredField,
 } from '../lib/jiraApi'
 import { bumpJiraProjectUsage, sortJiraProjectsForPicker } from '../lib/jiraProjectSort'
 import { canAddWorkItem, canEditWorkItem } from '../lib/permissions'
@@ -87,6 +89,9 @@ export function JiraCreateIssueModal({
   const [loadingProjects, setLoadingProjects] = useState(false)
   const [loadingTypes, setLoadingTypes] = useState(false)
   const [metaErr, setMetaErr] = useState<string | null>(null)
+  const [requiredFields, setRequiredFields] = useState<JiraRequiredField[]>([])
+  const [customFieldValues, setCustomFieldValues] = useState<Record<string, unknown>>({})
+  const [loadingReqFields, setLoadingReqFields] = useState(false)
   const [busy, setBusy] = useState(false)
   const [formErr, setFormErr] = useState<string | null>(null)
 
@@ -100,6 +105,8 @@ export function JiraCreateIssueModal({
     setProjectKey('')
     setIssueTypeName('')
     setIssueTypes([])
+    setRequiredFields([])
+    setCustomFieldValues({})
     let cancelled = false
     ;(async () => {
       setLoadingProjects(true)
@@ -174,6 +181,48 @@ export function JiraCreateIssueModal({
     }
   }, [open, projectKey, syncCtx.teamId, syncCtx.syncMode, syncCtx.trackerUsername])
 
+  const selectedIssueTypeId = useMemo(
+    () => issueTypes.find((t) => t.name === issueTypeName)?.id ?? '',
+    [issueTypes, issueTypeName],
+  )
+
+  useEffect(() => {
+    if (!open || !projectKey || !selectedIssueTypeId) {
+      setRequiredFields([])
+      setCustomFieldValues({})
+      return
+    }
+    let cancelled = false
+    ;(async () => {
+      setLoadingReqFields(true)
+      const r = await fetchJiraRequiredFields({
+        teamId: syncCtx.teamId,
+        projectKey,
+        issueTypeId: selectedIssueTypeId,
+        syncMode: syncCtx.syncMode,
+        trackerUsername: syncCtx.trackerUsername,
+      })
+      setLoadingReqFields(false)
+      if (cancelled) return
+      if (!r.ok) {
+        setRequiredFields([])
+        setCustomFieldValues({})
+        return
+      }
+      setRequiredFields(r.requiredFields)
+      const defaults: Record<string, unknown> = {}
+      for (const f of r.requiredFields) {
+        if (f.allowedValues && f.allowedValues.length > 0) {
+          defaults[f.key] = { id: f.allowedValues[0].id }
+        }
+      }
+      setCustomFieldValues(defaults)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [open, projectKey, selectedIssueTypeId, syncCtx.teamId, syncCtx.syncMode, syncCtx.trackerUsername])
+
   useEffect(() => {
     if (!canNew && target === 'new') setTarget('existing')
   }, [canNew, target])
@@ -195,12 +244,17 @@ export function JiraCreateIssueModal({
     setFormErr(null)
     setBusy(true)
     try {
+      const customFields =
+        Object.keys(customFieldValues).length > 0
+          ? customFieldValues
+          : undefined
       const res = await postJiraCreateIssue({
         teamId: syncCtx.teamId,
         projectKey,
         issueType: issueTypeName,
         summary: sum,
         description: description.trim() || undefined,
+        customFields,
         syncMode: syncCtx.syncMode,
         trackerUsername: syncCtx.trackerUsername,
       })
@@ -391,6 +445,55 @@ export function JiraCreateIssueModal({
               placeholder="Optional"
             />
           </div>
+
+          {loadingReqFields ? (
+            <p className="text-[10px] text-slate-500 dark:text-slate-400">
+              Loading required fields…
+            </p>
+          ) : null}
+          {requiredFields.map((rf) => (
+            <div key={rf.key}>
+              <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                {rf.name} <span className="text-rose-600">*</span>
+              </label>
+              {rf.allowedValues ? (
+                <select
+                  className={field}
+                  value={
+                    (customFieldValues[rf.key] as { id?: string })?.id ?? ''
+                  }
+                  onChange={(e) =>
+                    setCustomFieldValues((prev) => ({
+                      ...prev,
+                      [rf.key]: { id: e.target.value },
+                    }))
+                  }
+                >
+                  {rf.allowedValues.map((av) => (
+                    <option key={av.id} value={av.id}>
+                      {av.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  className={field}
+                  value={
+                    typeof customFieldValues[rf.key] === 'string'
+                      ? (customFieldValues[rf.key] as string)
+                      : ''
+                  }
+                  onChange={(e) =>
+                    setCustomFieldValues((prev) => ({
+                      ...prev,
+                      [rf.key]: e.target.value,
+                    }))
+                  }
+                  placeholder={rf.name}
+                />
+              )}
+            </div>
+          ))}
 
           <div className="flex justify-end gap-2 pt-2 pb-1">
             <button
