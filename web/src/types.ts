@@ -192,6 +192,8 @@ export interface TrackerUserAccount {
    * Never store the actual password here.
    */
   passwordHint?: string
+  /** When true, the login flow will not prompt for a password hint. */
+  hintDismissed?: boolean
   /** Optional Slack DM / archive URL (admin-editable; same rules as team map). */
   slackChatUrl?: string
   /** userId of the manager/director who oversees this user in the org hierarchy. */

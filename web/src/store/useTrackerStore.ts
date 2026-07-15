@@ -162,6 +162,12 @@ function mergeImportedUsersWithSession(
           )
             ? local.passwordHint?.trim() || undefined
             : u.passwordHint,
+          hintDismissed: Object.prototype.hasOwnProperty.call(
+            local,
+            'hintDismissed',
+          )
+            ? local.hintDismissed || undefined
+            : u.hintDismissed,
         }
       : u,
   )
@@ -757,6 +763,7 @@ export interface TrackerState {
 
   /** Optional hint for wrong-password help (plain text; demo storage only). */
   setPasswordHintForUser: (userId: string, hint: string) => void
+  setHintDismissedForUser: (userId: string, dismissed: boolean) => void
 
   completeFirstLoginPasswordChange: (
     userId: string,
@@ -1666,6 +1673,16 @@ export const useTrackerStore = create<TrackerState>()(
         }))
       },
 
+      setHintDismissedForUser: (userId, dismissed) => {
+        set((s) => ({
+          users: s.users.map((x) =>
+            x.id === userId
+              ? { ...x, hintDismissed: dismissed || undefined }
+              : x,
+          ),
+        }))
+      },
+
       completeFirstLoginPasswordChange: (
         userId,
         masterPassword,
@@ -1708,6 +1725,7 @@ export const useTrackerStore = create<TrackerState>()(
                   ...x,
                   password: newPassword.trim(),
                   mustChangePassword: false,
+                  hintDismissed: undefined,
                   ...(passwordHint !== undefined
                     ? { passwordHint: passwordHint.trim() || undefined }
                     : {}),
@@ -1746,6 +1764,7 @@ export const useTrackerStore = create<TrackerState>()(
                   ...x,
                   password: newPassword.trim(),
                   mustChangePassword: false,
+                  hintDismissed: undefined,
                 }
               : x,
           ),

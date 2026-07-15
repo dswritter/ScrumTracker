@@ -31,6 +31,9 @@ export function Login() {
   const setPasswordHintForUser = useTrackerStore(
     (s) => s.setPasswordHintForUser,
   )
+  const setHintDismissedForUser = useTrackerStore(
+    (s) => s.setHintDismissedForUser,
+  )
   const setCurrentUserId = useAuthStore((s) => s.setCurrentUserId)
 
   const [username, setUsername] = useState('')
@@ -42,6 +45,7 @@ export function Login() {
     null,
   )
   const [optionalHintDraft, setOptionalHintDraft] = useState('')
+  const [dontAskAgain, setDontAskAgain] = useState(false)
   const [showForgot, setShowForgot] = useState(false)
   const authHydrated = useAuthHydrated()
   const storeHydrated = useTrackerPersistHydrated()
@@ -62,7 +66,7 @@ export function Login() {
   }
 
   const needsOptionalHintStep = (u: TrackerUserAccount) =>
-    !(u.passwordHint && u.passwordHint.trim())
+    !(u.passwordHint && u.passwordHint.trim()) && !u.hintDismissed
 
   const finishLogin = (u: TrackerUserAccount) => {
     setCurrentUserId(u.id)
@@ -124,6 +128,8 @@ export function Login() {
     const hint = optionalHintDraft.trim()
     if (hint) {
       setPasswordHintForUser(pendingUser.id, hint)
+    } else if (dontAskAgain) {
+      setHintDismissedForUser(pendingUser.id, true)
     }
     finishLogin(pendingUser)
     setPendingUser(null)
@@ -163,6 +169,17 @@ export function Login() {
                 onChange={(e) => setOptionalHintDraft(e.target.value)}
               />
             </div>
+            {!optionalHintDraft.trim() && (
+              <label className="flex cursor-pointer items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
+                <input
+                  type="checkbox"
+                  checked={dontAskAgain}
+                  onChange={(e) => setDontAskAgain(e.target.checked)}
+                  className="rounded border-slate-300 text-indigo-600 dark:border-slate-600"
+                />
+                Don&apos;t ask again until next password change
+              </label>
+            )}
             <div className="flex flex-col gap-2 sm:flex-row">
               <button
                 type="button"
