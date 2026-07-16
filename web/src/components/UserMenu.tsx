@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { useCurrentUser } from '../hooks/useCurrentUser'
-import { isAdmin, isUpperManagement } from '../lib/permissions'
+import { isUpperManagement } from '../lib/permissions'
 import { useAuthStore } from '../store/useAuthStore'
 
 const ROLE_LABEL: Record<string, string> = {
@@ -18,12 +18,12 @@ export function UserMenu() {
 
   if (!user) return null
 
-  // Admins and upper-management-while-viewing-a-team go to Settings.
-  // Upper management with no active team go to change-password (no team context to show settings for).
+  // Everyone with a team context goes to Settings (Confluence PAT, Jira PAT, etc.).
+  // Upper management with no active team goes to change-password (no team context).
   const accountDestination =
-    isAdmin(user) || (isUpperManagement(user) && viewingTeamId)
-      ? '/settings'
-      : '/change-password'
+    isUpperManagement(user) && !viewingTeamId
+      ? '/change-password'
+      : '/settings'
 
   const roleLabel = ROLE_LABEL[user.role] ?? user.role
 
