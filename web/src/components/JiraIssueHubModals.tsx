@@ -466,7 +466,7 @@ export function JiraCreateIssueModal({
             const isArray = rf.type === 'array'
             const curVal = customFieldValues[rf.key]
             const selectedId = isArray
-              ? (Array.isArray(curVal) && curVal[0] as { id?: string })?.id ?? ''
+              ? (Array.isArray(curVal) ? (curVal[0] as { id?: string })?.id : '') ?? ''
               : (curVal as { id?: string })?.id ?? ''
             return (
             <div key={rf.key}>
