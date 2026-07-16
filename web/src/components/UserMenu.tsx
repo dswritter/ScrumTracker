@@ -46,6 +46,15 @@ export function UserMenu() {
       <button
         type="button"
         className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+        title="Settings"
+        aria-label="Settings"
+        onClick={() => navigate('/settings')}
+      >
+        <i className="fa-solid fa-gear text-base" aria-hidden />
+      </button>
+      <button
+        type="button"
+        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
         title="Log out"
         aria-label="Log out"
         onClick={() => {
