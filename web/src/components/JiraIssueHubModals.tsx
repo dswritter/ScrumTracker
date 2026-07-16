@@ -218,7 +218,8 @@ export function JiraCreateIssueModal({
       const defaults: Record<string, unknown> = {}
       for (const f of r.requiredFields) {
         if (f.allowedValues && f.allowedValues.length > 0) {
-          defaults[f.key] = { id: f.allowedValues[0].id }
+          const pick = { id: f.allowedValues[0].id }
+          defaults[f.key] = f.type === 'array' ? [pick] : pick
         }
       }
       setCustomFieldValues(defaults)
@@ -461,7 +462,13 @@ export function JiraCreateIssueModal({
               Could not load required fields: {reqFieldsErr}
             </p>
           ) : null}
-          {requiredFields.map((rf) => (
+          {requiredFields.map((rf) => {
+            const isArray = rf.type === 'array'
+            const curVal = customFieldValues[rf.key]
+            const selectedId = isArray
+              ? (Array.isArray(curVal) && curVal[0] as { id?: string })?.id ?? ''
+              : (curVal as { id?: string })?.id ?? ''
+            return (
             <div key={rf.key}>
               <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">
                 {rf.name} <span className="text-rose-600">*</span>
@@ -469,15 +476,14 @@ export function JiraCreateIssueModal({
               {rf.allowedValues ? (
                 <select
                   className={field}
-                  value={
-                    (customFieldValues[rf.key] as { id?: string })?.id ?? ''
-                  }
-                  onChange={(e) =>
+                  value={selectedId}
+                  onChange={(e) => {
+                    const pick = { id: e.target.value }
                     setCustomFieldValues((prev) => ({
                       ...prev,
-                      [rf.key]: { id: e.target.value },
+                      [rf.key]: isArray ? [pick] : pick,
                     }))
-                  }
+                  }}
                 >
                   {rf.allowedValues.map((av) => (
                     <option key={av.id} value={av.id}>
@@ -503,7 +509,8 @@ export function JiraCreateIssueModal({
                 />
               )}
             </div>
-          ))}
+            )
+          })}
 
           <div className="flex justify-end gap-2 pt-2 pb-1">
             <button
