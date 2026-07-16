@@ -91,6 +91,7 @@ function CollapsibleSettingsSection({
   children,
   defaultOpen = false,
   openWhenHash,
+  info,
 }: {
   id?: string
   title: string
@@ -99,9 +100,12 @@ function CollapsibleSettingsSection({
   defaultOpen?: boolean
   /** When location hash matches, expand (e.g. #jira-integration). */
   openWhenHash?: string
+  /** Optional "why is this needed / how is it stored" detail behind an (i) button. */
+  info?: ReactNode
 }) {
   const { hash } = useLocation()
   const [open, setOpen] = useState(defaultOpen)
+  const [showInfo, setShowInfo] = useState(false)
   useEffect(() => {
     if (openWhenHash && hash === openWhenHash) setOpen(true)
   }, [hash, openWhenHash])
@@ -110,27 +114,46 @@ function CollapsibleSettingsSection({
       id={id}
       className="scroll-mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900/90"
     >
-      <button
-        type="button"
-        className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/50"
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
-      >
-        <i
-          className={`fa-solid fa-chevron-${open ? 'down' : 'right'} mt-0.5 w-4 shrink-0 text-slate-500 dark:text-slate-400`}
-          aria-hidden
-        />
-        <div className="min-w-0 flex-1">
-          <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">
-            {title}
-          </h2>
-          {subtitle ? (
-            <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
-              {subtitle}
-            </p>
-          ) : null}
+      <div className="flex items-start">
+        <button
+          type="button"
+          className="flex flex-1 items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/50"
+          aria-expanded={open}
+          onClick={() => setOpen((v) => !v)}
+        >
+          <i
+            className={`fa-solid fa-chevron-${open ? 'down' : 'right'} mt-0.5 w-4 shrink-0 text-slate-500 dark:text-slate-400`}
+            aria-hidden
+          />
+          <div className="min-w-0 flex-1">
+            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+              {title}
+            </h2>
+            {subtitle ? (
+              <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+                {subtitle}
+              </p>
+            ) : null}
+          </div>
+        </button>
+        {info ? (
+          <button
+            type="button"
+            className={`m-2 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200 ${showInfo ? 'text-indigo-600 dark:text-indigo-400' : ''}`}
+            title="Why is this needed & how is it stored?"
+            aria-label="About this setting"
+            aria-expanded={showInfo}
+            onClick={() => setShowInfo((v) => !v)}
+          >
+            <i className="fa-solid fa-circle-info text-sm" aria-hidden />
+          </button>
+        ) : null}
+      </div>
+      {info && showInfo ? (
+        <div className="border-t border-slate-100 bg-slate-50 px-4 py-3 text-[11px] leading-relaxed text-slate-600 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-300">
+          {info}
         </div>
-      </button>
+      ) : null}
       {open ? (
         <div className="space-y-3 border-t border-slate-100 px-4 pb-4 pt-3 dark:border-slate-800">
           {children}
@@ -642,6 +665,28 @@ export function Settings() {
         title="Jira integration"
         subtitle={canAdmin ? 'Base URL, JQL, PAT on server, sync' : 'Your PAT on server, sync'}
         openWhenHash="#jira-integration"
+        info={
+          <>
+            <p className="font-semibold text-slate-700 dark:text-slate-200">
+              Why it&apos;s required
+            </p>
+            <p>
+              Your Personal Access Token lets the tracker read Jira issues and
+              comments on your behalf when you run a sync.
+            </p>
+            <p className="mt-2 font-semibold text-slate-700 dark:text-slate-200">
+              How it&apos;s stored
+            </p>
+            <p>
+              The PAT is sent to the Node sync server over the same origin and
+              saved server-side only (in{' '}
+              <span className="font-mono">jira-user-tokens.json</span>) — never in
+              the browser or in the shared team snapshot. Sync applies the team
+              JQL, scoped to the sprint in the Dashboard scope dropdown plus your
+              issues reported in that sprint&apos;s date range.
+            </p>
+          </>
+        }
       >
         {canAdmin && (
           <>
@@ -658,22 +703,8 @@ export function Settings() {
           </>
         )}
         <p className="text-xs text-slate-600 dark:text-slate-300">
-          PAT and sync run on the <strong>Node server</strong> only (not in the
-          browser). Production builds use{' '}
-          <code className="rounded bg-slate-100 px-1 dark:bg-slate-800">
-            VITE_SYNC_SAME_ORIGIN
-          </code>{' '}
-          so
-          the UI and API share one public URL. See{' '}
-          <code className="rounded bg-slate-100 px-1 dark:bg-slate-800">
-            docs/JIRA Integration Architecture.md
-          </code>
-          . Team members run <strong>Jira sync</strong> from the header with their
-          own PAT (stored in <span className="font-mono">jira-user-tokens.json</span>
-          ); the same team JQL applies, scoped to the <strong>sprint in the Dashboard
-          scope dropdown</strong> (default: current sprint), plus their issues reported in
-          that sprint&apos;s date range. Items missing a matching Jira sprint show{' '}
-          <strong>Needs Jira sprint</strong> for admins.
+          Save your Jira PAT to run sync. Stored on the server only — tap the (i)
+          for details.
         </p>
         {!hasSyncServer ? (
           <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100">
@@ -823,13 +854,31 @@ export function Settings() {
       <CollapsibleSettingsSection
         id="confluence-integration"
         title="Confluence integration"
-        subtitle="Sync wiki pages from wiki.corp.adobe.com into the Knowledge Base"
+        subtitle="Sync wiki pages into the Knowledge Base"
         openWhenHash="#confluence-integration"
+        info={
+          <>
+            <p className="font-semibold text-slate-700 dark:text-slate-200">
+              Why it&apos;s required
+            </p>
+            <p>
+              Your Confluence PAT lets the tracker read pages from your wiki
+              space so they can be searched offline in the Knowledge Base.
+            </p>
+            <p className="mt-2 font-semibold text-slate-700 dark:text-slate-200">
+              How it&apos;s stored
+            </p>
+            <p>
+              The PAT is saved on the Node sync server only — never in the
+              browser or the shared team snapshot. Synced pages are read-only
+              copies; the original wiki stays the source of truth.
+            </p>
+          </>
+        }
       >
         <p className="text-xs text-slate-600 dark:text-slate-300">
-          Configure a Personal Access Token (PAT) and paste the URL of your Confluence space.
-          Clicking <strong>Sync all pages</strong> pulls every page in that space and stores the
-          content in the KB for offline search. Pages are read-only.
+          Save your Confluence PAT and space URL, then sync pages. Tap the (i)
+          for details.
         </p>
         {!hasSyncServer ? (
           <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100">
