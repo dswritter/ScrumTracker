@@ -92,6 +92,7 @@ function CollapsibleSettingsSection({
   defaultOpen = false,
   openWhenHash,
   info,
+  status,
 }: {
   id?: string
   title: string
@@ -102,65 +103,153 @@ function CollapsibleSettingsSection({
   openWhenHash?: string
   /** Optional "why is this needed / how is it stored" detail behind an (i) button. */
   info?: ReactNode
+  /** Optional badge shown at the top of the card header (e.g. token status). */
+  status?: ReactNode
 }) {
   const { hash } = useLocation()
   const [open, setOpen] = useState(defaultOpen)
   const [showInfo, setShowInfo] = useState(false)
+  const infoRef = useRef<HTMLDivElement>(null)
+  const infoBtnRef = useRef<HTMLButtonElement>(null)
   useEffect(() => {
     if (openWhenHash && hash === openWhenHash) setOpen(true)
   }, [hash, openWhenHash])
+  useEffect(() => {
+    if (!showInfo) return
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node
+      if (infoRef.current?.contains(t) || infoBtnRef.current?.contains(t)) return
+      setShowInfo(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowInfo(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [showInfo])
   return (
-    <section
-      id={id}
-      className="scroll-mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900/90"
-    >
-      <div className="flex items-start">
-        <button
-          type="button"
-          className="flex flex-1 items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/50"
-          aria-expanded={open}
-          onClick={() => setOpen((v) => !v)}
-        >
-          <i
-            className={`fa-solid fa-chevron-${open ? 'down' : 'right'} mt-0.5 w-4 shrink-0 text-slate-500 dark:text-slate-400`}
-            aria-hidden
-          />
-          <div className="min-w-0 flex-1">
-            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">
-              {title}
-            </h2>
-            {subtitle ? (
-              <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
-                {subtitle}
-              </p>
-            ) : null}
-          </div>
-        </button>
-        {info ? (
+    <div className="relative">
+      <section
+        id={id}
+        className="scroll-mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900/90"
+      >
+        <div className="flex items-start">
           <button
             type="button"
-            className={`m-2 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200 ${showInfo ? 'text-indigo-600 dark:text-indigo-400' : ''}`}
-            title="Why is this needed & how is it stored?"
-            aria-label="About this setting"
-            aria-expanded={showInfo}
-            onClick={() => setShowInfo((v) => !v)}
+            className="flex flex-1 items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/50"
+            aria-expanded={open}
+            onClick={() => setOpen((v) => !v)}
           >
-            <i className="fa-solid fa-circle-info text-sm" aria-hidden />
+            <i
+              className={`fa-solid fa-chevron-${open ? 'down' : 'right'} mt-0.5 w-4 shrink-0 text-slate-500 dark:text-slate-400`}
+              aria-hidden
+            />
+            <div className="min-w-0 flex-1">
+              <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                {title}
+              </h2>
+              {subtitle ? (
+                <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+                  {subtitle}
+                </p>
+              ) : null}
+            </div>
           </button>
+          {status ? <div className="flex items-center py-3">{status}</div> : null}
+          {info ? (
+            <button
+              ref={infoBtnRef}
+              type="button"
+              className={`m-2 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200 ${showInfo ? 'text-indigo-600 dark:text-indigo-400' : ''}`}
+              title="Why is this needed & how is it stored?"
+              aria-label="About this setting"
+              aria-expanded={showInfo}
+              onClick={() => setShowInfo((v) => !v)}
+            >
+              <i className="fa-solid fa-circle-info text-sm" aria-hidden />
+            </button>
+          ) : null}
+        </div>
+        {open ? (
+          <div className="space-y-3 border-t border-slate-100 px-4 pb-4 pt-3 dark:border-slate-800">
+            {children}
+          </div>
         ) : null}
-      </div>
+      </section>
       {info && showInfo ? (
-        <div className="border-t border-slate-100 bg-slate-50 px-4 py-3 text-[11px] leading-relaxed text-slate-600 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-300">
+        <div
+          ref={infoRef}
+          role="dialog"
+          className="absolute right-3 top-14 z-30 w-80 max-w-[calc(100vw-2rem)] space-y-1 rounded-xl border border-slate-200 bg-white p-4 text-[11px] leading-relaxed text-slate-600 shadow-xl dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300"
+        >
           {info}
         </div>
       ) : null}
-      {open ? (
-        <div className="space-y-3 border-t border-slate-100 px-4 pb-4 pt-3 dark:border-slate-800">
-          {children}
-        </div>
-      ) : null}
-    </section>
+    </div>
   )
+}
+
+function TokenStatusPill({
+  tone,
+  label,
+}: {
+  tone: 'active' | 'warn' | 'danger' | 'none'
+  label: string
+}) {
+  const cls = {
+    active:
+      'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/50 dark:text-emerald-200',
+    warn: 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/50 dark:text-amber-200',
+    danger:
+      'border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900/50 dark:bg-rose-950/50 dark:text-rose-200',
+    none: 'border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-400',
+  }[tone]
+  const icon = {
+    active: 'fa-circle-check',
+    warn: 'fa-triangle-exclamation',
+    danger: 'fa-circle-xmark',
+    none: 'fa-circle-minus',
+  }[tone]
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-[11px] font-semibold ${cls}`}
+    >
+      <i className={`fa-solid ${icon} text-[10px]`} aria-hidden />
+      {label}
+    </span>
+  )
+}
+
+/** Header badge for the Jira PAT status (configured / active + expiry days). */
+function jiraStatusPill(
+  info: { status: string; daysRemaining: number | null } | null,
+): ReactNode {
+  if (!info) return null
+  const d = info.daysRemaining
+  switch (info.status) {
+    case 'valid':
+      return (
+        <TokenStatusPill
+          tone="active"
+          label={d != null ? `Active · ${d}d left` : 'Active'}
+        />
+      )
+    case 'expiring_soon':
+      return (
+        <TokenStatusPill
+          tone="warn"
+          label={d != null ? `Expires in ${d}d` : 'Expiring soon'}
+        />
+      )
+    case 'expired':
+      return <TokenStatusPill tone="danger" label="Expired" />
+    default:
+      return <TokenStatusPill tone="none" label="Not configured" />
+  }
 }
 
 export function Settings() {
@@ -209,6 +298,10 @@ export function Settings() {
   const [jiraDraftSprintField, setJiraDraftSprintField] = useState(jiraSprintFieldId)
   const [jiraMsg, setJiraMsg] = useState<string | null>(null)
   const [jiraTokenStatus, setJiraTokenStatus] = useState<string | null>(null)
+  const [jiraTokenInfo, setJiraTokenInfo] = useState<{
+    status: string
+    daysRemaining: number | null
+  } | null>(null)
   const [jiraSyncing, setJiraSyncing] = useState(false)
 
   const [confluencePat, setConfluencePat] = useState('')
@@ -249,6 +342,10 @@ export function Settings() {
             j.daysRemaining != null ? ` (${j.daysRemaining}d)` : ''
           }`,
         )
+        setJiraTokenInfo({
+          status: j.status ?? 'none',
+          daysRemaining: j.daysRemaining ?? null,
+        })
       } catch {
         if (!cancelled) setJiraTokenStatus('Could not reach sync server')
       }
@@ -665,6 +762,7 @@ export function Settings() {
         title="Jira integration"
         subtitle={canAdmin ? 'Base URL, JQL, PAT on server, sync' : 'Your PAT on server, sync'}
         openWhenHash="#jira-integration"
+        status={jiraStatusPill(jiraTokenInfo)}
         info={
           <>
             <p className="font-semibold text-slate-700 dark:text-slate-200">
@@ -803,8 +901,16 @@ export function Settings() {
                 setJiraMsg('Token saved on server.')
                 const st = await getJiraTokenStatus()
                 if (st.ok) {
-                  const j = (await st.json()) as { status?: string; message?: string }
+                  const j = (await st.json()) as {
+                    status?: string
+                    message?: string
+                    daysRemaining?: number | null
+                  }
                   setJiraTokenStatus(`${j.status ?? ''} — ${j.message ?? ''}`)
+                  setJiraTokenInfo({
+                    status: j.status ?? 'none',
+                    daysRemaining: j.daysRemaining ?? null,
+                  })
                 }
               } catch (e) {
                 setJiraMsg(e instanceof Error ? e.message : 'Request failed')
@@ -856,6 +962,13 @@ export function Settings() {
         title="Confluence integration"
         subtitle="Sync wiki pages into the Knowledge Base"
         openWhenHash="#confluence-integration"
+        status={
+          confluenceTokenConfigured == null ? null : confluenceTokenConfigured ? (
+            <TokenStatusPill tone="active" label="Active" />
+          ) : (
+            <TokenStatusPill tone="none" label="Not configured" />
+          )
+        }
         info={
           <>
             <p className="font-semibold text-slate-700 dark:text-slate-200">
