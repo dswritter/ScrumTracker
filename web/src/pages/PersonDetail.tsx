@@ -25,12 +25,14 @@ import {
   personCompletionPercent,
 } from '../lib/stats'
 import { resolveSlackDmUrl } from '../lib/slackDm'
+import { useTrackerStore } from '../store/useTrackerStore'
 
 export function PersonDetail() {
   const viewer = useCurrentUser()
   const ctx = useTeamContextNullable()
   const { personName = '' } = useParams<{ personName: string }>()
   const [searchParams, setSearchParams] = useSearchParams()
+  const updateWorkItem = useTrackerStore((s) => s.updateWorkItem)
 
   const name = useMemo(() => {
     try {
@@ -165,6 +167,20 @@ export function PersonDetail() {
                 className="min-w-0 flex-1 font-medium text-indigo-700 hover:text-indigo-900 dark:text-slate-100 dark:hover:text-white"
               />
               <StatusBadge status={w.status} />
+              {viewingSelf &&
+              w.jiraKeys.length === 0 &&
+              w.status !== 'done' ? (
+                <button
+                  type="button"
+                  className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 dark:border-emerald-900/50 dark:bg-emerald-950/50 dark:text-emerald-200 dark:hover:bg-emerald-900/60"
+                  onClick={() =>
+                    updateWorkItem(ctx.teamId, w.id, { status: 'done' })
+                  }
+                  title="Mark this local item as Done"
+                >
+                  Mark done
+                </button>
+              ) : null}
               {viewingSelf ? (
                 <Link
                   to={buildItemsHref(scope)}
