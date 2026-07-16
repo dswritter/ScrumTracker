@@ -75,6 +75,31 @@ export function PersonDetail() {
     )
   }, [name, ctx, scope, sortedSprints])
 
+  const STATUS_SORT: Record<string, number> = {
+    blocked: 0,
+    in_progress: 1,
+    to_test: 2,
+    to_track: 3,
+    todo: 4,
+    ready_for_prod: 5,
+    done: 6,
+  }
+  const sortItems = (items: typeof scopedItems) =>
+    [...items].sort(
+      (a, b) =>
+        (STATUS_SORT[a.status] ?? 9) - (STATUS_SORT[b.status] ?? 9) ||
+        a.title.localeCompare(b.title),
+    )
+  /** Sole = only this person assigned; Shared = also assigned to others. */
+  const soleItems = useMemo(
+    () => sortItems(scopedItems.filter((w) => w.assignees.length <= 1)),
+    [scopedItems],
+  )
+  const sharedItems = useMemo(
+    () => sortItems(scopedItems.filter((w) => w.assignees.length > 1)),
+    [scopedItems],
+  )
+
   const pct = personCompletionPercent(name, scopedItems)
 
   const dashboardQs = new URLSearchParams(scopeToParams(scope)).toString()
@@ -119,6 +144,41 @@ export function PersonDetail() {
     (viewingSelf
       ? ctx.teamUsers?.find((u) => u.id === viewer.id)?.slackChatUrl?.trim()
       : undefined)
+
+  const renderItemsCard = (title: string, items: typeof scopedItems) => {
+    if (items.length === 0) return null
+    return (
+      <div className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
+        <h3 className="border-b border-slate-100 px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-slate-500 dark:border-slate-800 dark:text-slate-400">
+          {title} · {items.length}
+        </h3>
+        <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+          {items.map((w) => (
+            <li
+              key={w.id}
+              className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm"
+            >
+              <WorkItemTitleLink
+                item={w}
+                jiraBaseUrl={ctx.jiraBaseUrl}
+                showCommentHover={viewingSelf && isAdmin(viewer)}
+                className="min-w-0 flex-1 font-medium text-indigo-700 hover:text-indigo-900 dark:text-slate-100 dark:hover:text-white"
+              />
+              <StatusBadge status={w.status} />
+              {viewingSelf ? (
+                <Link
+                  to={buildItemsHref(scope)}
+                  className="text-xs font-semibold text-indigo-700 hover:underline dark:text-slate-100 dark:hover:text-white"
+                >
+                  Edit in table
+                </Link>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -205,37 +265,18 @@ export function PersonDetail() {
         itemCount={scopedItems.length}
       />
 
-      <div className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
-        <ul className="divide-y divide-slate-100">
-          {scopedItems.map((w) => (
-            <li
-              key={w.id}
-              className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm"
-            >
-              <WorkItemTitleLink
-                item={w}
-                jiraBaseUrl={ctx.jiraBaseUrl}
-                showCommentHover={viewingSelf && isAdmin(viewer)}
-                className="min-w-0 flex-1 font-medium text-indigo-700 hover:text-indigo-900 dark:text-slate-100 dark:hover:text-white"
-              />
-              <StatusBadge status={w.status} />
-              {viewingSelf ? (
-                <Link
-                  to={buildItemsHref(scope)}
-                  className="text-xs font-semibold text-indigo-700 hover:underline dark:text-slate-100 dark:hover:text-white"
-                >
-                  Edit in table
-                </Link>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-        {scopedItems.length === 0 ? (
+      {scopedItems.length === 0 ? (
+        <div className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
           <p className="px-4 py-6 text-center text-sm text-slate-600">
             No items for this view.
           </p>
-        ) : null}
-      </div>
+        </div>
+      ) : (
+        <>
+          {renderItemsCard('My items', soleItems)}
+          {renderItemsCard('Shared items', sharedItems)}
+        </>
+      )}
     </div>
   )
 }
