@@ -9,6 +9,7 @@ import { useAuthHydrated } from '../hooks/useAuthHydrated'
 import { useCurrentUser } from '../hooks/useCurrentUser'
 import { useTrackerPersistHydrated } from '../hooks/useTrackerPersistHydrated'
 import { passwordsMatch } from '../lib/passwords'
+import { pushTrackerSnapshotNow } from '../lib/pushTrackerSnapshotNow'
 import { normalizeLoginUsername } from '../lib/username'
 import type { TrackerUserAccount } from '../types'
 import { useAuthStore } from '../store/useAuthStore'
@@ -128,8 +129,10 @@ export function Login() {
     const hint = optionalHintDraft.trim()
     if (hint) {
       setPasswordHintForUser(pendingUser.id, hint)
+      void pushTrackerSnapshotNow()
     } else if (dontAskAgain) {
       setHintDismissedForUser(pendingUser.id, true)
+      void pushTrackerSnapshotNow()
     }
     finishLogin(pendingUser)
     setPendingUser(null)
