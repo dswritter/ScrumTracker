@@ -10,8 +10,11 @@ import {
   buildItemsHref,
   filterWorkItemsByScope,
   parseDashboardScope,
+  parseScopeSelectValue,
+  scopeSelectValue,
   scopeShortLabel,
   scopeToParams,
+  sprintSelectOptionLabel,
 } from '../lib/dashboardScope'
 import {
   getCurrentSprint,
@@ -27,7 +30,7 @@ export function PersonDetail() {
   const viewer = useCurrentUser()
   const ctx = useTeamContextNullable()
   const { personName = '' } = useParams<{ personName: string }>()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
 
   const name = useMemo(() => {
     try {
@@ -75,6 +78,14 @@ export function PersonDetail() {
   const pct = personCompletionPercent(name, scopedItems)
 
   const dashboardQs = new URLSearchParams(scopeToParams(scope)).toString()
+
+  const onScopeSelectChange = (raw: string) => {
+    const next = parseScopeSelectValue(raw, sortedSprints, defaultSprintId)
+    const sp = new URLSearchParams(searchParams)
+    for (const key of ['scope', 'sprint', 'year', 'month']) sp.delete(key)
+    for (const [k, v] of Object.entries(scopeToParams(next))) sp.set(k, v)
+    setSearchParams(sp)
+  }
 
   if (!name.trim()) {
     return (
@@ -161,31 +172,27 @@ export function PersonDetail() {
             active roster. Historical work items are unchanged.
           </p>
         ) : null}
-        {scope.type !== 'all' ? (
-          <p className="mt-2 text-sm text-slate-600">
-            Scoped to{' '}
-            <span className="font-semibold text-slate-800 dark:text-slate-100">
-              {scopeShortLabel(scope, ctx.sprints)}
-            </span>
-            .
-            <Link
-              to={`/people/${encodeURIComponent(name)}?scope=all`}
-              className="ml-2 font-medium text-indigo-700 underline dark:text-slate-100 dark:hover:text-white"
-            >
-              Show all time
-            </Link>
-          </p>
-        ) : (
-          <p className="mt-2 text-sm text-slate-600">
-            Showing all sprints.{' '}
-            <Link
-              to={`/people/${encodeURIComponent(name)}`}
-              className="font-medium text-indigo-700 underline dark:text-slate-100 dark:hover:text-white"
-            >
-              Match Dashboard (current sprint)
-            </Link>
-          </p>
-        )}
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+          <label htmlFor="person-scope" className="font-medium">
+            Scope
+          </label>
+          <select
+            id="person-scope"
+            aria-label="Person scope"
+            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-900 shadow-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+            value={scopeSelectValue(scope)}
+            onChange={(e) => onScopeSelectChange(e.target.value)}
+          >
+            <optgroup label="Sprints">
+              {sortedSprints.map((s) => (
+                <option key={s.id} value={`sprint:${s.id}`}>
+                  {sprintSelectOptionLabel(s)}
+                </option>
+              ))}
+            </optgroup>
+            <option value="all">All sprints to date</option>
+          </select>
+        </div>
       </div>
 
       <PersonProgressBar
