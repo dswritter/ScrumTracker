@@ -703,8 +703,8 @@ export function Settings() {
           </>
         )}
         <p className="text-xs text-slate-600 dark:text-slate-300">
-          Save your Jira PAT to run sync. Stored on the server only — tap the (i)
-          for details.
+          Save your Jira PAT to sync Jira issues &amp; updates and to create new
+          tickets.
         </p>
         {!hasSyncServer ? (
           <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100">
