@@ -806,134 +806,132 @@ export function Settings() {
         ) : null}
       </CollapsibleSettingsSection>
 
-      {(isAdmin(user) || isUpperManagement(user)) && (
-        <CollapsibleSettingsSection
-          id="confluence-integration"
-          title="Confluence integration"
-          subtitle="Sync wiki pages from wiki.corp.adobe.com into the Knowledge Base"
-          openWhenHash="#confluence-integration"
-        >
-          <p className="text-xs text-slate-600 dark:text-slate-300">
-            Configure a Personal Access Token (PAT) and paste the URL of your Confluence space.
-            Clicking <strong>Sync all pages</strong> pulls every page in that space and stores the
-            content in the KB for offline search. Pages are read-only.
+      <CollapsibleSettingsSection
+        id="confluence-integration"
+        title="Confluence integration"
+        subtitle="Sync wiki pages from wiki.corp.adobe.com into the Knowledge Base"
+        openWhenHash="#confluence-integration"
+      >
+        <p className="text-xs text-slate-600 dark:text-slate-300">
+          Configure a Personal Access Token (PAT) and paste the URL of your Confluence space.
+          Clicking <strong>Sync all pages</strong> pulls every page in that space and stores the
+          content in the KB for offline search. Pages are read-only.
+        </p>
+        {!hasSyncServer ? (
+          <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100">
+            Sync server not configured. Enable <code className="font-mono">VITE_SYNC_SAME_ORIGIN=true</code> to use Confluence sync.
           </p>
-          {!hasSyncServer ? (
-            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100">
-              Sync server not configured. Enable <code className="font-mono">VITE_SYNC_SAME_ORIGIN=true</code> to use Confluence sync.
-            </p>
-          ) : null}
-          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200">
-            Personal Access Token (PAT)
-          </label>
-          <div className="flex flex-wrap items-end gap-2">
-            <input
-              type="password"
-              className={`${field} max-w-sm flex-1`}
-              placeholder="Paste your Confluence PAT"
-              autoComplete="off"
-              value={confluencePat}
-              onChange={(e) => setConfluencePat(e.target.value)}
-            />
-            <button
-              type="button"
-              disabled={!hasSyncServer || !confluencePat.trim()}
-              className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
-              onClick={async () => {
-                setConfluenceMsg(null)
-                try {
-                  const res = await postConfluenceToken(confluencePat.trim(), 'https://wiki.corp.adobe.com')
-                  if (!res.ok) {
-                    setConfluenceMsg(await res.text())
-                    return
-                  }
-                  setConfluencePat('')
-                  setConfluenceTokenConfigured(true)
-                  setConfluenceMsg('PAT saved on server.')
-                } catch (e) {
-                  setConfluenceMsg(e instanceof Error ? e.message : 'Request failed')
+        ) : null}
+        <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200">
+          Personal Access Token (PAT)
+        </label>
+        <div className="flex flex-wrap items-end gap-2">
+          <input
+            type="password"
+            className={`${field} max-w-sm flex-1`}
+            placeholder="Paste your Confluence PAT"
+            autoComplete="off"
+            value={confluencePat}
+            onChange={(e) => setConfluencePat(e.target.value)}
+          />
+          <button
+            type="button"
+            disabled={!hasSyncServer || !confluencePat.trim()}
+            className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+            onClick={async () => {
+              setConfluenceMsg(null)
+              try {
+                const res = await postConfluenceToken(confluencePat.trim(), 'https://wiki.corp.adobe.com')
+                if (!res.ok) {
+                  setConfluenceMsg(await res.text())
+                  return
                 }
-              }}
-            >
-              Save PAT
-            </button>
-          </div>
-          {confluenceTokenConfigured !== null ? (
-            <p className="text-xs text-slate-600 dark:text-slate-300">
-              <span className="font-semibold">Token status:</span>{' '}
-              {confluenceTokenConfigured ? '✓ Configured' : '✗ Not configured'}
-            </p>
-          ) : null}
-          <label className="mt-2 block text-xs font-semibold text-slate-700 dark:text-slate-200">
-            Confluence space URL
-          </label>
+                setConfluencePat('')
+                setConfluenceTokenConfigured(true)
+                setConfluenceMsg('PAT saved on server.')
+              } catch (e) {
+                setConfluenceMsg(e instanceof Error ? e.message : 'Request failed')
+              }
+            }}
+          >
+            Save PAT
+          </button>
+        </div>
+        {confluenceTokenConfigured !== null ? (
           <p className="text-xs text-slate-600 dark:text-slate-300">
-            Paste any page URL from your space (e.g.{' '}
-            <code className="rounded bg-slate-100 px-1 dark:bg-slate-800 text-[10px]">
-              https://wiki.corp.adobe.com/spaces/coretech/pages/72909470/Home
-            </code>
-            ). The space key is extracted automatically.
+            <span className="font-semibold">Token status:</span>{' '}
+            {confluenceTokenConfigured ? '✓ Configured' : '✗ Not configured'}
           </p>
-          <div className="flex flex-wrap items-end gap-2">
-            <input
-              className={`${field} flex-1 font-mono text-xs`}
-              placeholder="https://wiki.corp.adobe.com/spaces/..."
-              value={confluenceDraftSpaceUrl}
-              onChange={(e) => setConfluenceDraftSpaceUrl(e.target.value)}
-            />
-            <button
-              type="button"
-              disabled={!confluenceDraftSpaceUrl.trim()}
-              className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700 disabled:opacity-50"
-              onClick={() => {
-                setConfluenceSpaceUrl(teamId, confluenceDraftSpaceUrl)
-                setConfluenceMsg('Space URL saved.')
-              }}
-            >
-              Save space URL
-            </button>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              disabled={!hasSyncServer || !confluenceSpaceUrl || confluenceSyncing}
-              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
-              onClick={async () => {
-                setConfluenceMsg(null)
-                setConfluenceSyncing(true)
-                try {
-                  const result = await runConfluenceSync(teamId)
-                  if (!result.ok) {
-                    setConfluenceMsg(`Sync failed: ${result.error}`)
-                    return
-                  }
-                  setConfluencePages(teamId, result.pages)
-                  setConfluenceMsg(`Synced ${result.pageCount} page${result.pageCount !== 1 ? 's' : ''}.`)
-                } catch (e) {
-                  setConfluenceMsg(e instanceof Error ? e.message : 'Sync failed')
-                } finally {
-                  setConfluenceSyncing(false)
+        ) : null}
+        <label className="mt-2 block text-xs font-semibold text-slate-700 dark:text-slate-200">
+          Confluence space URL
+        </label>
+        <p className="text-xs text-slate-600 dark:text-slate-300">
+          Paste any page URL from your space (e.g.{' '}
+          <code className="rounded bg-slate-100 px-1 dark:bg-slate-800 text-[10px]">
+            https://wiki.corp.adobe.com/spaces/coretech/pages/72909470/Home
+          </code>
+          ). The space key is extracted automatically.
+        </p>
+        <div className="flex flex-wrap items-end gap-2">
+          <input
+            className={`${field} flex-1 font-mono text-xs`}
+            placeholder="https://wiki.corp.adobe.com/spaces/..."
+            value={confluenceDraftSpaceUrl}
+            onChange={(e) => setConfluenceDraftSpaceUrl(e.target.value)}
+          />
+          <button
+            type="button"
+            disabled={!confluenceDraftSpaceUrl.trim()}
+            className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700 disabled:opacity-50"
+            onClick={() => {
+              setConfluenceSpaceUrl(teamId, confluenceDraftSpaceUrl)
+              setConfluenceMsg('Space URL saved.')
+            }}
+          >
+            Save space URL
+          </button>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={!hasSyncServer || !confluenceSpaceUrl || confluenceSyncing}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+            onClick={async () => {
+              setConfluenceMsg(null)
+              setConfluenceSyncing(true)
+              try {
+                const result = await runConfluenceSync(teamId)
+                if (!result.ok) {
+                  setConfluenceMsg(`Sync failed: ${result.error}`)
+                  return
                 }
-              }}
-            >
-              {confluenceSyncing ? 'Syncing…' : 'Sync all pages'}
-            </button>
-          </div>
-          {confluencePages.length > 0 ? (
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              {confluencePages.length} page{confluencePages.length !== 1 ? 's' : ''} synced
-              {confluencePages[0]?.lastSyncedAt
-                ? ` · last sync ${new Date(confluencePages[0].lastSyncedAt).toLocaleString()}`
-                : ''}
-            </p>
-          ) : null}
-          {confluenceMsg ? (
-            <p className="text-xs font-medium text-slate-700 dark:text-slate-200">
-              {confluenceMsg}
-            </p>
-          ) : null}
-        </CollapsibleSettingsSection>
-      )}
+                setConfluencePages(teamId, result.pages)
+                setConfluenceMsg(`Synced ${result.pageCount} page${result.pageCount !== 1 ? 's' : ''}.`)
+              } catch (e) {
+                setConfluenceMsg(e instanceof Error ? e.message : 'Sync failed')
+              } finally {
+                setConfluenceSyncing(false)
+              }
+            }}
+          >
+            {confluenceSyncing ? 'Syncing…' : 'Sync all pages'}
+          </button>
+        </div>
+        {confluencePages.length > 0 ? (
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            {confluencePages.length} page{confluencePages.length !== 1 ? 's' : ''} synced
+            {confluencePages[0]?.lastSyncedAt
+              ? ` · last sync ${new Date(confluencePages[0].lastSyncedAt).toLocaleString()}`
+              : ''}
+          </p>
+        ) : null}
+        {confluenceMsg ? (
+          <p className="text-xs font-medium text-slate-700 dark:text-slate-200">
+            {confluenceMsg}
+          </p>
+        ) : null}
+      </CollapsibleSettingsSection>
 
       <CollapsibleSettingsSection
         title="Export & import"
