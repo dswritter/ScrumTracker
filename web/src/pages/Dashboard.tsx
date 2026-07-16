@@ -498,15 +498,23 @@ export function Dashboard() {
     [ctx?.teamMembers],
   )
 
-  /** Most-recently-started sprint = the operationally active one, even if it
-   * has run past its planned end date (no explicit "closed" flag exists).
-   * Updates for this sprint are shown through today, not the nominal end. */
-  const activeSprintId = useMemo(() => {
+  /** Sprints that have started and are not yet superseded by a later-starting
+   * sprint = the operationally active ones, even if past their planned end date
+   * (no explicit "closed" flag exists). Parallel tracks (e.g. CG & RL) can share
+   * the latest start, so this is a set, not a single id. Updates for these
+   * sprints are shown through today, not their nominal end. */
+  const activeSprintIds = useMemo(() => {
     const todayMs = Date.now()
-    const started = sortedSprints.find(
-      (s) => sprintDayStart(s.start).getTime() <= todayMs,
+    const startedStarts = sortedSprints
+      .map((s) => sprintDayStart(s.start).getTime())
+      .filter((ms) => ms <= todayMs)
+    if (startedStarts.length === 0) return new Set<string>()
+    const latestStart = Math.max(...startedStarts)
+    return new Set(
+      sortedSprints
+        .filter((s) => sprintDayStart(s.start).getTime() === latestStart)
+        .map((s) => s.id),
     )
-    return started?.id ?? null
   }, [sortedSprints])
 
   const weeklyCommentRange = useMemo((): WeeklyCardCommentRange | undefined => {
@@ -515,7 +523,7 @@ export function Dashboard() {
     const weekEnd = endOfWeekSunday(mon)
     const sprintStart = sprintDayStart(selectedSprint.start)
     const sprintEnd = sprintDayEnd(selectedSprint.end)
-    const isActive = selectedSprint.id === activeSprintId
+    const isActive = activeSprintIds.has(selectedSprint.id)
 
     const rangeStart =
       mon.getTime() < sprintStart.getTime() ? sprintStart : mon
@@ -530,7 +538,7 @@ export function Dashboard() {
       return { start: sprintStart, end: sprintStart, empty: true }
     }
     return { start: rangeStart, end: rangeEnd }
-  }, [scope.type, selectedSprint, activeSprintId, weeklyWeekKey])
+  }, [scope.type, selectedSprint, activeSprintIds, weeklyWeekKey])
 
   const weeklyCards = useMemo(() => {
     if (!weeklyOpen || !ctx) return []
@@ -566,7 +574,7 @@ export function Dashboard() {
       /** Active (not-yet-closed) sprint: include updates through today even if it
        * ran past its planned end. Closed/past sprints stop at their nominal end. */
       const end =
-        sp.id === activeSprintId ? todayEnd : cap(sprintDayEnd(sp.end))
+        activeSprintIds.has(sp.id) ? todayEnd : cap(sprintDayEnd(sp.end))
       return {
         rangeStart: start,
         rangeEnd: end,
@@ -656,7 +664,7 @@ export function Dashboard() {
       },
       hoverText: 'Download full team report (all sprints to date)',
     }
-  }, [scope, ctx, sortedSprints, activeSprintId])
+  }, [scope, ctx, sortedSprints, activeSprintIds])
 
   /** Cards spanning the full date window of the resolved scope export spec. */
   const scopeExportCards = useMemo(() => {
