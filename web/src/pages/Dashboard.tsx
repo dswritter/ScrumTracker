@@ -298,12 +298,9 @@ export function Dashboard() {
     [ctx, sortedSprints, scope],
   )
 
-  const filteredItems = useMemo(() => {
-    if (!user || actsAsAdmin) return scopedItems
-    return scopedItems.filter((w) =>
-      w.assignees.some((a) => a.trim() === user.displayName.trim()),
-    )
-  }, [scopedItems, user])
+  /** Dashboard charts/table reflect the whole sprint for everyone (members
+   * included) — personal breakdowns live on "My page". */
+  const filteredItems = scopedItems
 
   const counts = countByStatus(filteredItems)
   const done = counts.done
@@ -1059,7 +1056,7 @@ export function Dashboard() {
       <div className="space-y-3">
         <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
           <h3 className="mb-0.5 text-center text-[10px] font-bold uppercase tracking-wide text-[#007a3d] dark:text-emerald-300">
-            {actsAsAdmin ? 'Team progress' : 'My progress'}
+            Team progress
           </h3>
           <MetabuildStatusPie
             data={teamPieSlices}
