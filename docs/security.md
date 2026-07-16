@@ -83,3 +83,15 @@ Optional: a host-run `reset-admin` script for the sole-admin case.
 ### Users
 - No change. Existing PATs re-encrypt automatically on next server start; new
   PATs are encrypted on save.
+
+### Migrating the server to a new host
+The stored PATs can only be decrypted with the same key that encrypted them.
+
+- **Using the auto key file (default, no env var):** the key lives in the hidden
+  file `server/data/.token-key`. When moving hosts, copy the **entire**
+  `server/data/` directory **including the hidden `.token-key`**. If that file is
+  missed (it's a dotfile and the dir is gitignored), the new host generates a new
+  key, the old PATs can't be decrypted, and every user must re-enter their PAT.
+  (Passwords and all other data are unaffected — only PATs are lost.)
+- **Using `SCRUM_TOKEN_KEY`:** just set the same string on the new host; the token
+  files then decrypt without copying any key file.
