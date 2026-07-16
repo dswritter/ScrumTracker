@@ -138,8 +138,21 @@ export function Dashboard() {
 
   const defaultSprintId = useMemo(() => {
     if (sortedSprints.length === 0) return null
-    return getCurrentSprint(sortedSprints)?.id ?? sortedSprints[0].id
-  }, [sortedSprints])
+    const fallback = getCurrentSprint(sortedSprints)?.id ?? sortedSprints[0].id
+    // Members land on the active sprint they actually have items in — not just
+    // the newest team sprint they may not be part of.
+    if (actsAsAdmin || !user) return fallback
+    const myName = user.displayName.trim()
+    const mySprintIds = new Set<string>()
+    for (const w of ctx?.workItems ?? []) {
+      if (w.assignees.some((a) => a.trim() === myName)) {
+        for (const sid of w.sprintIds) mySprintIds.add(sid)
+      }
+    }
+    const mySprints = sortedSprints.filter((s) => mySprintIds.has(s.id))
+    if (mySprints.length === 0) return fallback
+    return getCurrentSprint(mySprints)?.id ?? mySprints[0].id
+  }, [sortedSprints, actsAsAdmin, user, ctx])
 
   const [searchParams, setSearchParams] = useSearchParams()
   const weeklyOpen = searchParams.get('weekly') === '1'
@@ -192,7 +205,7 @@ export function Dashboard() {
     if (sortedSprints.length === 0) return
     const sp = new URLSearchParams(searchParams)
     const hasScope = sp.has('scope')
-    const current = getCurrentSprint(sortedSprints)?.id ?? sortedSprints[0].id
+    const current = defaultSprintId ?? sortedSprints[0].id
 
     if (!hasScope) {
       const sid = sp.get('sprint')
@@ -217,7 +230,7 @@ export function Dashboard() {
         setSearchParams(sp, { replace: true })
       }
     }
-  }, [sortedSprints, searchParams, setSearchParams])
+  }, [sortedSprints, searchParams, setSearchParams, defaultSprintId])
 
   const selectedSprint =
     scope.type === 'sprint'
