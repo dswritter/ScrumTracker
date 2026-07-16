@@ -128,7 +128,6 @@ export function Dashboard() {
 
   const scopeSelectRef = useRef<HTMLSelectElement>(null)
   const weeklySearchInputRef = useRef<HTMLInputElement>(null)
-  const memberWpersonInitialized = useRef(false)
   const weeklyFiltersFromLs = useRef(false)
 
   const sortedSprints = useMemo(() => {
@@ -757,23 +756,6 @@ export function Dashboard() {
     setWProject(f.project)
     setWQuery(f.query)
   }, [storeHydrated])
-
-  useEffect(() => {
-    if (!user || actsAsAdmin || memberWpersonInitialized.current) return
-    if (searchParams.has('wperson')) {
-      memberWpersonInitialized.current = true
-      return
-    }
-    memberWpersonInitialized.current = true
-    const sp = new URLSearchParams(searchParams)
-    sp.set('wperson', user.displayName)
-    setSearchParams(sp, { replace: true })
-    savePersistedWeeklyFilters({
-      person: user.displayName,
-      project: wProject,
-      query: wQuery,
-    })
-  }, [user, searchParams, setSearchParams, wProject, wQuery])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
