@@ -383,7 +383,9 @@ export function ReportExportMenu({
   )
 }
 
-const COLLAPSE_WHEN_TASKS_GTE = 4
+/** Show the collapse control when a card's estimated content is tall enough,
+ * regardless of how many tasks make it up (one long update should collapse too). */
+const COLLAPSE_WHEN_HEIGHT_GTE = 420
 
 function filterWeeklyCards(
   source: WeeklyProgressCard[],
@@ -539,23 +541,30 @@ export function WeeklyProgressPanel({
   ])
 
   const bundlesOrderedForDisplay = useMemo(() => {
+    const moveToFront = (nameLower: string) => {
+      const head = bundlesForColumns.filter(
+        (b) => b.personName.trim().toLowerCase() === nameLower,
+      )
+      if (head.length === 0) return bundlesForColumns
+      const tail = bundlesForColumns.filter(
+        (b) => b.personName.trim().toLowerCase() !== nameLower,
+      )
+      return [...head, ...tail]
+    }
+    // An explicit pin (Done % chart / admin click) wins; otherwise surface the
+    // current viewer's own card at the top.
     const pin = assigneeChartPinFullName?.trim()
-    if (!pin) return bundlesForColumns
-    const pl = pin.toLowerCase()
-    const hit = bundlesForColumns.some(
-      (b) => b.personName.trim().toLowerCase() === pl,
-    )
-    if (!hit) return bundlesForColumns
-    const head = bundlesForColumns.filter((b) => b.personName.trim().toLowerCase() === pl)
-    const tail = bundlesForColumns.filter((b) => b.personName.trim().toLowerCase() !== pl)
-    return [...head, ...tail]
-  }, [bundlesForColumns, assigneeChartPinFullName])
+    if (pin) return moveToFront(pin.toLowerCase())
+    const me = viewerDisplayName?.trim().toLowerCase()
+    if (me) return moveToFront(me)
+    return bundlesForColumns
+  }, [bundlesForColumns, assigneeChartPinFullName, viewerDisplayName])
 
   useEffect(() => {
     // When the pin changes, keep all cards expanded.
     // The pin's job is to reorder (move pinned person to top) and scroll to them,
-    // not to collapse others — cards with fewer than COLLAPSE_WHEN_TASKS_GTE tasks
-    // have no visible toggle, so collapsing them silently hides task content.
+    // not to collapse others — short cards have no visible toggle, so collapsing
+    // them silently hides task content.
     setPersonExpand({})
   }, [assigneeChartPinFullName])
 
@@ -808,7 +817,13 @@ export function WeeklyProgressPanel({
                     [b.id]: !expanded,
                   }))
                 }
-                const showToggle = b.tasks.length >= COLLAPSE_WHEN_TASKS_GTE
+                const showToggle =
+                  estimateBundleHeight(
+                    b,
+                    miscLineCountByPerson.get(
+                      b.personName.trim().toLowerCase(),
+                    ) ?? 0,
+                  ) >= COLLAPSE_WHEN_HEIGHT_GTE
                 const roster = teamMembersForMisc ?? []
                 const canonicalName = rosterCasePreservingName(
                   b.personName,
