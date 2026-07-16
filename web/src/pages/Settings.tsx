@@ -10,6 +10,8 @@ import { pushTrackerSnapshotNow } from '../lib/pushTrackerSnapshotNow'
 import { runJiraSyncFromStore } from '../lib/runJiraSync'
 import { isTrackerSyncEnabled } from '../lib/syncConfigured'
 import { defaultJiraSyncTrackerSprintId } from '../lib/sdates'
+import { isAdmin, isUpperManagement } from '../lib/permissions'
+import { useAuthStore } from '../store/useAuthStore'
 import { useTrackerStore } from '../store/useTrackerStore'
 
 function MemberIdentityEditor({
@@ -142,6 +144,8 @@ export function Settings() {
   const location = useLocation()
   const user = useCurrentUser()
   const ctx = useTeamContextNullable()
+  const viewingTeamId = useAuthStore((s) => s.viewingTeamId)
+  const canAdmin = isAdmin(user) || (isUpperManagement(user) && !!viewingTeamId)
   const teamId = ctx?.teamId ?? ''
   const teamName = ctx?.teamName ?? ''
 
@@ -332,30 +336,31 @@ export function Settings() {
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-3">
-      <CollapsibleSettingsSection
-        title="Team name"
-        subtitle="Display name for this workspace"
-        defaultOpen
-      >
-        <div className="flex flex-wrap gap-2">
-          <input
-            className={`max-w-md flex-1 ${field}`}
-            value={newTeamName}
-            onChange={(e) => setNewTeamName(e.target.value)}
-          />
-          <button
-            type="button"
-            className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
-            onClick={() => {
-              setTeamName(teamId, newTeamName)
-            }}
-          >
-            Save
-          </button>
-        </div>
-      </CollapsibleSettingsSection>
+      {canAdmin && (
+        <CollapsibleSettingsSection
+          title="Team name"
+          subtitle="Display name for this workspace"
+        >
+          <div className="flex flex-wrap gap-2">
+            <input
+              className={`max-w-md flex-1 ${field}`}
+              value={newTeamName}
+              onChange={(e) => setNewTeamName(e.target.value)}
+            />
+            <button
+              type="button"
+              className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+              onClick={() => {
+                setTeamName(teamId, newTeamName)
+              }}
+            >
+              Save
+            </button>
+          </div>
+        </CollapsibleSettingsSection>
+      )}
 
-      {joinCode && (
+      {canAdmin && joinCode && (
         <CollapsibleSettingsSection
           title="Team join code"
           subtitle="Share this code with a manager/director to link this team to their org scope"
@@ -378,6 +383,7 @@ export function Settings() {
         </CollapsibleSettingsSection>
       )}
 
+      {canAdmin && (
       <CollapsibleSettingsSection
         title="Accounts & roster"
         subtitle="Create logins, Slack URLs, roles, temporary passwords"
@@ -629,23 +635,28 @@ export function Settings() {
         </ul>
         </div>
       </CollapsibleSettingsSection>
+      )}
 
       <CollapsibleSettingsSection
         id="jira-integration"
         title="Jira integration"
-        subtitle="Base URL, JQL, PAT on server, sync"
+        subtitle={canAdmin ? 'Base URL, JQL, PAT on server, sync' : 'Your PAT on server, sync'}
         openWhenHash="#jira-integration"
       >
-        <p className="text-xs text-slate-600 dark:text-slate-300">
-          Keys on work items open as <span className="font-mono">base + KEY</span>
-          .
-        </p>
-        <input
-          className={field}
-          value={jiraBaseUrl}
-          onChange={(e) => setJiraBaseUrl(teamId, e.target.value)}
-          placeholder="https://jira.example.com/browse/"
-        />
+        {canAdmin && (
+          <>
+            <p className="text-xs text-slate-600 dark:text-slate-300">
+              Keys on work items open as{' '}
+              <span className="font-mono">base + KEY</span>.
+            </p>
+            <input
+              className={field}
+              value={jiraBaseUrl}
+              onChange={(e) => setJiraBaseUrl(teamId, e.target.value)}
+              placeholder="https://jira.example.com/browse/"
+            />
+          </>
+        )}
         <p className="text-xs text-slate-600 dark:text-slate-300">
           PAT and sync run on the <strong>Node server</strong> only (not in the
           browser). Production builds use{' '}
@@ -671,54 +682,58 @@ export function Settings() {
             reach the server.
           </p>
         ) : null}
-        <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200">
-          JQL (issues to import)
-        </label>
-        <textarea
-          className={`${field} min-h-[72px] font-mono text-xs`}
-          placeholder='e.g. project = CTCACE AND sprint in openSprints()'
-          value={jiraDraftJql}
-          onChange={(e) => setJiraDraftJql(e.target.value)}
-        />
-        <button
-          type="button"
-          className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
-          onClick={() => {
-            setJiraSyncJql(teamId, jiraDraftJql)
-            setJiraMsg('JQL saved for this team.')
-          }}
-        >
-          Save JQL
-        </button>
-        <label className="mt-2 block text-xs font-semibold text-slate-700 dark:text-slate-200">
-          Jira Sprint field id (optional)
-        </label>
-        <p className="text-xs text-slate-600 dark:text-slate-300">
-          Custom field id for the Sprint field (e.g.{' '}
-          <code className="rounded bg-slate-100 px-1 dark:bg-slate-800">
-            customfield_11002
-          </code>
-          ). Leave
-          empty to skip sprint mapping. Find it in Jira issue JSON or Fields admin.
-        </p>
-        <div className="flex flex-wrap items-end gap-2">
-          <input
-            className={`${field} max-w-md font-mono text-xs`}
-            placeholder="customfield_11002"
-            value={jiraDraftSprintField}
-            onChange={(e) => setJiraDraftSprintField(e.target.value)}
-          />
-          <button
-            type="button"
-            className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
-            onClick={() => {
-              setJiraSprintFieldId(teamId, jiraDraftSprintField)
-              setJiraMsg('Sprint field id saved. Re-run Jira sync to apply.')
-            }}
-          >
-            Save sprint field
-          </button>
-        </div>
+        {canAdmin && (
+          <>
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200">
+              JQL (issues to import)
+            </label>
+            <textarea
+              className={`${field} min-h-[72px] font-mono text-xs`}
+              placeholder='e.g. project = CTCACE AND sprint in openSprints()'
+              value={jiraDraftJql}
+              onChange={(e) => setJiraDraftJql(e.target.value)}
+            />
+            <button
+              type="button"
+              className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+              onClick={() => {
+                setJiraSyncJql(teamId, jiraDraftJql)
+                setJiraMsg('JQL saved for this team.')
+              }}
+            >
+              Save JQL
+            </button>
+            <label className="mt-2 block text-xs font-semibold text-slate-700 dark:text-slate-200">
+              Jira Sprint field id (optional)
+            </label>
+            <p className="text-xs text-slate-600 dark:text-slate-300">
+              Custom field id for the Sprint field (e.g.{' '}
+              <code className="rounded bg-slate-100 px-1 dark:bg-slate-800">
+                customfield_11002
+              </code>
+              ). Leave empty to skip sprint mapping. Find it in Jira issue JSON
+              or Fields admin.
+            </p>
+            <div className="flex flex-wrap items-end gap-2">
+              <input
+                className={`${field} max-w-md font-mono text-xs`}
+                placeholder="customfield_11002"
+                value={jiraDraftSprintField}
+                onChange={(e) => setJiraDraftSprintField(e.target.value)}
+              />
+              <button
+                type="button"
+                className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+                onClick={() => {
+                  setJiraSprintFieldId(teamId, jiraDraftSprintField)
+                  setJiraMsg('Sprint field id saved. Re-run Jira sync to apply.')
+                }}
+              >
+                Save sprint field
+              </button>
+            </div>
+          </>
+        )}
         <div className="grid gap-2 sm:grid-cols-2">
           <input
             type="password"
@@ -932,6 +947,7 @@ export function Settings() {
         ) : null}
       </CollapsibleSettingsSection>
 
+      {canAdmin && (
       <CollapsibleSettingsSection
         title="Export & import"
         subtitle="Full JSON backup / restore (includes passwords)"
@@ -978,6 +994,7 @@ export function Settings() {
           </p>
         ) : null}
       </CollapsibleSettingsSection>
+      )}
 
       <CollapsibleSettingsSection
         title="Your password"

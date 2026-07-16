@@ -41,10 +41,10 @@ export default function App() {
             <Route path="kb/:pageId" element={<KnowledgeBase />} />
             <Route path="kb" element={<KnowledgeBase />} />
             <Route path="people/:personName" element={<PersonDetail />} />
+            <Route path="settings" element={<Settings />} />
             <Route element={<AdminRoute />}>
               <Route path="people" element={<People />} />
               <Route path="matrix" element={<Matrix />} />
-              <Route path="settings" element={<Settings />} />
             </Route>
             <Route element={<UpperManagementRoute />}>
               <Route path="overview" element={<OverviewDashboard />} />
