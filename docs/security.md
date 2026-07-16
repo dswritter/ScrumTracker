@@ -55,6 +55,9 @@ short-lived, scoped, revocable tokens.
 - Blocked today by: SSO-managed enterprise account + no stable HTTPS endpoint.
 - Requires: Jira/Confluence admin to provision an OAuth app / Application Link
   (these are on-prem Data Center hosts), and a stable HTTPS callback URL.
+- **When implementing this (or any other move off the local key-file approach),
+  delete the `[TOKEN-KEY-NOTE]` block in `automation/start-all.ps1`** — it will
+  no longer apply.
 
 ### 3. Blast-radius controls (cheap, do anytime)
 - Enforce short PAT **expiry** (refuse no-expiry tokens; auto-purge expired).

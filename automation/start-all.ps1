@@ -1,4 +1,23 @@
 #requires -Version 5.1
+
+# ============================ [TOKEN-KEY-NOTE] ============================
+# MIGRATION / NEW-HOST SETUP — READ BEFORE MOVING THIS APP TO ANOTHER MACHINE
+#
+# When copying ScrumTracker to a new host, copy the ENTIRE `server/data/`
+# folder INCLUDING the hidden file `server/data/.token-key`.
+#
+# Why: `.token-key` is the AES-256 key that decrypts each user's stored Jira &
+# Confluence Personal Access Tokens (PATs). It is a HIDDEN dotfile and the data
+# dir is gitignored, so ordinary copies can miss it. If it is not carried over,
+# the new host generates a fresh key, the old PATs can no longer be decrypted,
+# and every user must re-enter their PAT. (Passwords and all other data are
+# unaffected — only PATs are lost.)
+#
+# REMOVE THIS NOTE if PAT storage moves off the local key-file approach
+# (e.g. SCRUM_TOKEN_KEY set everywhere, OAuth, or an external secrets manager).
+# See docs/security.md.
+# =========================== [/TOKEN-KEY-NOTE] ===========================
+
 [CmdletBinding()]
 param(
     # Repo root (folder that contains server/, web/). Omit to infer parent of this script's folder.
