@@ -232,6 +232,23 @@ function commentTableDocx(
   })
 }
 
+/** jsPDF's built-in fonts are Latin-1 only, so common Unicode punctuation
+ * (arrows, dashes, curly quotes) renders as garbage. Fold those to ASCII for
+ * the PDF renderer. UI and DOCX handle Unicode fine and don't use this. */
+const PDF_CHAR_MAP: Record<string, string> = {
+  '→': '->', '⇒': '=>', '←': '<-', '↔': '<->',
+  '—': '-', '–': '-', '−': '-',
+  '‘': "'", '’': "'", '“': '"', '”': '"',
+  '…': '...', '×': 'x', '≥': '>=', '≤': '<=', '≠': '!=',
+  '✓': '[x]', '✔': '[x]', '™': '(TM)', '®': '(R)', '©': '(C)',
+}
+function pdfSafe(s: string): string {
+  return s.replace(
+    /[→⇒←↔—–−''""…×≥≤≠✓✔™®©]/g,
+    (c) => PDF_CHAR_MAP[c] ?? c,
+  )
+}
+
 function bulletTreeToPdfLines(nodes: BulletTreeNode[], depth: number): string[] {
   const lines: string[] = []
   for (const n of nodes) {
@@ -638,7 +655,7 @@ export function downloadWeeklyProgressPdf(
     doc.setFontSize(size)
     if (opts?.bold) doc.setFont('helvetica', 'bold')
     else doc.setFont('helvetica', 'normal')
-    const lines = doc.splitTextToSize(text, maxW) as string[]
+    const lines = doc.splitTextToSize(pdfSafe(text), maxW) as string[]
     for (const line of lines) {
       ensureSpace(lineH)
       doc.setTextColor(0, 0, 0)
@@ -663,7 +680,7 @@ export function downloadWeeklyProgressPdf(
       doc.setFontSize(s.size)
       doc.setFont('helvetica', s.bold ? 'bold' : 'normal')
       const w = Math.max(40, innerW - s.indent)
-      const split = doc.splitTextToSize(s.text, w) as string[]
+      const split = doc.splitTextToSize(pdfSafe(s.text), w) as string[]
       for (const line of split) {
         flat.push({
           text: line,
@@ -676,6 +693,16 @@ export function downloadWeeklyProgressPdf(
       }
     }
     if (flat.length === 0) return
+
+    /** Keep a person's card contiguous: if it doesn't fit in the space left on
+     * this page but WOULD fit on a fresh page, start it on the next page instead
+     * of splitting it (which previously orphaned lines like a wrapped title). */
+    const totalH = flat.length * lineH + padV * 2 + 8
+    const pageContentH = pageH - 2 * margin
+    if (y + totalH > pageH - margin && totalH <= pageContentH) {
+      doc.addPage()
+      y = margin
+    }
 
     /** Walk the line buffer one page-fitting chunk at a time. For each chunk we
      * paint the colored background to exactly cover its lines, then render the
@@ -833,7 +860,7 @@ export function downloadWeeklyProgressPdf(
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(0, 0, 0)
   const titleLines = doc.splitTextToSize(
-    meta.reportTitle || 'Weekly progress report',
+    pdfSafe(meta.reportTitle || 'Weekly progress report'),
     titleMaxW,
   ) as string[]
   let yTitle = margin + 14

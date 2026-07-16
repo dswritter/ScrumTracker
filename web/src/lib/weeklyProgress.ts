@@ -43,7 +43,12 @@ export function isCommentTable(
  * skipped because its `-text-` form collides too easily with hyphens in real text. */
 function stripWikiInline(s: string): string {
   let r = s
-  r = r.replace(/\{\{([^}]+)\}\}/g, '$1')
+  // Jira "escaped monospace" triple-brace form: {{{}text{}}}
+  r = r.replace(/\{\{\{\}/g, '').replace(/\{\}\}\}/g, '')
+  // Monospace {{text}}
+  r = r.replace(/\{\{([^}]*)\}\}/g, '$1')
+  // Any stray double braces left over.
+  r = r.replace(/\{\{|\}\}/g, '')
   r = r.replace(/\*([^*\n]+)\*/g, '$1')
   r = r.replace(/_([^_\n]+)_/g, '$1')
   r = r.replace(/\+([^+\n]+)\+/g, '$1')
@@ -308,17 +313,17 @@ export function bulletLinesFromBody(body: string): CommentBulletLine[] {
     const wiki = t.match(/^(\*+)\s+(.*)$/)
     if (wiki && wiki[1] && wiki[2] !== undefined) {
       const depth = Math.max(0, wiki[1].length - 1)
-      out.push({ depth, text: wiki[2].trim() })
+      out.push({ depth, text: stripWikiInline(wiki[2].trim()) })
       continue
     }
     const m = trimmedEnd.match(/^(\s*)([•]|[*\-]|\d+\.)\s+(.*)$/)
     if (m && m[3] !== undefined) {
       const indent = (m[1] || '').replace(/\t/g, '  ')
       const depth = Math.min(12, Math.floor(indent.length / 2))
-      out.push({ depth, text: m[3].trim() })
+      out.push({ depth, text: stripWikiInline(m[3].trim()) })
       continue
     }
-    out.push({ depth: 0, text: t })
+    out.push({ depth: 0, text: stripWikiInline(t) })
   }
   flushTable()
   if (out.length === 0) return [{ depth: 0, text: '(empty)' }]
