@@ -11,7 +11,7 @@
 import fs from 'fs'
 import path from 'path'
 import { readTrackerStore } from './splitJsonStore.mjs'
-import { decryptSecret, encryptSecret } from './tokenCrypto.mjs'
+import { decryptSecret, encryptSecret, isEncrypted } from './tokenCrypto.mjs'
 
 const TOKEN_FILE = 'confluence-tokens.json'
 
@@ -262,6 +262,18 @@ function bumpRev(dataDir) {
 }
 
 export function registerConfluenceRoutes(app, dataDir, broadcastRevFn) {
+  // One-time upgrade of a pre-existing plaintext token to encrypted at rest.
+  try {
+    const raw = fs.readFileSync(tokenPath(dataDir), 'utf8')
+    const o = JSON.parse(raw)
+    if (typeof o.token === 'string' && o.token && !isEncrypted(o.token)) {
+      writeToken(dataDir, o.token, o.baseUrl || 'https://wiki.corp.adobe.com')
+      console.log('[confluence] migrated token to encrypted-at-rest')
+    }
+  } catch {
+    // no token file yet, or unreadable — nothing to migrate
+  }
+
   // Save PAT
   app.post('/api/confluence/token', (req, res) => {
     const token = req.body?.token

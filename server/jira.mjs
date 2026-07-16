@@ -3,7 +3,7 @@
  */
 import fs from 'fs'
 import path from 'path'
-import { decryptSecret, encryptSecret } from './tokenCrypto.mjs'
+import { decryptSecret, encryptSecret, isEncrypted } from './tokenCrypto.mjs'
 
 /** @typedef {{ token: string, createdAt: string, expiresAt: string | null, isActive: boolean }} JiraTokenRow */
 
@@ -1133,6 +1133,35 @@ export function registerJiraRoutes(app, opts) {
     }
     writeJsonFile(userTokenFile, { ...store, users })
   }
+
+  /** One-time upgrade of any pre-existing plaintext tokens to encrypted at rest.
+   * Only writes when plaintext is actually found, so it's a cheap no-op afterward. */
+  function migrateTokensAtRest() {
+    try {
+      const t = readJsonFile(tokenFile, { tokens: [] })
+      const teamTokens = Array.isArray(t.tokens) ? t.tokens : []
+      if (teamTokens.some((r) => r && r.token && !isEncrypted(r.token))) {
+        writeTokenStore(readTokenStore())
+        console.log('[jira] migrated team token(s) to encrypted-at-rest')
+      }
+      const u = readJsonFile(userTokenFile, { users: {} })
+      const userRows = u.users && typeof u.users === 'object' ? u.users : {}
+      if (
+        Object.values(userRows).some(
+          (r) => r && r.token && !isEncrypted(r.token),
+        )
+      ) {
+        writeUserTokenStore(readUserTokenStore())
+        console.log('[jira] migrated user token(s) to encrypted-at-rest')
+      }
+    } catch (e) {
+      console.warn(
+        '[jira] token at-rest migration skipped:',
+        e instanceof Error ? e.message : e,
+      )
+    }
+  }
+  migrateTokensAtRest()
 
   function getActiveUserToken(username) {
     const u = normalizeTrackerUsername(username)
