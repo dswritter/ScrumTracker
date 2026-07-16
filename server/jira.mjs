@@ -3,6 +3,7 @@
  */
 import fs from 'fs'
 import path from 'path'
+import { decryptSecret, encryptSecret } from './tokenCrypto.mjs'
 
 /** @typedef {{ token: string, createdAt: string, expiresAt: string | null, isActive: boolean }} JiraTokenRow */
 
@@ -17,7 +18,13 @@ function readJsonFile(file, fallback) {
 
 function writeJsonFile(file, data) {
   fs.mkdirSync(path.dirname(file), { recursive: true })
-  fs.writeFileSync(file, JSON.stringify(data, null, 2), 'utf8')
+  // Token stores only — keep them owner-readable at rest.
+  fs.writeFileSync(file, JSON.stringify(data, null, 2), { encoding: 'utf8', mode: 0o600 })
+  try {
+    fs.chmodSync(file, 0o600)
+  } catch {
+    // best effort (e.g. Windows)
+  }
 }
 
 function daysBetween(a, b) {
@@ -1050,13 +1057,21 @@ export function registerJiraRoutes(app, opts) {
 
   function readTokenStore() {
     const o = readJsonFile(tokenFile, { tokens: [] })
-    return {
-      tokens: Array.isArray(o.tokens) ? o.tokens : [],
-    }
+    const tokens = (Array.isArray(o.tokens) ? o.tokens : []).map((t) =>
+      t && t.token
+        ? { ...t, token: decryptSecret(t.token, dataDir) }
+        : t,
+    )
+    return { tokens }
   }
 
   function writeTokenStore(store) {
-    writeJsonFile(tokenFile, store)
+    const tokens = (Array.isArray(store.tokens) ? store.tokens : []).map((t) =>
+      t && t.token
+        ? { ...t, token: encryptSecret(t.token, dataDir) }
+        : t,
+    )
+    writeJsonFile(tokenFile, { ...store, tokens })
   }
 
   function getActiveToken() {
@@ -1096,12 +1111,27 @@ export function registerJiraRoutes(app, opts) {
 
   function readUserTokenStore() {
     const o = readJsonFile(userTokenFile, { users: {} })
-    const users = o.users && typeof o.users === 'object' ? o.users : {}
+    const raw = o.users && typeof o.users === 'object' ? o.users : {}
+    const users = {}
+    for (const [k, row] of Object.entries(raw)) {
+      users[k] =
+        row && row.token
+          ? { ...row, token: decryptSecret(row.token, dataDir) }
+          : row
+    }
     return { users }
   }
 
   function writeUserTokenStore(store) {
-    writeJsonFile(userTokenFile, store)
+    const raw = store.users && typeof store.users === 'object' ? store.users : {}
+    const users = {}
+    for (const [k, row] of Object.entries(raw)) {
+      users[k] =
+        row && row.token
+          ? { ...row, token: encryptSecret(row.token, dataDir) }
+          : row
+    }
+    writeJsonFile(userTokenFile, { ...store, users })
   }
 
   function getActiveUserToken(username) {

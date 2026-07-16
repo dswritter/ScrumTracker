@@ -11,6 +11,7 @@
 import fs from 'fs'
 import path from 'path'
 import { readTrackerStore } from './splitJsonStore.mjs'
+import { decryptSecret, encryptSecret } from './tokenCrypto.mjs'
 
 const TOKEN_FILE = 'confluence-tokens.json'
 
@@ -27,8 +28,10 @@ function readToken(dataDir) {
     const raw = fs.readFileSync(tokenPath(dataDir), 'utf8')
     const o = JSON.parse(raw)
     if (typeof o.token !== 'string' || !o.token) return null
+    const token = decryptSecret(o.token, dataDir)
+    if (!token) return null
     return {
-      token: o.token,
+      token,
       baseUrl: typeof o.baseUrl === 'string' ? o.baseUrl.replace(/\/$/, '') : 'https://wiki.corp.adobe.com',
     }
   } catch {
@@ -39,8 +42,18 @@ function readToken(dataDir) {
 function writeToken(dataDir, token, baseUrl) {
   fs.mkdirSync(dataDir, { recursive: true })
   const tmp = tokenPath(dataDir) + `.${process.pid}.${Date.now()}.tmp`
-  fs.writeFileSync(tmp, JSON.stringify({ token, baseUrl }, null, 2), 'utf8')
+  const body = JSON.stringify(
+    { token: encryptSecret(token, dataDir), baseUrl },
+    null,
+    2,
+  )
+  fs.writeFileSync(tmp, body, { encoding: 'utf8', mode: 0o600 })
   fs.renameSync(tmp, tokenPath(dataDir))
+  try {
+    fs.chmodSync(tokenPath(dataDir), 0o600)
+  } catch {
+    // best effort (e.g. Windows)
+  }
 }
 
 // ---------------------------------------------------------------------------
