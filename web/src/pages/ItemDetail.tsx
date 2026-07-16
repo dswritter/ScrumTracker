@@ -208,7 +208,7 @@ export function ItemDetail() {
           </h1>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2 gap-y-2">
-          {!readOnly && canEditWorkItem(user, item) ? (
+          {!readOnly && canEditWorkItem(user, item) && item.jiraKeys.length === 0 ? (
             <label className="inline-flex items-center gap-1.5">
               <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                 Status
@@ -221,11 +221,6 @@ export function ItemDetail() {
                     status: e.target.value as WorkStatus,
                   })
                 }
-                title={
-                  item.jiraKeys.length > 0
-                    ? 'Note: a Jira-linked item may be overwritten on the next sync.'
-                    : undefined
-                }
               >
                 {WORK_STATUSES.map((s) => (
                   <option key={s} value={s}>
@@ -237,6 +232,14 @@ export function ItemDetail() {
           ) : (
             <StatusBadge status={item.status} />
           )}
+          {item.jiraKeys.length > 0 ? (
+            <span
+              className="text-[10px] text-slate-400 dark:text-slate-500"
+              title="Status follows the linked Jira issue and updates on sync (e.g. auto-closes when Jira is closed)."
+            >
+              (status from Jira)
+            </span>
+          ) : null}
           {item.section ? (
             <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
               {item.section}
