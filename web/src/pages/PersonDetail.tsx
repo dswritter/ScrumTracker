@@ -44,8 +44,18 @@ export function PersonDetail() {
 
   const defaultSprintId = useMemo(() => {
     if (sortedSprints.length === 0) return null
-    return getCurrentSprint(sortedSprints)?.id ?? sortedSprints[0]?.id ?? null
-  }, [sortedSprints])
+    const fallback =
+      getCurrentSprint(sortedSprints)?.id ?? sortedSprints[0]?.id ?? null
+    // Default to the active sprint this person actually has items in — not just
+    // the newest team sprint they may not be part of.
+    const mySprintIds = new Set<string>()
+    for (const w of itemsForAssignee(name, ctx?.workItems ?? [])) {
+      for (const sid of w.sprintIds) mySprintIds.add(sid)
+    }
+    const mySprints = sortedSprints.filter((s) => mySprintIds.has(s.id))
+    if (mySprints.length === 0) return fallback
+    return getCurrentSprint(mySprints)?.id ?? mySprints[0].id
+  }, [sortedSprints, name, ctx?.workItems])
 
   const scope = useMemo(
     () =>
