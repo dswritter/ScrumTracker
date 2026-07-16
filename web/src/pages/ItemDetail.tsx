@@ -24,8 +24,19 @@ import { otherItemsSharingAssignees } from '../lib/stats'
 import { dedupeWorkCommentsForDisplay } from '../lib/dedupeWorkComments'
 import { postTrackerCommentToJiraIfRequested } from '../lib/submitCommentToJira'
 import { isTrackerSyncEnabled } from '../lib/syncConfigured'
+import { workStatusLabel } from '../lib/weeklyProgress'
 import { useTrackerStore } from '../store/useTrackerStore'
-import type { Sprint, WorkComment } from '../types'
+import type { Sprint, WorkComment, WorkStatus } from '../types'
+
+const WORK_STATUSES: WorkStatus[] = [
+  'todo',
+  'in_progress',
+  'to_test',
+  'to_track',
+  'ready_for_prod',
+  'blocked',
+  'done',
+]
 
 function jiraHref(base: string, key: string): string {
   const b = base.trim().replace(/\/$/, '')
@@ -127,6 +138,26 @@ export function ItemDetail() {
   const teamId = ctx.teamId
   const { sprints, jiraBaseUrl } = ctx
 
+  const submitComment = () => {
+    const t = draft.trim()
+    if (!t || !user) return
+    const newId = addComment(teamId, item.id, commentAuthorLabel(user), t)
+    setDraft('')
+    if (!newId) return
+    const issueKey =
+      jiraKeysTrim.length === 1 ? jiraKeysTrim[0] : selectedIssueKey.trim()
+    void postTrackerCommentToJiraIfRequested({
+      newCommentId: newId,
+      bodyPlain: t,
+      alsoToJira: syncJira && jiraKeysTrim.length > 0 && alsoToJira,
+      issueKey,
+      teamId,
+      itemId: item.id,
+      user,
+      retagCommentWithJiraId,
+    })
+  }
+
   return (
     <div className="space-y-8 pb-16">
       {readOnly ? (
@@ -177,7 +208,35 @@ export function ItemDetail() {
           </h1>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2 gap-y-2">
-          <StatusBadge status={item.status} />
+          {!readOnly && canEditWorkItem(user, item) ? (
+            <label className="inline-flex items-center gap-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Status
+              </span>
+              <select
+                className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-900 shadow-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                value={item.status}
+                onChange={(e) =>
+                  updateWorkItem(teamId, item.id, {
+                    status: e.target.value as WorkStatus,
+                  })
+                }
+                title={
+                  item.jiraKeys.length > 0
+                    ? 'Note: a Jira-linked item may be overwritten on the next sync.'
+                    : undefined
+                }
+              >
+                {WORK_STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {workStatusLabel(s)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <StatusBadge status={item.status} />
+          )}
           {item.section ? (
             <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
               {item.section}
@@ -326,11 +385,17 @@ export function ItemDetail() {
               className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
               rows={3}
               value={draft}
-              placeholder="Write an update…"
+              placeholder="Write an update… (Shift+Enter to post)"
               onChange={(e) => {
                 const v = e.target.value
                 setDraft(v)
                 if (!v.trim()) setAlsoToJira(false)
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && e.shiftKey) {
+                  e.preventDefault()
+                  submitComment()
+                }
               }}
             />
             {syncJira && jiraKeysTrim.length > 0 && draft.trim().length > 0 ? (
@@ -346,32 +411,7 @@ export function ItemDetail() {
               <button
                 type="button"
                 className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-indigo-700"
-                onClick={() => {
-                  const t = draft.trim()
-                  if (!t || !user) return
-                  const newId = addComment(
-                    teamId,
-                    item.id,
-                    commentAuthorLabel(user),
-                    t,
-                  )
-                  setDraft('')
-                  if (!newId) return
-                  const issueKey =
-                    jiraKeysTrim.length === 1
-                      ? jiraKeysTrim[0]
-                      : selectedIssueKey.trim()
-                  void postTrackerCommentToJiraIfRequested({
-                    newCommentId: newId,
-                    bodyPlain: t,
-                    alsoToJira: syncJira && jiraKeysTrim.length > 0 && alsoToJira,
-                    issueKey,
-                    teamId,
-                    itemId: item.id,
-                    user,
-                    retagCommentWithJiraId,
-                  })
-                }}
+                onClick={submitComment}
               >
                 Add comment
               </button>
