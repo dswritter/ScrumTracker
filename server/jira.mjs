@@ -1636,8 +1636,9 @@ export function registerJiraRoutes(app, opts) {
     if (description) {
       fields.description = description
     }
+    const reservedFields = new Set(['project', 'summary', 'issuetype', 'description', 'reporter'])
     for (const [k, v] of Object.entries(rawCustomFields)) {
-      if (typeof k === 'string' && k.startsWith('customfield_') && v != null) {
+      if (typeof k === 'string' && !reservedFields.has(k) && v != null) {
         fields[k] = v
       }
     }
