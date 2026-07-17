@@ -40,6 +40,13 @@ function hasJiraResolvedStamp(comments, issueKey) {
   return (comments || []).some((c) => c && c.id === id)
 }
 
+/** Drop the synthetic "Jira closed" stamp — used when an issue is reopened so
+ * the tracker stops showing it as closed on every subsequent sync. */
+function removeJiraResolvedStamp(comments, issueKey) {
+  const id = `jira-sys-resolved-${issueKey}`
+  return (comments || []).filter((c) => !(c && c.id === id))
+}
+
 /** When Jira moves to done/resolved, add a dated line so weekly view shows it even with no comments. */
 function appendJiraResolvedStamp(comments, issueKey, _statusName, resolutionOrUpdatedIso) {
   const id = `jira-sys-resolved-${issueKey}`
@@ -753,16 +760,16 @@ function upsertWorkItemFromIssue(
       key,
     )
     const resTs = resolutionTimestampFromFields(fields)
-    if (
-      trackerReachedDone(w.status, status) &&
-      !hasJiraResolvedStamp(comments, key)
-    ) {
-      comments = appendJiraResolvedStamp(
-        comments,
-        key,
-        statusName,
-        resTs,
-      )
+    if (status === 'done') {
+      if (
+        trackerReachedDone(w.status, status) &&
+        !hasJiraResolvedStamp(comments, key)
+      ) {
+        comments = appendJiraResolvedStamp(comments, key, statusName, resTs)
+      }
+    } else if (hasJiraResolvedStamp(comments, key)) {
+      /** Issue was reopened / moved out of done — drop the stale closed stamp. */
+      comments = removeJiraResolvedStamp(comments, key)
     }
     const sprintIds = mergeSprintIds(w.sprintIds, jiraSprintIds, syncSprintsFromJira)
     const next = {
