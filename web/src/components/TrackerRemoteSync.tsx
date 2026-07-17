@@ -124,14 +124,17 @@ export function TrackerRemoteSync() {
       }
     }
 
-    const pullOnce = async () => {
+    const pullOnce = async (force = false) => {
       if (cancelled) return
       if (pendingReconnectFlush && !applyingRemote) {
         await flushLocalSnapshotNow()
       }
       try {
+        /** On the first load we reconcile with the server unconditionally so a
+         * refresh reflects server truth, not a possibly-stale localStorage cache
+         * (rev can match while the cache lags). */
         const inm =
-          lastRev > 0
+          !force && lastRev > 0
             ? ({ 'If-None-Match': `"${lastRev}"` } as Record<string, string>)
             : undefined
         const res = await syncFetch('/api/tracker', {
@@ -162,7 +165,7 @@ export function TrackerRemoteSync() {
         if (cancelled) return
         const rev = typeof data.rev === 'number' ? data.rev : 0
         if (rev < lastRev) return
-        if (rev === lastRev) return
+        if (rev === lastRev && !force) return
         lastRev = rev
         writePersistedTrackerServerRev(lastRev)
         if (data.snapshot && data.snapshot.length >= 20) {
@@ -184,11 +187,11 @@ export function TrackerRemoteSync() {
       }
     }
 
-    const pullOnceSafe = async () => {
+    const pullOnceSafe = async (force = false) => {
       if (pulling) return
       pulling = true
       try {
-        await pullOnce()
+        await pullOnce(force)
       } finally {
         pulling = false
       }
@@ -284,7 +287,7 @@ export function TrackerRemoteSync() {
     ;(async () => {
       await waitHydrate()
       if (cancelled) return
-      await pullOnceSafe()
+      await pullOnceSafe(true)
       if (cancelled) return
       schedulePush()
       connectWebSocket()
